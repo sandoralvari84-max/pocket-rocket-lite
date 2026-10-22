@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "expo": "^54.0.0",
+    "expo-file-system": "~19.0.24",
     "expo-status-bar": "~3.0.9",
     "llama.rn": "0.12.9",
     "react": "19.1.0",
