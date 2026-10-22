@@ -33,7 +33,8 @@ export default function Home() {
           </ScrollView>
         )}
       </View>
-      <View style={[s.tabs, { paddingBottom: Math.max(insets.bottom, 48) }]}>
+      <Text style={s.ver}>build 6 · if you see this, the update installed</Text>
+      <View style={[s.tabs, { paddingBottom: Math.max(insets.bottom, 56) }]}>
         <Pressable style={[s.tab, tab === "chat" && s.on]} onPress={() => setTab("chat")}>
           <Text style={[s.tabT, tab === "chat" && s.onT]}>Chat</Text>
         </Pressable>
@@ -53,7 +54,8 @@ const s = StyleSheet.create({
   card: { padding: 16, borderRadius: 12, backgroundColor: "#f3f4f6", borderWidth: 1, borderColor: "#e5e7eb" },
   cardT: { fontSize: 16, fontWeight: "600", color: "#111" },
   cardK: { fontSize: 12, color: "#888", marginTop: 2 },
-  tabs: { flexDirection: "row", borderTopWidth: 1, borderColor: "#eee" },
+  ver: { textAlign: "center", fontSize: 10, color: "#c00", paddingVertical: 2, backgroundColor: "#fff" },
+  tabs: { flexDirection: "row", borderTopWidth: 1, borderColor: "#eee", backgroundColor: "#fff" },
   tab: { flex: 1, paddingVertical: 14, alignItems: "center" },
   on: { borderTopWidth: 2, borderColor: "#111" },
   tabT: { color: "#888", fontWeight: "600" },
