@@ -1,15 +1,14 @@
 {
   "expo": {
-    "name": "skeptic-lite",
+    "name": "Skeptic Lite",
     "slug": "skeptic-lite",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
+    "newArchEnabled": true,
     "android": {
+      "package": "com.asandor.skepticlite",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -18,8 +17,7 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "ios": { "supportsTablet": true },
+    "web": { "favicon": "./assets/favicon.png" }
   }
 }
