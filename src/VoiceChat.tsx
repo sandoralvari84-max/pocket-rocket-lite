@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet,
   KeyboardAvoidingView, Platform,
@@ -27,9 +27,27 @@ export default function VoiceChat() {
   const [speaking, setSpeaking] = useState(false);
   const [showTranscript, setShowTranscript] = useState(true);
   const [last, setLast] = useState("");
+  const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
   const [recording, setRecording] = useState(false);
   const [sttStatus, setSttStatus] = useState("");
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  // KITT-ish voice: prefer en-US, enhanced quality, male-sounding identifier.
+  useEffect(() => {
+    (async () => {
+      try {
+        const voices = await Speech.getAvailableVoicesAsync();
+        const en = voices.filter((v) => (v.language || "").toLowerCase().startsWith("en"));
+        const score = (v: Speech.Voice) =>
+          ((v.language || "").toLowerCase().startsWith("en-us") ? 3 : 0) +
+          (v.quality === Speech.VoiceQuality.Enhanced ? 2 : 0) +
+          (/male|#male|-iom-|-iol-|_m_|us-x/i.test(v.name || "") ? 2 : 0) +
+          (/female|#female|-tpf-|_f_/i.test(v.name || "") ? -3 : 0);
+        const best = en.sort((a, b) => score(b) - score(a))[0];
+        if (best) setVoiceId(best.identifier);
+      } catch {}
+    })();
+  }, []);
 
   async function send(text?: string) {
     const q = (text ?? input).trim(); if (!q || busy) return;
@@ -38,7 +56,7 @@ export default function VoiceChat() {
       const a = await ask(q);
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setLast(a); setBusy(false);
       setSpeaking(true);
-      Speech.speak(speakable(a), { language: "en-US", rate: 1.0, pitch: 1.0, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
+      Speech.speak(speakable(a), { language: "en-US", voice: voiceId, rate: 0.96, pitch: 0.88, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]); setBusy(false);
     }
