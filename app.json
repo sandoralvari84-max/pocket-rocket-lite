@@ -17,7 +17,17 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "ios": { "supportsTablet": true },
-    "web": { "favicon": "./assets/favicon.png" }
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "34ede2b6-7221-4b0f-851d-14ee12675fda"
+      }
+    },
+    "owner": "asandor"
   }
 }
