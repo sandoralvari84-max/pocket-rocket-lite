@@ -28,6 +28,9 @@
         "projectId": "34ede2b6-7221-4b0f-851d-14ee12675fda"
       }
     },
-    "owner": "asandor"
+    "owner": "asandor",
+    "plugins": [
+      "expo-audio"
+    ]
   }
 }

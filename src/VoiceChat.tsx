@@ -4,7 +4,9 @@ import {
   KeyboardAvoidingView, Platform,
 } from "react-native";
 import * as Speech from "expo-speech";
+import { useAudioRecorder, RecordingPresets, AudioModule } from "expo-audio";
 import { ask } from "./model";
+import { ensureWhisper, transcribe } from "./stt";
 import VoiceBar from "./VoiceBar";
 
 type Msg = { role: "user" | "assistant"; text: string };
@@ -16,29 +18,57 @@ export default function VoiceChat() {
   const [speaking, setSpeaking] = useState(false);
   const [showTranscript, setShowTranscript] = useState(true);
   const [last, setLast] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [sttStatus, setSttStatus] = useState("");
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
-  async function send() {
-    const q = input.trim(); if (!q || busy) return;
+  async function send(text?: string) {
+    const q = (text ?? input).trim(); if (!q || busy) return;
     setInput(""); setMsgs((m) => [...m, { role: "user", text: q }]); setBusy(true);
     try {
       const a = await ask(q);
-      setMsgs((m) => [...m, { role: "assistant", text: a }]);
-      setLast(a);
-      setBusy(false);
+      setMsgs((m) => [...m, { role: "assistant", text: a }]); setLast(a); setBusy(false);
       setSpeaking(true);
       Speech.speak(a, { onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
     } catch (e: any) {
-      setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]);
-      setBusy(false);
+      setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]); setBusy(false);
     }
   }
   function stopSpeak() { Speech.stop(); setSpeaking(false); }
 
+  async function micPress() {
+    if (busy) return;
+    if (!recording) {
+      try {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) { setSttStatus("Mic permission denied"); return; }
+        setSttStatus("Loading speech model…");
+        await ensureWhisper(() => {});
+        setSttStatus("");
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+        setRecording(true);
+      } catch (e: any) { setSttStatus("Mic error: " + String(e?.message ?? e)); }
+    } else {
+      try {
+        setRecording(false); setSttStatus("Transcribing…");
+        await recorder.stop();
+        const uri = recorder.uri;
+        if (!uri) { setSttStatus("No audio captured"); return; }
+        const text = await transcribe(uri);
+        setSttStatus("");
+        if (text) send(text); else setSttStatus("Didn't catch that");
+      } catch (e: any) { setSttStatus("STT error: " + String(e?.message ?? e)); }
+    }
+  }
+
   return (
     <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={s.stage}>
-        <VoiceBar active={busy || speaking} />
-        <Text style={s.status}>{busy ? "Thinking…" : speaking ? "Speaking…" : "Ask me something"}</Text>
+        <VoiceBar active={busy || speaking || recording} />
+        <Text style={s.status}>
+          {recording ? "Listening…" : busy ? "Thinking…" : speaking ? "Speaking…" : sttStatus || "Ask me something"}
+        </Text>
         {!!last && !showTranscript && <Text style={s.last} numberOfLines={4}>{last}</Text>}
         {speaking && <Pressable style={s.stop} onPress={stopSpeak}><Text style={s.stopT}>Stop</Text></Pressable>}
       </View>
@@ -57,9 +87,12 @@ export default function VoiceChat() {
       )}
 
       <View style={s.inputRow}>
+        <Pressable style={[s.mic, recording && s.micOn]} onPress={micPress} disabled={busy}>
+          <Text style={s.micT}>{recording ? "■" : "🎤"}</Text>
+        </Pressable>
         <TextInput style={s.input} value={input} onChangeText={setInput}
-          placeholder="Ask something…" editable={!busy} onSubmitEditing={send} returnKeyType="send" />
-        <Pressable style={s.send} onPress={send} disabled={busy}><Text style={s.sendT}>Send</Text></Pressable>
+          placeholder="Ask or tap the mic…" editable={!busy} onSubmitEditing={() => send()} returnKeyType="send" />
+        <Pressable style={s.send} onPress={() => send()} disabled={busy}><Text style={s.sendT}>Send</Text></Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -78,8 +111,11 @@ const s = StyleSheet.create({
   bubble: { maxWidth: "85%", padding: 10, borderRadius: 12 },
   user: { alignSelf: "flex-end", backgroundColor: "#111" },
   asst: { alignSelf: "flex-start", backgroundColor: "#eee" },
-  inputRow: { flexDirection: "row", padding: 8, gap: 8, borderTopWidth: 1, borderColor: "#eee" },
+  inputRow: { flexDirection: "row", padding: 8, gap: 8, borderTopWidth: 1, borderColor: "#eee", alignItems: "center" },
+  mic: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#eee", alignItems: "center", justifyContent: "center" },
+  micOn: { backgroundColor: "#f3b0b0" },
+  micT: { fontSize: 18 },
   input: { flex: 1, borderWidth: 1, borderColor: "#ddd", borderRadius: 10, paddingHorizontal: 12, height: 44 },
-  send: { backgroundColor: "#111", borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" },
+  send: { backgroundColor: "#111", borderRadius: 10, paddingHorizontal: 16, justifyContent: "center", height: 44 },
   sendT: { color: "#fff", fontWeight: "600" },
 });
