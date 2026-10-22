@@ -15,6 +15,3 @@ export interface GameModule {
   // A self-contained screen. Owns its own assets/state. Must clean up on unmount.
   Screen: React.ComponentType<GameContext>;
 }
-
-// The launcher imports this registry; agents append their module here.
-export const GAMES: GameModule[] = [];
