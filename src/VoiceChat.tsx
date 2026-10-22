@@ -11,6 +11,15 @@ import VoiceBar from "./VoiceBar";
 
 type Msg = { role: "user" | "assistant"; text: string };
 
+// Clean model text for TTS: drop markdown/symbols, collapse whitespace so the engine reads words, not glyphs.
+function speakable(t: string): string {
+  return t
+    .replace(/[*_`#>|~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 600);
+}
+
 export default function VoiceChat() {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -29,7 +38,7 @@ export default function VoiceChat() {
       const a = await ask(q);
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setLast(a); setBusy(false);
       setSpeaking(true);
-      Speech.speak(a, { onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
+      Speech.speak(speakable(a), { language: "en-US", rate: 1.0, pitch: 1.0, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]); setBusy(false);
     }
