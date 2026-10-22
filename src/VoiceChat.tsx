@@ -27,27 +27,38 @@ export default function VoiceChat() {
   const [speaking, setSpeaking] = useState(false);
   const [showTranscript, setShowTranscript] = useState(true);
   const [last, setLast] = useState("");
-  const [voiceId, setVoiceId] = useState<string | undefined>(undefined);
+  const [voices, setVoices] = useState<Speech.Voice[]>([]);
+  const [voiceIdx, setVoiceIdx] = useState(0);
+  const voiceId = voices[voiceIdx]?.identifier;
   const [recording, setRecording] = useState(false);
   const [sttStatus, setSttStatus] = useState("");
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
-  // KITT-ish voice: prefer en-US, enhanced quality, male-sounding identifier.
+  // English voices, best (en-US / enhanced / male-ish) first. Gender isn't exposed reliably, so the
+  // user can tap to CYCLE voices and land on a male/KITT one that's installed on their device.
   useEffect(() => {
     (async () => {
       try {
-        const voices = await Speech.getAvailableVoicesAsync();
-        const en = voices.filter((v) => (v.language || "").toLowerCase().startsWith("en"));
+        const all = await Speech.getAvailableVoicesAsync();
+        const en = all.filter((v) => (v.language || "").toLowerCase().startsWith("en"));
         const score = (v: Speech.Voice) =>
           ((v.language || "").toLowerCase().startsWith("en-us") ? 3 : 0) +
           (v.quality === Speech.VoiceQuality.Enhanced ? 2 : 0) +
           (/male|#male|-iom-|-iol-|_m_|us-x/i.test(v.name || "") ? 2 : 0) +
           (/female|#female|-tpf-|_f_/i.test(v.name || "") ? -3 : 0);
-        const best = en.sort((a, b) => score(b) - score(a))[0];
-        if (best) setVoiceId(best.identifier);
+        en.sort((a, b) => score(b) - score(a));
+        setVoices(en);
       } catch {}
     })();
   }, []);
+
+  function cycleVoice() {
+    if (voices.length === 0) return;
+    const ni = (voiceIdx + 1) % voices.length;
+    setVoiceIdx(ni);
+    Speech.stop();
+    Speech.speak("Voice check. This is how I sound.", { language: "en-US", voice: voices[ni]?.identifier, rate: 0.96, pitch: 0.75 });
+  }
 
   async function send(text?: string) {
     const q = (text ?? input).trim(); if (!q || busy) return;
@@ -56,7 +67,7 @@ export default function VoiceChat() {
       const a = await ask(q);
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setLast(a); setBusy(false);
       setSpeaking(true);
-      Speech.speak(speakable(a), { language: "en-US", voice: voiceId, rate: 0.96, pitch: 0.88, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
+      Speech.speak(speakable(a), { language: "en-US", voice: voiceId, rate: 0.96, pitch: 0.75, onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false) });
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]); setBusy(false);
     }
@@ -96,6 +107,11 @@ export default function VoiceChat() {
         <Text style={s.status}>
           {recording ? "Listening…" : busy ? "Thinking…" : speaking ? "Speaking…" : sttStatus || "Ask me something"}
         </Text>
+        {voices.length > 0 && (
+          <Pressable style={s.voiceBtn} onPress={cycleVoice}>
+            <Text style={s.voiceBtnT}>🔊 {voices[voiceIdx]?.name?.slice(0, 24) || "voice"} · tap to change</Text>
+          </Pressable>
+        )}
         {!!last && !showTranscript && <Text style={s.last} numberOfLines={4}>{last}</Text>}
         {speaking && <Pressable style={s.stop} onPress={stopSpeak}><Text style={s.stopT}>Stop</Text></Pressable>}
       </View>
@@ -129,6 +145,8 @@ const s = StyleSheet.create({
   fill: { flex: 1, backgroundColor: "#0d0607" },
   stage: { alignItems: "center", justifyContent: "center", paddingVertical: 24, paddingHorizontal: 16 },
   status: { marginTop: 12, fontSize: 16, color: "#f0d8d8", fontWeight: "600" },
+  voiceBtn: { marginTop: 10, borderWidth: 1, borderColor: "#5a1a1a", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 },
+  voiceBtnT: { color: "#ff8a8a", fontSize: 12, fontWeight: "600" },
   last: { marginTop: 12, fontSize: 14, color: "#cbbaba", textAlign: "center" },
   stop: { marginTop: 12, backgroundColor: "#2a1414", paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   stopT: { color: "#eee", fontWeight: "600" },
