@@ -1,298 +1,301 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet, Dimensions, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
+import { color, space, radius } from "../design/tokens";
+import { PixelText, IconButton, GameOverlay } from "../design/ui";
 
 const { width: W, height: H } = Dimensions.get("window");
-const R = 11; // ball radius
-const WALL = 10;
-const TOP = 90; // reserve space for the HUD
-const GRAV = 0.35;
-const BUMP_R = 26;
-const FLIP_ZONE = 150; // height of the flipper reaction zone at the bottom
 
-interface Ball {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-}
-interface Bumper {
-  x: number;
-  y: number;
-}
+// ---- table geometry -------------------------------------------------------
+const R = 11;              // ball radius
+const WALL = 12;           // side-wall thickness
+const TOP = 96;            // reserved HUD band
+const GRAV = 0.42;         // px / frame^2
+const MAXSPEED = 17;       // speed cap (prevents tunnelling)
+const SUBSTEPS = 2;        // collision sub-steps per frame
+const BUMP_R = 24;         // bumper radius
 
-const BUMPERS: Bumper[] = [
-  { x: W * 0.5, y: TOP + 110 },
-  { x: W * 0.28, y: TOP + 220 },
-  { x: W * 0.72, y: TOP + 220 },
+const playL = WALL;
+const playR = W - WALL;
+
+// Flippers: a flipper is a line segment rooted at a pivot. It is rotated between
+// a rest angle and an active angle. Collision uses the SAME segment that is drawn,
+// and the segment's rotational surface velocity is what bats the ball.
+const FLIP_LEN = Math.min(W * 0.30, 122);
+const FLIP_HALF = 9;        // half-thickness of the flipper bar
+const PIVOT_Y = H - 168;
+const PIVOT_LX = W * 0.17;  // left pivot (near wall, tip points toward centre)
+const PIVOT_RX = W * 0.83;  // right pivot
+// angles are measured with atan2(dy,dx) in screen space (y points DOWN).
+const L_REST = 0.30;        // tip down-right
+const L_ACTIVE = -0.55;     // tip up-right
+const R_REST = Math.PI - 0.30; // tip down-left
+const R_ACTIVE = Math.PI + 0.55; // tip up-left
+const RAISE = 0.52;         // rad / frame toward active
+const LOWER = 0.26;         // rad / frame toward rest
+
+interface Ball { x: number; y: number; vx: number; vy: number; }
+interface Flip { angle: number; omega: number; }
+
+const BUMPERS = [
+  { x: W * 0.5, y: TOP + 96 },
+  { x: W * 0.27, y: TOP + 196 },
+  { x: W * 0.73, y: TOP + 196 },
+];
+
+// Static guide walls (outlanes) that funnel the ball toward the flippers.
+// Each is a segment; same collision routine as flippers but with omega = 0.
+const GUIDES = [
+  { ax: playL, ay: PIVOT_Y - 130, bx: PIVOT_LX - 2, by: PIVOT_Y - 18 },  // left funnel onto left flipper
+  { ax: playR, ay: PIVOT_Y - 130, bx: PIVOT_RX + 2, by: PIVOT_Y - 18 },  // right funnel onto right flipper
 ];
 
 function freshBall(): Ball {
-  return { x: W * 0.5, y: TOP + 30, vx: (Math.random() - 0.5) * 2, vy: 0 };
+  return { x: W - WALL - R - 6, y: TOP + 40, vx: -1.4 - Math.random(), vy: 0 };
 }
 
-function Screen({ onExit }: GameContext) {
+function closestOnSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
+  const abx = bx - ax, aby = by - ay;
+  const len2 = abx * abx + aby * aby || 1;
+  let t = ((px - ax) * abx + (py - ay) * aby) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return { x: ax + abx * t, y: ay + aby * t };
+}
+
+// Resolve ball vs a capsule segment. If the segment rotates (omega != 0 about
+// pivot ax,ay with current `angle`), its surface velocity at the contact point is
+// added so a swinging flipper genuinely launches the ball.
+function collideSeg(
+  ball: Ball, ax: number, ay: number, bx: number, by: number,
+  halfThick: number, rest: number, omega: number, angle: number,
+): boolean {
+  const c = closestOnSeg(ball.x, ball.y, ax, ay, bx, by);
+  let nx = ball.x - c.x, ny = ball.y - c.y;
+  let dist = Math.hypot(nx, ny);
+  const rad = R + halfThick;
+  if (dist >= rad) return false;
+  if (dist < 0.0001) { nx = 0; ny = -1; dist = 0.0001; }
+  nx /= dist; ny /= dist;
+  // positional correction
+  ball.x = c.x + nx * rad;
+  ball.y = c.y + ny * rad;
+  // surface velocity at contact: d/dt of a point at distance s from pivot
+  let svx = 0, svy = 0;
+  if (omega !== 0) {
+    const s = Math.hypot(c.x - ax, c.y - ay);
+    svx = s * omega * -Math.sin(angle);
+    svy = s * omega * Math.cos(angle);
+  }
+  const rvx = ball.vx - svx, rvy = ball.vy - svy;
+  const vn = rvx * nx + rvy * ny;
+  if (vn < 0) {
+    const j = -(1 + rest) * vn;
+    ball.vx += j * nx;
+    ball.vy += j * ny;
+  }
+  return true;
+}
+
+function GameScreen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const ballRef = useRef<Ball>(freshBall());
-  const leftRef = useRef(false);
-  const rightRef = useRef(false);
+  const leftDown = useRef(false);
+  const rightDown = useRef(false);
+  const leftF = useRef<Flip>({ angle: L_REST, omega: 0 });
+  const rightF = useRef<Flip>({ angle: R_REST, omega: 0 });
   const overRef = useRef(false);
+  const flashRef = useRef<number[]>([0, 0, 0]); // bumper hit pulse timers
   const rafRef = useRef<number | null>(null);
+
   const [, setTick] = useState(0);
   const [score, setScore] = useState(0);
   const [balls, setBalls] = useState(3);
   const [over, setOver] = useState(false);
-
+  const bump = () => setTick((t) => (t + 1) % 1000000);
   const addScore = (n: number) => setScore((s) => s + n);
+
+  const updateFlipper = (f: Flip, down: boolean, rest: number, active: number) => {
+    const target = down ? active : rest;
+    const prev = f.angle;
+    const maxStep = down ? RAISE : LOWER;
+    const diff = target - f.angle;
+    f.angle += Math.max(-maxStep, Math.min(maxStep, diff));
+    f.omega = f.angle - prev; // rad / frame
+  };
 
   const step = () => {
     if (overRef.current) return;
     const b = ballRef.current;
-    b.vy += GRAV;
-    b.x += b.vx;
-    b.y += b.vy;
 
-    // side walls
-    if (b.x < WALL + R) {
-      b.x = WALL + R;
-      b.vx = Math.abs(b.vx) * 0.85;
-    } else if (b.x > W - WALL - R) {
-      b.x = W - WALL - R;
-      b.vx = -Math.abs(b.vx) * 0.85;
-    }
-    // top wall
-    if (b.y < TOP + R) {
-      b.y = TOP + R;
-      b.vy = Math.abs(b.vy) * 0.85;
-    }
+    // advance flippers once per frame (shared omega across sub-steps)
+    updateFlipper(leftF.current, leftDown.current, L_REST, L_ACTIVE);
+    updateFlipper(rightF.current, rightDown.current, R_REST, R_ACTIVE);
+    const lf = leftF.current, rf = rightF.current;
+    const lbx = PIVOT_LX + FLIP_LEN * Math.cos(lf.angle);
+    const lby = PIVOT_Y + FLIP_LEN * Math.sin(lf.angle);
+    const rbx = PIVOT_RX + FLIP_LEN * Math.cos(rf.angle);
+    const rby = PIVOT_Y + FLIP_LEN * Math.sin(rf.angle);
 
-    // bumpers
-    for (const bu of BUMPERS) {
-      const dx = b.x - bu.x;
-      const dy = b.y - bu.y;
-      const dist = Math.hypot(dx, dy);
-      const min = R + BUMP_R;
-      if (dist < min && dist > 0) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        b.x = bu.x + nx * min;
-        b.y = bu.y + ny * min;
-        const dot = b.vx * nx + b.vy * ny;
-        b.vx = (b.vx - 2 * dot * nx) * 0.9 + nx * 2.2;
-        b.vy = (b.vy - 2 * dot * ny) * 0.9 + ny * 2.2;
-        addScore(100);
+    for (let s = 0; s < SUBSTEPS; s++) {
+      b.vy += GRAV / SUBSTEPS;
+      b.x += b.vx / SUBSTEPS;
+      b.y += b.vy / SUBSTEPS;
+
+      // side + top walls
+      if (b.x < playL + R) { b.x = playL + R; b.vx = Math.abs(b.vx) * 0.86; }
+      else if (b.x > playR - R) { b.x = playR - R; b.vx = -Math.abs(b.vx) * 0.86; }
+      if (b.y < TOP + R) { b.y = TOP + R; b.vy = Math.abs(b.vy) * 0.86; }
+
+      // bumpers (real circular collision)
+      for (let i = 0; i < BUMPERS.length; i++) {
+        const bu = BUMPERS[i];
+        const dx = b.x - bu.x, dy = b.y - bu.y;
+        const dist = Math.hypot(dx, dy);
+        const min = R + BUMP_R;
+        if (dist < min && dist > 0) {
+          const nx = dx / dist, ny = dy / dist;
+          b.x = bu.x + nx * min; b.y = bu.y + ny * min;
+          const dot = b.vx * nx + b.vy * ny;
+          b.vx = (b.vx - 2 * dot * nx) * 0.92 + nx * 2.6;
+          b.vy = (b.vy - 2 * dot * ny) * 0.92 + ny * 2.6;
+          flashRef.current[i] = 6;
+          addScore(100);
+        }
       }
-    }
 
-    // flippers: a press kicks the ball up when it is low on that side and falling
-    const flipY = H - FLIP_ZONE;
-    if (b.y > flipY && b.vy > 0) {
-      if (leftRef.current && b.x < W / 2) {
-        b.vy = -11;
-        b.vx += 4;
-        addScore(5);
-      } else if (rightRef.current && b.x >= W / 2) {
-        b.vy = -11;
-        b.vx -= 4;
-        addScore(5);
+      // static guide walls
+      for (const g of GUIDES) collideSeg(b, g.ax, g.ay, g.bx, g.by, 5, 0.55, 0, 0);
+
+      // flippers (dynamic) — collision uses exactly the drawn segment
+      if (collideSeg(b, PIVOT_LX, PIVOT_Y, lbx, lby, FLIP_HALF, 0.35, lf.omega, lf.angle)) {
+        if (lf.omega !== 0) addScore(5);
       }
+      if (collideSeg(b, PIVOT_RX, PIVOT_Y, rbx, rby, FLIP_HALF, 0.35, rf.omega, rf.angle)) {
+        if (rf.omega !== 0) addScore(5);
+      }
+
+      // speed cap
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > MAXSPEED) { b.vx = (b.vx / sp) * MAXSPEED; b.vy = (b.vy / sp) * MAXSPEED; }
     }
 
-    // clamp horizontal speed
-    b.vx = Math.max(-12, Math.min(12, b.vx));
+    for (let i = 0; i < flashRef.current.length; i++) if (flashRef.current[i] > 0) flashRef.current[i] -= 1;
 
-    // drained
+    // drain
     if (b.y - R > H) {
       setBalls((n) => {
         const left = n - 1;
-        if (left <= 0) {
-          overRef.current = true;
-          setOver(true);
-        } else {
-          ballRef.current = freshBall();
-        }
+        if (left <= 0) { overRef.current = true; setOver(true); }
+        else { ballRef.current = freshBall(); }
         return left;
       });
     }
 
-    setTick((t) => (t + 1) % 1000000);
+    bump();
   };
 
   useEffect(() => {
     let mounted = true;
-    const loop = () => {
-      step();
-      if (mounted) rafRef.current = requestAnimationFrame(loop);
-    };
+    const loop = () => { step(); if (mounted) rafRef.current = requestAnimationFrame(loop); };
     rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      mounted = false;
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { mounted = false; if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reset = () => {
     ballRef.current = freshBall();
+    leftF.current = { angle: L_REST, omega: 0 };
+    rightF.current = { angle: R_REST, omega: 0 };
+    leftDown.current = false; rightDown.current = false;
     overRef.current = false;
-    setOver(false);
-    setScore(0);
-    setBalls(3);
+    setOver(false); setScore(0); setBalls(3);
   };
 
   const b = ballRef.current;
-  const flipY = H - FLIP_ZONE;
+  const lf = leftF.current, rf = rightF.current;
 
   return (
     <View style={st.fill}>
-      {/* flipper control halves */}
-      <Pressable
-        style={[st.half, { left: 0 }]}
-        onPressIn={() => {
-          leftRef.current = true;
-        }}
-        onPressOut={() => {
-          leftRef.current = false;
-        }}
-      />
-      <Pressable
-        style={[st.half, { right: 0 }]}
-        onPressIn={() => {
-          rightRef.current = true;
-        }}
-        onPressOut={() => {
-          rightRef.current = false;
-        }}
-      />
+      {/* flipper control halves (press-and-hold) */}
+      <Pressable style={[st.half, { left: 0 }]} onPressIn={() => { leftDown.current = true; }} onPressOut={() => { leftDown.current = false; }} />
+      <Pressable style={[st.half, { right: 0 }]} onPressIn={() => { rightDown.current = true; }} onPressOut={() => { rightDown.current = false; }} />
 
-      {/* table walls */}
+      {/* walls */}
       <View style={[st.wall, { left: 0, top: TOP, width: WALL, height: H - TOP }]} pointerEvents="none" />
       <View style={[st.wall, { right: 0, top: TOP, width: WALL, height: H - TOP }]} pointerEvents="none" />
       <View style={[st.wall, { left: 0, right: 0, top: TOP, height: WALL }]} pointerEvents="none" />
 
+      {/* guide walls (drawn to match their collision segments) */}
+      {GUIDES.map((g, i) => {
+        const len = Math.hypot(g.bx - g.ax, g.by - g.ay);
+        const ang = Math.atan2(g.by - g.ay, g.bx - g.ax) * 180 / Math.PI;
+        return (
+          <View key={i} pointerEvents="none" style={{ position: "absolute", left: g.ax, top: g.ay, transform: [{ rotate: `${ang}deg` }] }}>
+            <View style={{ position: "absolute", left: 0, top: -5, width: len, height: 10, borderRadius: 5, backgroundColor: color.surfaceLine }} />
+          </View>
+        );
+      })}
+
       {/* bumpers */}
-      {BUMPERS.map((bu, i) => (
-        <View
-          key={i}
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: bu.x - BUMP_R,
-            top: bu.y - BUMP_R,
-            width: BUMP_R * 2,
-            height: BUMP_R * 2,
-            borderRadius: BUMP_R,
-            backgroundColor: "#ff7eb6",
-            borderWidth: 3,
-            borderColor: "#ffd1e8",
-          }}
-        />
+      {BUMPERS.map((bu, i) => {
+        const hot = flashRef.current[i] > 0;
+        return (
+          <View key={i} pointerEvents="none" style={{
+            position: "absolute", left: bu.x - BUMP_R, top: bu.y - BUMP_R, width: BUMP_R * 2, height: BUMP_R * 2,
+            borderRadius: BUMP_R, backgroundColor: hot ? color.amber : color.cyanGlowBg,
+            borderWidth: 3, borderColor: hot ? color.text : color.cyan,
+          }} />
+        );
+      })}
+
+      {/* flippers — drawn from pivot along current angle (matches collision segment) */}
+      <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_LX, top: PIVOT_Y, transform: [{ rotate: `${lf.angle * 180 / Math.PI}deg` }] }}>
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2 }]} />
+      </View>
+      <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_RX, top: PIVOT_Y, transform: [{ rotate: `${rf.angle * 180 / Math.PI}deg` }] }}>
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2 }]} />
+      </View>
+      {/* pivot caps */}
+      {[{ x: PIVOT_LX }, { x: PIVOT_RX }].map((pv, i) => (
+        <View key={i} pointerEvents="none" style={{ position: "absolute", left: pv.x - 7, top: PIVOT_Y - 7, width: 14, height: 14, borderRadius: 7, backgroundColor: color.surface2, borderWidth: 2, borderColor: color.cyan }} />
       ))}
 
-      {/* flipper visuals */}
-      <View
-        pointerEvents="none"
-        style={[
-          st.flipper,
-          {
-            left: WALL + 6,
-            top: flipY + 60,
-            transform: [{ rotate: leftRef.current ? "-28deg" : "18deg" }],
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          st.flipper,
-          {
-            right: WALL + 6,
-            top: flipY + 60,
-            transform: [{ rotate: rightRef.current ? "28deg" : "-18deg" }],
-          },
-        ]}
-      />
-
       {/* ball */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: b.x - R,
-          top: b.y - R,
-          width: R * 2,
-          height: R * 2,
-          borderRadius: R,
-          backgroundColor: "#ffe14d",
-        }}
-      />
+      <View pointerEvents="none" style={{
+        position: "absolute", left: b.x - R, top: b.y - R, width: R * 2, height: R * 2, borderRadius: R,
+        backgroundColor: color.amber, borderWidth: 2, borderColor: shadeHi,
+      }} />
 
+      {/* HUD */}
       <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
-        <Pressable style={st.exit} onPress={onExit}>
-          <Text style={st.exitT}>← Menu</Text>
-        </Pressable>
-        <Text style={st.score}>
-          {score}   ·   Balls {balls}
-        </Text>
+        <View style={st.hudPanel}>
+          <PixelText size="score">{String(score).padStart(6, "0")}</PixelText>
+          <PixelText size="label" style={{ marginTop: 4 }}>BALLS {balls}</PixelText>
+        </View>
+        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
-      {over ? (
-        <View style={st.overlay} pointerEvents="box-none">
-          <Text style={st.overBig}>Game Over</Text>
-          <Text style={st.overSub}>Score {score}</Text>
-          <Pressable style={st.again} onPress={reset}>
-            <Text style={st.againT}>Play again</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <GameOverlay visible={over} kind="over" title="GAME OVER" score={`SCORE ${score}`}
+        primaryLabel="Play again" onPrimary={reset} onExit={onExit} />
     </View>
   );
 }
 
+const shadeHi = "#FFD089";
+
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#141029" },
-  half: { position: "absolute", top: TOP, bottom: 0, width: W / 2 },
-  wall: { position: "absolute", backgroundColor: "#3a356b", borderRadius: 4 },
-  flipper: {
-    position: "absolute",
-    width: W * 0.34,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#6ee7ff",
-  },
-  hud: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 5,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  score: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  exit: { backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
-  exitT: { color: "#fff", fontWeight: "600" },
-  overlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  overBig: { color: "#fff", fontSize: 26, fontWeight: "700" },
-  overSub: { color: "#ddd", fontSize: 16, marginTop: 6, marginBottom: 16 },
-  again: { backgroundColor: "#6ee7ff", paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10 },
-  againT: { color: "#06283b", fontWeight: "700" },
+  fill: { flex: 1, backgroundColor: "#0A0E1A" },
+  half: { position: "absolute", top: TOP, bottom: 0, width: W / 2, zIndex: 2 },
+  wall: { position: "absolute", backgroundColor: color.surfaceLine, borderRadius: 4 },
+  flip: { position: "absolute", borderRadius: FLIP_HALF, backgroundColor: color.cyan },
+  hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
 });
 
 export const flipperFrenzyGame: GameModule = {
   id: "flipper-frenzy",
   title: "Flipper Frenzy",
   kind: "arcade",
-  Screen,
+  Screen: GameScreen,
 };

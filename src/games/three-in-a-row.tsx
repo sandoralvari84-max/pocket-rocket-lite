@@ -1,10 +1,17 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useRef, useState } from "react";
+import { View, StyleSheet, Pressable, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
+import { color, space, radius } from "../design/tokens";
+import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 
-type Cell = "X" | "O" | null;
+type Cell = "X" | "O" | null; // X = player (amber), O = machine (cyan)
 type Board = Cell[];
+
+const { width: W } = Dimensions.get("window");
+const SIDE = Math.min(W - space.lg * 2, 330);
+const GAP = 6;
+const CELL = (SIDE - GAP * 2) / 3;
 
 const LINES: ReadonlyArray<readonly [number, number, number]> = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -14,12 +21,14 @@ const LINES: ReadonlyArray<readonly [number, number, number]> = [
 
 const emptyBoard = (): Board => Array<Cell>(9).fill(null);
 
-function winnerOf(b: Board): Cell {
-  for (const [a, c, d] of LINES) {
-    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+function winnerLine(b: Board): { who: Cell; line: readonly [number, number, number] } | null {
+  for (const line of LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return { who: b[a], line };
   }
   return null;
 }
+const winnerOf = (b: Board): Cell => winnerLine(b)?.who ?? null;
 
 const legalMoves = (b: Board): number[] => {
   const out: number[] = [];
@@ -27,123 +36,199 @@ const legalMoves = (b: Board): number[] => {
   return out;
 };
 
-// Pull the first digit 0-8 that refers to an empty cell out of the model's reply.
-function parseMove(reply: string, b: Board): number | null {
-  const digits = reply.match(/[0-8]/g);
-  if (digits) {
-    for (const d of digits) {
-      const n = Number(d);
-      if (b[n] === null) return n;
+// ---- Perfect minimax. Machine is O (maximizing). Depth terms prefer fast
+//      wins / slow losses so the AI is optimal: it never loses and punishes blunders.
+function minimax(b: Board, isMax: boolean, depth: number): number {
+  const w = winnerOf(b);
+  if (w === "O") return 10 - depth;
+  if (w === "X") return depth - 10;
+  const moves = legalMoves(b);
+  if (moves.length === 0) return 0;
+  if (isMax) {
+    let best = -Infinity;
+    for (const i of moves) {
+      b[i] = "O";
+      best = Math.max(best, minimax(b, false, depth + 1));
+      b[i] = null;
     }
+    return best;
   }
-  return null;
+  let best = Infinity;
+  for (const i of moves) {
+    b[i] = "X";
+    best = Math.min(best, minimax(b, true, depth + 1));
+    b[i] = null;
+  }
+  return best;
+}
+
+function bestMove(board: Board): number {
+  const b = board.slice();
+  let bestScore = -Infinity;
+  let pick = -1;
+  for (const i of legalMoves(b)) {
+    b[i] = "O";
+    const score = minimax(b, false, 1);
+    b[i] = null;
+    if (score > bestScore) { bestScore = score; pick = i; }
+  }
+  return pick;
+}
+
+/* ---- Code-drawn marks ---- */
+function MarkX() {
+  const len = CELL * 0.52;
+  return (
+    <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
+      <View style={[mk.bar, { width: len, backgroundColor: color.amber, transform: [{ rotate: "45deg" }] }]} />
+      <View style={[mk.bar, { width: len, backgroundColor: color.amber, transform: [{ rotate: "-45deg" }], position: "absolute" }]} />
+    </View>
+  );
+}
+function MarkO() {
+  const d = CELL * 0.58;
+  return (
+    <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 6, borderColor: color.cyan }} />
+    </View>
+  );
 }
 
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const [board, setBoard] = useState<Board>(emptyBoard);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("Your turn — you are X");
-  const [quip, setQuip] = useState("");
   const [over, setOver] = useState(false);
+  const [result, setResult] = useState<"win" | "lose" | "draw" | null>(null);
+  const [status, setStatus] = useState("Your turn — you are amber");
+  const [quip, setQuip] = useState("");
+  const [last, setLast] = useState<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const finish = (b: Board): boolean => {
+  const win = winnerLine(board);
+
+  const settle = (b: Board): boolean => {
     const w = winnerOf(b);
-    if (w === "X") { setStatus("You win!"); setOver(true); return true; }
-    if (w === "O") { setStatus("The machine wins."); setOver(true); return true; }
-    if (legalMoves(b).length === 0) { setStatus("A draw."); setOver(true); return true; }
+    if (w === "X") { setStatus("You win!"); setResult("win"); setOver(true); return true; }
+    if (w === "O") { setStatus("The machine wins."); setResult("lose"); setOver(true); return true; }
+    if (legalMoves(b).length === 0) { setStatus("A draw."); setResult("draw"); setOver(true); return true; }
     return false;
   };
 
-  const modelMove = async (b: Board): Promise<void> => {
-    const moves = legalMoves(b);
-    if (moves.length === 0) return;
-    const fallback = moves[Math.floor(Math.random() * moves.length)]!;
-    let pick = fallback;
-    try {
-      const reply = await ask(
-        `Tic-tac-toe. You are O. Cells 0-8 left to right, top to bottom. ` +
-          `Board (dash = empty): ${b.map((c) => c ?? "-").join("")}. ` +
-          `Reply with ONLY the number of the empty cell you take, then a short taunt.`,
-        "Pick one empty cell and add a one-line taunt."
-      );
-      const parsed = parseMove(reply, b);
-      if (parsed !== null) pick = parsed;
-      const taunt = reply.replace(/[0-8]/, "").trim().slice(0, 80);
-      if (taunt) setQuip(taunt);
-    } catch {
-      /* keep fallback, no quip */
-    }
-    const next = b.slice();
-    next[pick] = "O";
-    setBoard(next);
-    if (!finish(next)) setStatus("Your turn — you are X");
+  // Optional flavour only — never used to decide or validate a move.
+  const fetchTaunt = (b: Board) => {
+    ask(
+      `We are playing noughts and crosses. You just moved. In ONE short sentence (max 10 words), ` +
+        `give a smug taunt. No board talk, no numbers.`,
+      "banter",
+    )
+      .then((r) => { const t = r.trim().replace(/^["']|["']$/g, "").slice(0, 70); if (t) setQuip(t); })
+      .catch(() => {});
   };
 
-  const onCell = (i: number): void => {
+  const machineTurn = (b: Board) => {
+    setStatus("Machine thinking…");
+    setBusy(true);
+    timer.current = setTimeout(() => {
+      const move = bestMove(b);
+      const next = b.slice();
+      if (move >= 0) next[move] = "O";
+      setBoard(next);
+      setLast(move);
+      setBusy(false);
+      if (!settle(next)) setStatus("Your turn — you are amber");
+      fetchTaunt(next);
+    }, 380);
+  };
+
+  const onCell = (i: number) => {
     if (busy || over || board[i] !== null) return;
     const next = board.slice();
     next[i] = "X";
     setBoard(next);
+    setLast(i);
     setQuip("");
-    if (finish(next)) return;
-    setStatus("Machine thinking…");
-    setBusy(true);
-    void modelMove(next).finally(() => setBusy(false));
+    if (settle(next)) return;
+    machineTurn(next);
   };
 
-  const reset = (): void => {
+  const reset = () => {
+    if (timer.current) clearTimeout(timer.current);
     setBoard(emptyBoard());
     setOver(false);
+    setResult(null);
     setBusy(false);
     setQuip("");
-    setStatus("Your turn — you are X");
+    setLast(null);
+    setStatus("Your turn — you are amber");
   };
 
   return (
     <View style={st.fill}>
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
-        <Pressable style={st.exit} onPress={onExit}>
-          <Text style={st.exitT}>← Menu</Text>
-        </Pressable>
-        <Text style={st.title}>Three in a Row</Text>
+        <PixelText size="h2" style={{ color: color.amber }}>THREE IN A ROW</PixelText>
+        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
+
       <View style={st.body}>
-        <Text style={st.status}>{status}</Text>
-        <View style={st.grid}>
-          {board.map((c, i) => (
-            <Pressable key={i} style={st.cell} onPress={() => onCell(i)}>
-              <Text style={[st.mark, c === "X" ? st.x : st.o]}>{c ?? ""}</Text>
-            </Pressable>
-          ))}
+        <Body style={st.status}>{status}</Body>
+
+        <View style={[st.grid, { width: SIDE, height: SIDE }]}>
+          {board.map((c, i) => {
+            const inWin = win ? win.line.includes(i) : false;
+            const isLast = last === i;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => onCell(i)}
+                style={[
+                  st.cell,
+                  { width: CELL, height: CELL },
+                  isLast && { borderColor: color.amber },
+                  inWin && { backgroundColor: color.amberGlowBg, borderColor: color.success },
+                ]}
+              >
+                {c === "X" ? <MarkX /> : c === "O" ? <MarkO /> : null}
+              </Pressable>
+            );
+          })}
         </View>
-        {quip ? <Text style={st.quip}>“{quip}”</Text> : null}
-        {over ? (
-          <Pressable style={st.again} onPress={reset}>
-            <Text style={st.againT}>Play again</Text>
-          </Pressable>
-        ) : null}
+
+        {quip ? <Body muted style={st.quip}>“{quip}”</Body> : <View style={{ height: 24 }} />}
       </View>
+
+      <GameOverlay
+        visible={over}
+        kind={result === "win" ? "win" : result === "draw" ? "pause" : "over"}
+        title={result === "win" ? "YOU WIN" : result === "draw" ? "DRAW" : "DEFEATED"}
+        primaryLabel="Play again"
+        onPrimary={reset}
+        onExit={onExit}
+      />
     </View>
   );
 }
 
+const mk = StyleSheet.create({
+  bar: { height: 6, borderRadius: 3 },
+});
+
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#0b1021" },
-  top: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 12 },
-  exit: { backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
-  exitT: { color: "#fff", fontWeight: "600" },
-  title: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 18 },
-  status: { color: "#cdd6ff", fontSize: 16, fontWeight: "600" },
-  grid: { width: 300, height: 300, flexDirection: "row", flexWrap: "wrap", borderRadius: 12, overflow: "hidden", backgroundColor: "#1b2550" },
-  cell: { width: 100, height: 100, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#0b1021" },
-  mark: { fontSize: 52, fontWeight: "800" },
-  x: { color: "#4da3ff" },
-  o: { color: "#ffd24d" },
-  quip: { color: "#9aa7e0", fontStyle: "italic", fontSize: 15, paddingHorizontal: 24, textAlign: "center" },
-  again: { backgroundColor: "#4da3ff", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
-  againT: { color: "#0b1021", fontWeight: "700", fontSize: 16 },
+  fill: { flex: 1, backgroundColor: color.bg },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
+  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
+  status: { color: color.text, fontWeight: "700", textAlign: "center" },
+  grid: {
+    flexDirection: "row", flexWrap: "wrap", gap: GAP,
+    backgroundColor: color.surface, borderRadius: radius.lg, padding: GAP,
+    borderWidth: 1, borderColor: color.surfaceLine,
+  },
+  cell: {
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: color.bg, borderRadius: radius.md,
+    borderWidth: 2, borderColor: color.surfaceLine,
+  },
+  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
 });
 
 export const threeInARowGame: GameModule = {

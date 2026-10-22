@@ -1,173 +1,221 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Dimensions,
-  type GestureResponderEvent,
-} from "react-native";
+import { View, StyleSheet, Dimensions, type GestureResponderEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
+import { color, space, radius } from "../design/tokens";
+import { PixelText, IconButton, GameOverlay } from "../design/ui";
 
 const { width: W, height: H } = Dimensions.get("window");
-const BALL_R = 10;
-const HOLE_R = 18;
+const BALL_R = 9;
+const HOLE_R = 16;
 const FRICTION = 0.975;
-const STOP_SPEED = 0.25;
+const SAND_FRICTION = 0.90;
+const STOP_SPEED = 0.22;
 const MAX_POWER = 18;
-const WALL = 8;
+const DRAG_SCALE = 0.14;
+const MAX_PULL = MAX_POWER / DRAG_SCALE; // px of drag for full power
+const WALL_REST = 0.7;
+const SINK_SPEED = 7.5;
 
-interface Vec {
-  x: number;
-  y: number;
+// Fixed play rectangle (deterministic — independent of notch insets).
+const PT = 118;            // play top
+const PB = H - 146;        // play bottom
+const PLx = 14;            // play left
+const PRx = W - 14;        // play right
+const PW = PRx - PLx;
+const PH = PB - PT;
+const fx = (v: number) => PLx + PW * v;
+const fy = (v: number) => PT + PH * v;
+
+interface Vec { x: number; y: number; }
+interface Rect { x: number; y: number; w: number; h: number; }
+const rect = (x: number, y: number, w: number, h: number): Rect => ({ x: fx(x), y: fy(y), w: PW * w, h: PH * h });
+
+interface Hole { par: number; start: Vec; hole: Vec; walls: Rect[]; sand: Rect[]; water: Rect[]; }
+
+const HOLES: Hole[] = [
+  // 1 — gentle straight putt
+  { par: 2, start: { x: fx(0.5), y: fy(0.86) }, hole: { x: fx(0.5), y: fy(0.12) }, walls: [], sand: [], water: [] },
+  // 2 — wall across with a gap on the right
+  {
+    par: 3, start: { x: fx(0.5), y: fy(0.86) }, hole: { x: fx(0.5), y: fy(0.12) },
+    walls: [rect(0.0, 0.45, 0.62, 0.055)], sand: [], water: [],
+  },
+  // 3 — dog-leg around a vertical + bottom wall, sand patch en route
+  {
+    par: 3, start: { x: fx(0.22), y: fy(0.86) }, hole: { x: fx(0.80), y: fy(0.12) },
+    walls: [rect(0.40, 0.0, 0.055, 0.55), rect(0.0, 0.70, 0.55, 0.055)],
+    sand: [rect(0.55, 0.52, 0.30, 0.20)], water: [],
+  },
+  // 4 — weave between two walls, pond hazard in the corner
+  {
+    par: 4, start: { x: fx(0.2), y: fy(0.85) }, hole: { x: fx(0.82), y: fy(0.16) },
+    walls: [rect(0.28, 0.0, 0.055, 0.52), rect(0.55, 0.48, 0.055, 0.52)],
+    sand: [], water: [rect(0.0, 0.0, 0.24, 0.22)],
+  },
+];
+
+function inRect(x: number, y: number, r: Rect) {
+  return x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
 }
 
-const START: Vec = { x: W * 0.5, y: H * 0.78 };
-const HOLE: Vec = { x: W * 0.5, y: H * 0.26 };
+// AABB (expanded by ball radius) resolve with least-penetration axis.
+function resolveRect(b: Vec, v: Vec, r: Rect) {
+  const left = r.x - BALL_R, right = r.x + r.w + BALL_R, top = r.y - BALL_R, bottom = r.y + r.h + BALL_R;
+  if (b.x > left && b.x < right && b.y > top && b.y < bottom) {
+    const penL = b.x - left, penR = right - b.x, penT = b.y - top, penB = bottom - b.y;
+    const m = Math.min(penL, penR, penT, penB);
+    if (m === penL) { b.x = left; v.x = -Math.abs(v.x) * WALL_REST; }
+    else if (m === penR) { b.x = right; v.x = Math.abs(v.x) * WALL_REST; }
+    else if (m === penT) { b.y = top; v.y = -Math.abs(v.y) * WALL_REST; }
+    else { b.y = bottom; v.y = Math.abs(v.y) * WALL_REST; }
+  }
+}
 
-function Screen({ onExit }: GameContext) {
+function GameScreen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
-  const ballRef = useRef<Vec>({ ...START });
+  const holeRef = useRef(0);
+  const ballRef = useRef<Vec>({ ...HOLES[0].start });
   const velRef = useRef<Vec>({ x: 0, y: 0 });
+  const preShotRef = useRef<Vec>({ ...HOLES[0].start });
   const movingRef = useRef(false);
   const dragStartRef = useRef<Vec | null>(null);
   const dragNowRef = useRef<Vec | null>(null);
-  const sunkRef = useRef(false);
+  const phaseRef = useRef<"aim" | "holeDone" | "courseDone">("aim");
+  const strokesRef = useRef(0);
+  const totalRef = useRef(0);   // strokes on completed holes
+  const parRef = useRef(0);     // par of completed holes
   const rafRef = useRef<number | null>(null);
 
   const [, setTick] = useState(0);
+  const [holeIdx, setHoleIdx] = useState(0);
   const [strokes, setStrokes] = useState(0);
-  const [sunk, setSunk] = useState(false);
+  const [phase, setPhase] = useState<"aim" | "holeDone" | "courseDone">("aim");
   const bump = () => setTick((t) => (t + 1) % 1000000);
 
   const step = () => {
+    if (phaseRef.current !== "aim" || !movingRef.current) return;
     const b = ballRef.current;
     const v = velRef.current;
-    if (movingRef.current && !sunkRef.current) {
-      b.x += v.x;
-      b.y += v.y;
-      v.x *= FRICTION;
-      v.y *= FRICTION;
+    const hole = HOLES[holeRef.current];
 
-      const minX = WALL + BALL_R;
-      const maxX = W - WALL - BALL_R;
-      const minY = Math.max(insets.top, 24) + 60 + BALL_R;
-      const maxY = H - WALL - BALL_R - 120;
-      if (b.x < minX) {
-        b.x = minX;
-        v.x = -v.x * 0.7;
-      } else if (b.x > maxX) {
-        b.x = maxX;
-        v.x = -v.x * 0.7;
-      }
-      if (b.y < minY) {
-        b.y = minY;
-        v.y = -v.y * 0.7;
-      } else if (b.y > maxY) {
-        b.y = maxY;
-        v.y = -v.y * 0.7;
-      }
-
-      const dx = b.x - HOLE.x;
-      const dy = b.y - HOLE.y;
-      const dist = Math.hypot(dx, dy);
-      const speed = Math.hypot(v.x, v.y);
-      if (dist < HOLE_R && speed < 9) {
-        sunkRef.current = true;
-        movingRef.current = false;
-        setSunk(true);
-        b.x = HOLE.x;
-        b.y = HOLE.y;
-      } else if (speed < STOP_SPEED) {
-        v.x = 0;
-        v.y = 0;
-        movingRef.current = false;
-      }
-      bump();
+    for (let s = 0; s < 2; s++) {
+      b.x += v.x / 2; b.y += v.y / 2;
+      if (b.x < PLx + BALL_R) { b.x = PLx + BALL_R; v.x = Math.abs(v.x) * WALL_REST; }
+      else if (b.x > PRx - BALL_R) { b.x = PRx - BALL_R; v.x = -Math.abs(v.x) * WALL_REST; }
+      if (b.y < PT + BALL_R) { b.y = PT + BALL_R; v.y = Math.abs(v.y) * WALL_REST; }
+      else if (b.y > PB - BALL_R) { b.y = PB - BALL_R; v.y = -Math.abs(v.y) * WALL_REST; }
+      for (const w of hole.walls) resolveRect(b, v, w);
     }
+
+    // sand slows the ball
+    let fr = FRICTION;
+    for (const sd of hole.sand) if (inRect(b.x, b.y, sd)) { fr = SAND_FRICTION; break; }
+    v.x *= fr; v.y *= fr;
+
+    // water hazard: reset to pre-shot spot with a penalty stroke
+    for (const wt of hole.water) {
+      if (inRect(b.x, b.y, wt)) {
+        b.x = preShotRef.current.x; b.y = preShotRef.current.y;
+        v.x = 0; v.y = 0; movingRef.current = false;
+        strokesRef.current += 1; setStrokes(strokesRef.current);
+        bump(); return;
+      }
+    }
+
+    const dx = b.x - hole.hole.x, dy = b.y - hole.hole.y;
+    const dist = Math.hypot(dx, dy);
+    const speed = Math.hypot(v.x, v.y);
+    if (dist < HOLE_R && speed < SINK_SPEED) {
+      b.x = hole.hole.x; b.y = hole.hole.y; v.x = 0; v.y = 0;
+      movingRef.current = false;
+      phaseRef.current = "holeDone"; setPhase("holeDone");
+      bump(); return;
+    }
+    if (speed < STOP_SPEED) { v.x = 0; v.y = 0; movingRef.current = false; }
+    bump();
   };
 
   useEffect(() => {
     let mounted = true;
-    const loop = () => {
-      step();
-      if (mounted) rafRef.current = requestAnimationFrame(loop);
-    };
+    const loop = () => { step(); if (mounted) rafRef.current = requestAnimationFrame(loop); };
     rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      mounted = false;
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { mounted = false; if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canAim = () => !movingRef.current && !sunkRef.current;
+  const canAim = () => phaseRef.current === "aim" && !movingRef.current;
 
   const onGrant = (e: GestureResponderEvent) => {
     if (!canAim()) return;
     const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
-    dragStartRef.current = p;
-    dragNowRef.current = p;
-    bump();
+    dragStartRef.current = p; dragNowRef.current = p; bump();
   };
   const onMove = (e: GestureResponderEvent) => {
     if (!canAim() || !dragStartRef.current) return;
-    dragNowRef.current = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
-    bump();
+    dragNowRef.current = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }; bump();
   };
   const onRelease = () => {
     const start = dragStartRef.current;
     const now = dragNowRef.current;
-    dragStartRef.current = null;
-    dragNowRef.current = null;
-    if (!canAim() || !start || !now) {
-      bump();
-      return;
-    }
-    // slingshot: pull back from the ball and release to shoot the opposite way
-    let dx = (start.x - now.x) * 0.14;
-    let dy = (start.y - now.y) * 0.14;
+    dragStartRef.current = null; dragNowRef.current = null;
+    if (!canAim() || !start || !now) { bump(); return; }
+    let dx = (start.x - now.x) * DRAG_SCALE;
+    let dy = (start.y - now.y) * DRAG_SCALE;
     const mag = Math.hypot(dx, dy);
-    if (mag < 1.2) {
-      bump();
-      return; // tiny drag, ignore
-    }
-    if (mag > MAX_POWER) {
-      dx = (dx / mag) * MAX_POWER;
-      dy = (dy / mag) * MAX_POWER;
-    }
+    if (mag < 1.2) { bump(); return; }
+    if (mag > MAX_POWER) { dx = (dx / mag) * MAX_POWER; dy = (dy / mag) * MAX_POWER; }
+    preShotRef.current = { ...ballRef.current };
     velRef.current = { x: dx, y: dy };
     movingRef.current = true;
-    setStrokes((s) => s + 1);
+    strokesRef.current += 1; setStrokes(strokesRef.current);
     bump();
   };
 
-  const reset = () => {
-    ballRef.current = { ...START };
+  const loadHole = (idx: number) => {
+    holeRef.current = idx;
+    ballRef.current = { ...HOLES[idx].start };
+    preShotRef.current = { ...HOLES[idx].start };
     velRef.current = { x: 0, y: 0 };
     movingRef.current = false;
-    sunkRef.current = false;
-    dragStartRef.current = null;
-    dragNowRef.current = null;
-    setSunk(false);
-    setStrokes(0);
+    strokesRef.current = 0;
+    setHoleIdx(idx); setStrokes(0);
+    phaseRef.current = "aim"; setPhase("aim");
+  };
+
+  const nextHole = () => {
+    totalRef.current += strokesRef.current;
+    parRef.current += HOLES[holeRef.current].par;
+    if (holeRef.current >= HOLES.length - 1) { phaseRef.current = "courseDone"; setPhase("courseDone"); bump(); return; }
+    loadHole(holeRef.current + 1);
     bump();
   };
 
+  const restartCourse = () => {
+    totalRef.current = 0; parRef.current = 0;
+    loadHole(0); bump();
+  };
+
+  // ----- render -----
   const b = ballRef.current;
-  const dragging = dragStartRef.current && dragNowRef.current;
-  // aim preview: a dot showing the launch direction
-  let aim: Vec | null = null;
+  const hole = HOLES[holeIdx];
+  const dragging = canAim() && dragStartRef.current && dragNowRef.current;
+  let aim: { dots: Vec[]; power: number } | null = null;
   if (dragging && dragStartRef.current && dragNowRef.current) {
-    const s = dragStartRef.current;
-    const n = dragNowRef.current;
-    const dx = (s.x - n.x);
-    const dy = (s.y - n.y);
-    const mag = Math.min(Math.hypot(dx, dy), 90);
-    const ang = Math.atan2(dy, dx);
-    aim = { x: b.x + Math.cos(ang) * mag, y: b.y + Math.sin(ang) * mag };
+    const sdx = dragStartRef.current.x - dragNowRef.current.x;
+    const sdy = dragStartRef.current.y - dragNowRef.current.y;
+    const pull = Math.hypot(sdx, sdy);
+    const power = Math.min(1, pull / MAX_PULL);
+    const ang = Math.atan2(sdy, sdx);
+    const dots: Vec[] = [];
+    const reach = 26 + power * 92;
+    for (let i = 1; i <= 5; i++) {
+      const d = (reach / 5) * i;
+      dots.push({ x: b.x + Math.cos(ang) * d, y: b.y + Math.sin(ang) * d });
+    }
+    aim = { dots, power };
   }
+  const totalSoFar = totalRef.current + strokes;
 
   return (
     <View
@@ -178,120 +226,87 @@ function Screen({ onExit }: GameContext) {
       onResponderMove={onMove}
       onResponderRelease={onRelease}
     >
-      {/* hole */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: HOLE.x - HOLE_R,
-          top: HOLE.y - HOLE_R,
-          width: HOLE_R * 2,
-          height: HOLE_R * 2,
-          borderRadius: HOLE_R,
-          backgroundColor: "#07210f",
-          borderWidth: 3,
-          borderColor: "#d8f5c8",
-        }}
-      />
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", left: HOLE.x - 2, top: HOLE.y - HOLE_R - 26, width: 4, height: 26, backgroundColor: "#fff" }}
-      />
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", left: HOLE.x, top: HOLE.y - HOLE_R - 26, width: 20, height: 12, backgroundColor: "#ff5252" }}
-      />
+      {/* play field */}
+      <View pointerEvents="none" style={{ position: "absolute", left: PLx, top: PT, width: PW, height: PH, backgroundColor: "#1C3A1E", borderRadius: radius.md, borderWidth: 2, borderColor: "#0E2410" }} />
 
-      {/* aim preview */}
-      {aim ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: aim.x - 5,
-            top: aim.y - 5,
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor: "rgba(255,255,255,0.85)",
-          }}
-        />
-      ) : null}
+      {/* water hazards */}
+      {hole.water.map((r, i) => (
+        <View key={`w${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: "rgba(0,229,255,0.22)", borderWidth: 2, borderColor: color.cyan, borderRadius: 6 }} />
+      ))}
+      {/* sand patches */}
+      {hole.sand.map((r, i) => (
+        <View key={`s${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: "rgba(255,201,77,0.28)", borderWidth: 1, borderColor: color.warn, borderRadius: 6 }} />
+      ))}
+      {/* walls */}
+      {hole.walls.map((r, i) => (
+        <View key={`wl${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: color.surface2, borderWidth: 2, borderColor: color.surfaceLine, borderRadius: 4 }} />
+      ))}
+
+      {/* hole + flag */}
+      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - HOLE_R, top: hole.hole.y - HOLE_R, width: HOLE_R * 2, height: HOLE_R * 2, borderRadius: HOLE_R, backgroundColor: "#06140A", borderWidth: 3, borderColor: "#0E2410" }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - 1.5, top: hole.hole.y - HOLE_R - 30, width: 3, height: 30, backgroundColor: color.text }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x + 1.5, top: hole.hole.y - HOLE_R - 30, width: 18, height: 12, backgroundColor: color.danger }} />
+
+      {/* aim dots */}
+      {aim ? aim.dots.map((d, i) => (
+        <View key={`a${i}`} pointerEvents="none" style={{ position: "absolute", left: d.x - 3, top: d.y - 3, width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(243,239,230,0.85)" }} />
+      )) : null}
 
       {/* ball */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: b.x - BALL_R,
-          top: b.y - BALL_R,
-          width: BALL_R * 2,
-          height: BALL_R * 2,
-          borderRadius: BALL_R,
-          backgroundColor: "#ffffff",
-        }}
-      />
+      <View pointerEvents="none" style={{ position: "absolute", left: b.x - BALL_R, top: b.y - BALL_R, width: BALL_R * 2, height: BALL_R * 2, borderRadius: BALL_R, backgroundColor: color.text, borderWidth: 2, borderColor: "#C9C3B4" }} />
 
+      {/* HUD */}
       <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
-        <Pressable style={st.exit} onPress={onExit}>
-          <Text style={st.exitT}>← Menu</Text>
-        </Pressable>
-        <Text style={st.score}>Strokes {strokes}</Text>
+        <View style={st.hudPanel}>
+          <PixelText size="score">H{holeIdx + 1}/{HOLES.length}  ·  {strokes}</PixelText>
+          <PixelText size="label" style={{ marginTop: 4 }}>PAR {hole.par}  ·  TOT {totalSoFar}</PixelText>
+        </View>
+        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
-      <View style={[st.hint, { bottom: Math.max(insets.bottom, 16) + 10 }]} pointerEvents="none">
-        <Text style={st.hintT}>Drag back from the ball, then release to putt</Text>
-      </View>
-
-      {sunk ? (
-        <View style={st.overlay} pointerEvents="box-none">
-          <Text style={st.overBig}>Sunk it!</Text>
-          <Text style={st.overSub}>{strokes} stroke{strokes === 1 ? "" : "s"}</Text>
-          <Pressable style={st.again} onPress={reset}>
-            <Text style={st.againT}>Play again</Text>
-          </Pressable>
+      {/* power meter (only while aiming) */}
+      {aim ? (
+        <View style={[st.powerWrap, { bottom: Math.max(insets.bottom, 16) + 46 }]} pointerEvents="none">
+          <View style={st.powerTrack}>
+            <View style={[st.powerFill, { width: `${Math.round(aim.power * 100)}%`, backgroundColor: aim.power > 0.75 ? color.danger : aim.power > 0.4 ? color.amber : color.success }]} />
+          </View>
         </View>
       ) : null}
+
+      <View style={[st.hint, { bottom: Math.max(insets.bottom, 16) + 12 }]} pointerEvents="none">
+        <PixelText size="label" style={{ color: color.textMuted }}>DRAG BACK FROM THE BALL, RELEASE TO PUTT</PixelText>
+      </View>
+
+      <GameOverlay
+        visible={phase === "holeDone"} kind="win"
+        title={`HOLE ${holeIdx + 1} DONE`}
+        score={`${strokes} STROKES  ·  PAR ${hole.par}`}
+        primaryLabel={holeIdx >= HOLES.length - 1 ? "See results" : "Next hole"}
+        onPrimary={nextHole} onExit={onExit}
+      />
+      <GameOverlay
+        visible={phase === "courseDone"} kind="win"
+        title="COURSE COMPLETE"
+        score={`TOTAL ${totalRef.current}  ·  PAR ${parRef.current}  (${totalRef.current - parRef.current >= 0 ? "+" : ""}${totalRef.current - parRef.current})`}
+        primaryLabel="Play again" onPrimary={restartCourse} onExit={onExit}
+      />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#2e7d32" },
-  hud: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 5,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  score: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  exit: { backgroundColor: "rgba(0,0,0,0.3)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
-  exitT: { color: "#fff", fontWeight: "600" },
+  fill: { flex: 1, backgroundColor: color.bg },
+  hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
   hint: { position: "absolute", left: 0, right: 0, alignItems: "center" },
-  hintT: { color: "rgba(255,255,255,0.8)", fontSize: 13 },
-  overlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  overBig: { color: "#fff", fontSize: 28, fontWeight: "700" },
-  overSub: { color: "#eee", fontSize: 18, marginTop: 6, marginBottom: 16 },
-  again: { backgroundColor: "#fff", paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10 },
-  againT: { color: "#2e7d32", fontWeight: "700" },
+  powerWrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  powerTrack: { width: W * 0.6, height: 10, borderRadius: 5, backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, overflow: "hidden" },
+  powerFill: { height: "100%", borderRadius: 5 },
 });
 
 export const puttPalGame: GameModule = {
   id: "putt-pal",
   title: "Putt Pal",
   kind: "arcade",
-  Screen,
+  Screen: GameScreen,
 };

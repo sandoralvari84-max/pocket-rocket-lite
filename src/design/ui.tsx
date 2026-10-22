@@ -3,7 +3,7 @@
 import React from "react";
 import {
   View, Text, Pressable, TextInput, ActivityIndicator, Modal,
-  StyleSheet, ViewStyle, TextStyle, ImageStyle, Image, ImageSourcePropType, ScrollView,
+  StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp, Image, ImageSourcePropType, ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { color, space, radius, type as T, HIT } from "./tokens";
@@ -25,13 +25,13 @@ export function Screen({ children, scroll, pad = true, style }: {
 }
 
 /* ---------- Text ---------- */
-export function PixelText({ children, style, size }: { children: React.ReactNode; style?: TextStyle; size?: "title" | "h2" | "label" | "score"; }) {
+export function PixelText({ children, style, size }: { children: React.ReactNode; style?: StyleProp<TextStyle>; size?: "title" | "h2" | "label" | "score"; }) {
   const base = size === "title" ? T.pixelTitle : size === "score" ? T.pixelScore : size === "label" ? T.pixelLabel : T.pixelH2;
   return <Text style={[base, style]}>{children}</Text>;
 }
-export function Title({ children, style }: { children: React.ReactNode; style?: TextStyle }) { return <Text style={[T.title, style]}>{children}</Text>; }
-export function H2({ children, style }: { children: React.ReactNode; style?: TextStyle }) { return <Text style={[T.h2, style]}>{children}</Text>; }
-export function Body({ children, style, muted }: { children: React.ReactNode; style?: TextStyle; muted?: boolean }) { return <Text style={[muted ? T.bodyMuted : T.body, style]}>{children}</Text>; }
+export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) { return <Text style={[T.title, style]}>{children}</Text>; }
+export function H2({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) { return <Text style={[T.h2, style]}>{children}</Text>; }
+export function Body({ children, style, muted }: { children: React.ReactNode; style?: StyleProp<TextStyle>; muted?: boolean }) { return <Text style={[muted ? T.bodyMuted : T.body, style]}>{children}</Text>; }
 
 /* ---------- Buttons ---------- */
 type BtnVariant = "primary" | "secondary" | "tertiary" | "destructive";

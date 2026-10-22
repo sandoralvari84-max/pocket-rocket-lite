@@ -1,14 +1,22 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useRef, useState } from "react";
+import { View, StyleSheet, Pressable, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
+import { color, space, radius } from "../design/tokens";
+import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 
-type Disc = "P" | "M" | null; // Player, Machine
+type Disc = "P" | "M" | null; // P = player (amber), M = machine (cyan)
 type Board = Disc[]; // row-major, length COLS*ROWS, index 0 = top-left
 
 const COLS = 7;
 const ROWS = 6;
 const NEED = 4;
+const DEPTH = 6; // alpha-beta search depth
+
+const { width: W } = Dimensions.get("window");
+const GRID_W = Math.min(W - space.lg * 2, 350);
+const SLOT = Math.floor((GRID_W - 12) / COLS);
+const DISC = Math.floor(SLOT * 0.82);
 
 const idx = (r: number, c: number): number => r * COLS + c;
 const emptyBoard = (): Board => Array<Disc>(COLS * ROWS).fill(null);
@@ -24,10 +32,9 @@ const legalColumns = (b: Board): number[] => {
   return out;
 };
 
-const DIRS: ReadonlyArray<readonly [number, number]> = [
-  [0, 1], [1, 0], [1, 1], [1, -1],
-];
+const DIRS: ReadonlyArray<readonly [number, number]> = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
+// Did the disc just placed at (r,c) complete a line of NEED?
 function winnerAt(b: Board, r: number, c: number): boolean {
   const who = b[idx(r, c)];
   if (!who) return false;
@@ -48,16 +55,96 @@ function winnerAt(b: Board, r: number, c: number): boolean {
   return false;
 }
 
-// Pull the first digit 0-6 that names a non-full column from the model's reply.
-function parseColumn(reply: string, b: Board): number | null {
-  const digits = reply.match(/[0-6]/g);
-  if (digits) {
-    for (const d of digits) {
-      const n = Number(d);
-      if (dropRow(b, n) !== -1) return n;
-    }
+function placeInto(b: Board, c: number, who: Disc): { next: Board; row: number } {
+  const row = dropRow(b, c);
+  const next = b.slice();
+  if (row !== -1) next[idx(row, c)] = who;
+  return { next, row };
+}
+
+// ---- Heuristic for non-terminal leaves (from Machine's perspective). ----
+function scoreWindow(cells: Disc[]): number {
+  let m = 0, p = 0, e = 0;
+  for (const v of cells) { if (v === "M") m++; else if (v === "P") p++; else e++; }
+  if (m > 0 && p > 0) return 0; // mixed, dead
+  if (m === 3 && e === 1) return 50;
+  if (m === 2 && e === 2) return 10;
+  if (m === 1 && e === 3) return 1;
+  if (p === 3 && e === 1) return -80; // weight blocking slightly higher
+  if (p === 2 && e === 2) return -10;
+  if (p === 1 && e === 3) return -1;
+  return 0;
+}
+
+function evaluate(b: Board): number {
+  let score = 0;
+  // center control
+  for (let r = 0; r < ROWS; r++) {
+    const v = b[idx(r, 3)];
+    if (v === "M") score += 6; else if (v === "P") score -= 6;
   }
-  return null;
+  // all length-4 windows
+  const windows: Disc[][] = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      for (const [dr, dc] of DIRS) {
+        const er = r + dr * 3, ec = c + dc * 3;
+        if (er < 0 || er >= ROWS || ec < 0 || ec >= COLS) continue;
+        const w: Disc[] = [];
+        for (let s = 0; s < NEED; s++) w.push(b[idx(r + dr * s, c + dc * s)]);
+        windows.push(w);
+      }
+  for (const w of windows) score += scoreWindow(w);
+  return score;
+}
+
+const ORDER = [3, 2, 4, 1, 5, 0, 6]; // center-first move ordering
+
+function minimax(
+  b: Board, depth: number, alpha: number, beta: number,
+  maximizing: boolean, lastRow: number, lastCol: number,
+): number {
+  if (lastRow >= 0 && winnerAt(b, lastRow, lastCol)) {
+    // The player who just moved won. If it is now the maximizer's turn,
+    // the winner was the minimizer (player) -> negative, and vice versa.
+    return maximizing ? -100000 - depth : 100000 + depth;
+  }
+  const cols = legalColumns(b);
+  if (depth === 0 || cols.length === 0) return evaluate(b);
+  const ordered = ORDER.filter((c) => cols.includes(c));
+  if (maximizing) {
+    let best = -Infinity;
+    for (const c of ordered) {
+      const { next, row } = placeInto(b, c, "M");
+      best = Math.max(best, minimax(next, depth - 1, alpha, beta, false, row, c));
+      alpha = Math.max(alpha, best);
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+  let best = Infinity;
+  for (const c of ordered) {
+    const { next, row } = placeInto(b, c, "P");
+    best = Math.min(best, minimax(next, depth - 1, alpha, beta, true, row, c));
+    beta = Math.min(beta, best);
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function bestColumn(b: Board): number {
+  const cols = legalColumns(b);
+  const ordered = ORDER.filter((c) => cols.includes(c));
+  let bestScore = -Infinity;
+  let pick = ordered[0] ?? -1;
+  for (const c of ordered) {
+    const { next, row } = placeInto(b, c, "M");
+    // Immediate win short-circuit (also handled by search, but keeps it crisp).
+    if (winnerAt(next, row, c)) return c;
+    const score = minimax(next, DEPTH - 1, -Infinity, Infinity, false, row, c);
+    if (score > bestScore) { bestScore = score; pick = c; }
+  }
+  return pick;
 }
 
 function Screen({ ask, onExit }: GameContext) {
@@ -65,126 +152,123 @@ function Screen({ ask, onExit }: GameContext) {
   const [board, setBoard] = useState<Board>(emptyBoard);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
-  const [status, setStatus] = useState("Your turn — tap a column");
+  const [result, setResult] = useState<"win" | "lose" | "draw" | null>(null);
+  const [status, setStatus] = useState("Your turn — drop into a column");
   const [quip, setQuip] = useState("");
+  const [last, setLast] = useState<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const place = (b: Board, c: number, who: Disc): { next: Board; row: number } => {
-    const row = dropRow(b, c);
-    const next = b.slice();
-    if (row !== -1) next[idx(row, c)] = who;
-    return { next, row };
+  const fetchTaunt = () => {
+    ask(
+      `We are playing a four-in-a-row drop game. You just dropped a disc. ` +
+        `In ONE short sentence (max 10 words) give a cocky taunt. No numbers, no board talk.`,
+      "banter",
+    )
+      .then((r) => { const t = r.trim().replace(/^["']|["']$/g, "").slice(0, 70); if (t) setQuip(t); })
+      .catch(() => {});
   };
 
-  const machineMove = async (b: Board): Promise<void> => {
-    const cols = legalColumns(b);
-    if (cols.length === 0) { setStatus("The board is full — a draw."); setOver(true); return; }
-    const fallback = cols[Math.floor(Math.random() * cols.length)]!;
-    let pick = fallback;
-    try {
-      const rows: string[] = [];
-      for (let r = 0; r < ROWS; r++) {
-        let line = "";
-        for (let c = 0; c < COLS; c++) {
-          const v = b[idx(r, c)];
-          line += v === "P" ? "P" : v === "M" ? "M" : ".";
-        }
-        rows.push(line);
-      }
-      const reply = await ask(
-        `Connect-four on a 7-wide 6-tall grid. Columns numbered 0-6. ` +
-          `You are M, opponent is P, dots are empty, top row first:\n${rows.join("\n")}\n` +
-          `Reply with ONLY the column number 0-6 you drop into, then a short taunt.`,
-        "Pick one non-full column 0-6 and add a one-line taunt."
-      );
-      const parsed = parseColumn(reply, b);
-      if (parsed !== null) pick = parsed;
-      const taunt = reply.replace(/[0-6]/, "").trim().slice(0, 80);
-      if (taunt) setQuip(taunt);
-    } catch {
-      /* keep fallback, no quip */
-    }
-    const { next, row } = place(b, pick, "M");
-    setBoard(next);
-    if (row !== -1 && winnerAt(next, row, pick)) { setStatus("The machine connects four."); setOver(true); return; }
-    if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setOver(true); return; }
-    setStatus("Your turn — tap a column");
-  };
-
-  const onColumn = (c: number): void => {
-    if (busy || over) return;
-    const row = dropRow(board, c);
-    if (row === -1) return;
-    const { next } = place(board, c, "P");
-    setBoard(next);
-    setQuip("");
-    if (winnerAt(next, row, c)) { setStatus("You connect four — you win!"); setOver(true); return; }
-    if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setOver(true); return; }
+  const machineTurn = (b: Board) => {
     setStatus("Machine thinking…");
     setBusy(true);
-    void machineMove(next).finally(() => setBusy(false));
+    timer.current = setTimeout(() => {
+      const c = bestColumn(b);
+      const { next, row } = placeInto(b, c, "M");
+      setBoard(next);
+      setLast(row >= 0 ? idx(row, c) : null);
+      setBusy(false);
+      if (row !== -1 && winnerAt(next, row, c)) { setStatus("The machine connects four."); setResult("lose"); setOver(true); return; }
+      if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
+      setStatus("Your turn — drop into a column");
+      fetchTaunt();
+    }, 420);
   };
 
-  const reset = (): void => {
+  const onColumn = (c: number) => {
+    if (busy || over) return;
+    const { next, row } = placeInto(board, c, "P");
+    if (row === -1) return;
+    setBoard(next);
+    setLast(idx(row, c));
+    setQuip("");
+    if (winnerAt(next, row, c)) { setStatus("You connect four — you win!"); setResult("win"); setOver(true); return; }
+    if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
+    machineTurn(next);
+  };
+
+  const reset = () => {
+    if (timer.current) clearTimeout(timer.current);
     setBoard(emptyBoard());
     setOver(false);
+    setResult(null);
     setBusy(false);
     setQuip("");
-    setStatus("Your turn — tap a column");
+    setLast(null);
+    setStatus("Your turn — drop into a column");
   };
 
   return (
     <View style={st.fill}>
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
-        <Pressable style={st.exit} onPress={onExit}>
-          <Text style={st.exitT}>← Menu</Text>
-        </Pressable>
-        <Text style={st.title}>Four Up</Text>
+        <PixelText size="h2" style={{ color: color.amber }}>FOUR UP</PixelText>
+        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
+
       <View style={st.body}>
-        <Text style={st.status}>{status}</Text>
+        <Body style={st.status}>{status}</Body>
+
         <View style={st.grid}>
           {Array.from({ length: COLS }, (_, c) => (
-            <Pressable key={c} style={st.col} disabled={busy || over} onPress={() => onColumn(c)}>
+            <Pressable key={c} style={st.colTap} disabled={busy || over} onPress={() => onColumn(c)}>
               {Array.from({ length: ROWS }, (_, r) => {
                 const v = board[idx(r, c)];
+                const isLast = last === idx(r, c);
                 return (
-                  <View key={r} style={st.slot}>
-                    <View style={[st.disc, v === "P" ? st.player : v === "M" ? st.machine : st.empty]} />
+                  <View key={r} style={[st.slot, { width: SLOT, height: SLOT }]}>
+                    <View
+                      style={[
+                        { width: DISC, height: DISC, borderRadius: DISC / 2 },
+                        v === "P" ? st.player : v === "M" ? st.machine : st.empty,
+                        isLast && { borderWidth: 2, borderColor: color.text },
+                      ]}
+                    />
                   </View>
                 );
               })}
             </Pressable>
           ))}
         </View>
-        {quip ? <Text style={st.quip}>“{quip}”</Text> : null}
-        {over ? (
-          <Pressable style={st.again} onPress={reset}>
-            <Text style={st.againT}>Play again</Text>
-          </Pressable>
-        ) : null}
+
+        {quip ? <Body muted style={st.quip}>“{quip}”</Body> : <View style={{ height: 24 }} />}
       </View>
+
+      <GameOverlay
+        visible={over}
+        kind={result === "win" ? "win" : result === "draw" ? "pause" : "over"}
+        title={result === "win" ? "YOU WIN" : result === "draw" ? "DRAW" : "DEFEATED"}
+        primaryLabel="Play again"
+        onPrimary={reset}
+        onExit={onExit}
+      />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#0b1021" },
-  top: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 12 },
-  exit: { backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
-  exitT: { color: "#fff", fontWeight: "600" },
-  title: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  status: { color: "#cdd6ff", fontSize: 16, fontWeight: "600", textAlign: "center", paddingHorizontal: 16 },
-  grid: { flexDirection: "row", backgroundColor: "#1b2550", borderRadius: 12, padding: 6 },
-  col: { flexDirection: "column" },
-  slot: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
-  disc: { width: 34, height: 34, borderRadius: 17 },
-  empty: { backgroundColor: "#0b1021" },
-  player: { backgroundColor: "#4da3ff" },
-  machine: { backgroundColor: "#ffd24d" },
-  quip: { color: "#9aa7e0", fontStyle: "italic", fontSize: 15, paddingHorizontal: 24, textAlign: "center" },
-  again: { backgroundColor: "#4da3ff", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
-  againT: { color: "#0b1021", fontWeight: "700", fontSize: 16 },
+  fill: { flex: 1, backgroundColor: color.bg },
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
+  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
+  status: { color: color.text, fontWeight: "700", textAlign: "center", paddingHorizontal: space.lg },
+  grid: {
+    flexDirection: "row", backgroundColor: color.surface, borderRadius: radius.lg,
+    padding: 6, borderWidth: 1, borderColor: color.surfaceLine,
+  },
+  colTap: { flexDirection: "column" },
+  slot: { alignItems: "center", justifyContent: "center" },
+  empty: { backgroundColor: color.bg, borderWidth: 1, borderColor: color.surfaceLine },
+  player: { backgroundColor: color.amber },
+  machine: { backgroundColor: color.cyan },
+  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
 });
 
 export const fourUpGame: GameModule = {

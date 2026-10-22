@@ -1,20 +1,58 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { GameModule, GameContext } from "./contract";
+import type { GameModule, GameContext, AskModel } from "./contract";
+import { color, space, radius } from "../design/tokens";
+import { PixelText, Body, IconButton, Card, Spinner } from "../design/ui";
 
 const MAX_Q = 20;
+const GUESS_AFTER = 15; // when offline, start guessing once this many questions are asked
 
 interface Entry {
   q: string;
   a: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Offline fallback bank. The game stays conversational through the
+ * model, but if the model stalls (timeout) or returns nothing, we fall
+ * back to a deterministic generic question (or, late in the game, a
+ * guess) so the state machine never soft-locks.
+ * ------------------------------------------------------------------ */
+const FALLBACK_QUESTIONS: string[] = [
+  "Is it a living thing?",
+  "Is it bigger than a microwave?",
+  "Can you hold it in one hand?",
+  "Is it usually found indoors?",
+  "Is it made by people?",
+  "Is it something you can eat or drink?",
+  "Does it use electricity?",
+  "Is it commonly found in a home?",
+  "Is it an animal?",
+  "Is it used mainly for entertainment?",
+  "Is it something you can wear?",
+  "Is it found in nature?",
+  "Is it heavier than an adult person?",
+  "Does it make a sound of its own?",
+  "Is it older than a hundred years as an idea?",
+  "Would you find it in a kitchen?",
+  "Is it mostly made of metal?",
+  "Is it something children often play with?",
+];
+
+const FALLBACK_GUESSES: string[] = ["a cat", "a smartphone", "a book", "a car", "a tree", "an apple", "a chair"];
+
+async function askWithTimeout(ask: AskModel, prompt: string, note: string, ms = 9000): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
+  });
+  try {
+    const res = await Promise.race([ask(prompt, note), timeout]);
+    return (res || "").trim();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function Screen({ ask, onExit }: GameContext) {
@@ -25,7 +63,37 @@ function Screen({ ask, onExit }: GameContext) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [isGuess, setIsGuess] = useState(false);
+  const [offline, setOffline] = useState(false);
   const scroller = useRef<ScrollView>(null);
+  const mounted = useRef(true);
+  const fbQ = useRef(0); // rotating index into FALLBACK_QUESTIONS
+  const fbG = useRef(0); // rotating index into FALLBACK_GUESSES
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  // Deterministic fallback: a fresh generic question, or a guess late game.
+  const useFallback = useCallback((hist: Entry[]) => {
+    setOffline(true);
+    if (hist.length >= GUESS_AFTER) {
+      const g = FALLBACK_GUESSES[fbG.current % FALLBACK_GUESSES.length]!;
+      fbG.current += 1;
+      setCurrent(g);
+      setIsGuess(true);
+      return;
+    }
+    const asked = new Set(hist.map((e) => e.q));
+    let picked = "";
+    for (let i = 0; i < FALLBACK_QUESTIONS.length; i++) {
+      const cand = FALLBACK_QUESTIONS[(fbQ.current + i) % FALLBACK_QUESTIONS.length]!;
+      if (!asked.has(cand)) { picked = cand; fbQ.current = (fbQ.current + i + 1) % FALLBACK_QUESTIONS.length; break; }
+    }
+    if (!picked) picked = FALLBACK_QUESTIONS[fbQ.current % FALLBACK_QUESTIONS.length]!;
+    setCurrent(picked);
+    setIsGuess(false);
+  }, []);
 
   const askNext = useCallback(
     async (hist: Entry[]) => {
@@ -36,37 +104,39 @@ function Screen({ ask, onExit }: GameContext) {
           hist.length === 0
             ? "(no answers yet)"
             : hist.map((e, i) => `${i + 1}. Q:${e.q} A:${e.a}`).join("\n");
-        const reply = await ask(
+        const reply = await askWithTimeout(
+          ask,
           `We are playing Twenty Questions. I am thinking of a single thing (object, animal, person or place). ` +
             `You have asked ${asked} of ${MAX_Q} questions so far:\n${transcript}\n\n` +
             `Reply with ONLY your next single yes/no question. ` +
             `If you are confident what it is, instead reply starting with "GUESS:" followed by your guess.`,
           "twenty questions"
         );
+        if (!mounted.current) return;
         const text = (reply || "").trim();
         if (!text) {
-          setCurrent("Is it something you can hold in your hand?");
-          setIsGuess(false);
-        } else if (/^guess\s*:/i.test(text)) {
-          setCurrent(text.replace(/^guess\s*:/i, "").trim() || "Is it what I think?");
-          setIsGuess(true);
+          useFallback(hist); // empty/malformed → deterministic fallback
         } else {
-          setCurrent(text.split("\n")[0]!.trim());
-          setIsGuess(false);
+          setOffline(false);
+          if (/^guess\s*:/i.test(text)) {
+            setCurrent(text.replace(/^guess\s*:/i, "").trim() || "what you are thinking of");
+            setIsGuess(true);
+          } else {
+            const firstLine = text.split("\n")[0] ?? text;
+            setCurrent(firstLine.trim() || "Is it a living thing?");
+            setIsGuess(false);
+          }
         }
       } catch {
-        setCurrent("Is it a living thing?");
-        setIsGuess(false);
+        if (mounted.current) useFallback(hist); // timeout / error → deterministic fallback
       } finally {
-        setBusy(false);
+        if (mounted.current) setBusy(false);
       }
     },
-    [ask]
+    [ask, useFallback]
   );
 
-  useEffect(() => {
-    void askNext([]);
-  }, [askNext]);
+  useEffect(() => { void askNext([]); }, [askNext]);
 
   const answer = useCallback(
     (a: string) => {
@@ -92,7 +162,7 @@ function Screen({ ask, onExit }: GameContext) {
       if (correct) {
         setDone(`Got it in ${count + 1} question${count === 0 ? "" : "s"}!`);
       } else {
-        const next = [...history, { q: current, a: "No (wrong guess)" }];
+        const next = [...history, { q: `Is it ${current}?`, a: "No (wrong guess)" }];
         const n = count + 1;
         setHistory(next);
         setCount(n);
@@ -106,113 +176,131 @@ function Screen({ ask, onExit }: GameContext) {
     [busy, count, history, current, askNext]
   );
 
+  const restart = useCallback(() => {
+    setHistory([]);
+    setCount(0);
+    setDone(null);
+    setIsGuess(false);
+    setCurrent("");
+    fbQ.current = 0;
+    fbG.current = 0;
+    void askNext([]);
+  }, [askNext]);
+
   return (
     <View style={st.fill}>
       <View style={[st.bar, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
-        <Pressable style={st.exit} onPress={onExit} hitSlop={8}>
-          <Text style={st.exitT}>← Menu</Text>
-        </Pressable>
-        <Text style={st.counter}>
-          {Math.min(count, MAX_Q)}/{MAX_Q}
-        </Text>
+        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        <View style={{ alignItems: "center" }}>
+          <PixelText size="h2" style={{ color: color.cyan }}>20 QUESTIONS</PixelText>
+          <PixelText size="label" style={{ marginTop: 4 }}>
+            {Math.min(count, MAX_Q)}/{MAX_Q}
+          </PixelText>
+        </View>
+        <View style={{ width: 48 }} />
       </View>
 
-      <Text style={st.title}>Twenty Questions</Text>
-      <Text style={st.hint}>Think of a thing. Answer each question honestly.</Text>
+      <Body muted style={st.hint}>
+        Think of any one thing. Answer each yes/no question honestly and let it try to guess.
+      </Body>
 
       <ScrollView ref={scroller} style={st.log} contentContainerStyle={st.logInner}>
         {history.map((e, i) => (
           <View key={i} style={st.row}>
-            <Text style={st.qText}>
-              {i + 1}. {e.q}
-            </Text>
-            <Text style={st.aText}>→ {e.a}</Text>
+            <Body style={st.qText}>{i + 1}. {e.q}</Body>
+            <Body style={st.aText}>→ {e.a}</Body>
           </View>
         ))}
       </ScrollView>
 
-      <View style={st.panel}>
+      <Card style={st.panel}>
         {done ? (
-          <Text style={st.done}>{done}</Text>
+          <View style={{ alignItems: "center", gap: space.lg }}>
+            <Body style={st.done}>{done}</Body>
+            <Pressable style={st.againBtn} onPress={restart} accessibilityRole="button">
+              <Body style={st.againT}>Play again</Body>
+            </Pressable>
+          </View>
         ) : busy ? (
-          <ActivityIndicator color="#ffd24d" />
+          <Spinner label="Thinking…" />
         ) : (
           <>
-            <Text style={st.prompt}>
-              {isGuess ? "Is it... " : ""}
-              {current}
-              {isGuess ? "?" : ""}
-            </Text>
+            {offline ? <Body style={st.offline}>Offline mode</Body> : null}
+            <Body style={st.prompt}>
+              {isGuess ? `Is it ${current}?` : current}
+            </Body>
             {isGuess ? (
               <View style={st.btnRow}>
-                <Pressable style={[st.btn, st.yes]} onPress={() => confirmGuess(true)}>
-                  <Text style={st.btnT}>Correct!</Text>
+                <Pressable style={[st.btn, st.yes]} onPress={() => confirmGuess(true)} accessibilityRole="button">
+                  <Body style={st.btnT}>Correct!</Body>
                 </Pressable>
-                <Pressable style={[st.btn, st.no]} onPress={() => confirmGuess(false)}>
-                  <Text style={st.btnT}>Nope</Text>
+                <Pressable style={[st.btn, st.no]} onPress={() => confirmGuess(false)} accessibilityRole="button">
+                  <Body style={st.btnT}>Nope</Body>
                 </Pressable>
               </View>
             ) : (
               <View style={st.btnRow}>
-                <Pressable style={[st.btn, st.yes]} onPress={() => answer("Yes")}>
-                  <Text style={st.btnT}>Yes</Text>
+                <Pressable style={[st.btn, st.yes]} onPress={() => answer("Yes")} accessibilityRole="button">
+                  <Body style={st.btnT}>Yes</Body>
                 </Pressable>
-                <Pressable style={[st.btn, st.no]} onPress={() => answer("No")}>
-                  <Text style={st.btnT}>No</Text>
+                <Pressable style={[st.btn, st.no]} onPress={() => answer("No")} accessibilityRole="button">
+                  <Body style={st.btnT}>No</Body>
                 </Pressable>
-                <Pressable style={[st.btn, st.maybe]} onPress={() => answer("Maybe")}>
-                  <Text style={st.btnT}>Maybe</Text>
+                <Pressable style={[st.btn, st.maybe]} onPress={() => answer("Maybe")} accessibilityRole="button">
+                  <Body style={st.btnT}>Maybe</Body>
                 </Pressable>
               </View>
             )}
           </>
         )}
-      </View>
+      </Card>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#0b1021" },
+  fill: { flex: 1, backgroundColor: color.bg },
   bar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.sm,
   },
-  exit: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  exitT: { color: "#fff", fontWeight: "600" },
-  counter: { color: "#ffd24d", fontWeight: "700", fontSize: 16 },
-  title: { color: "#fff", fontSize: 24, fontWeight: "800", paddingHorizontal: 16 },
-  hint: { color: "#9fb0d0", fontSize: 13, paddingHorizontal: 16, marginTop: 2 },
-  log: { flex: 1, marginTop: 12 },
-  logInner: { paddingHorizontal: 16, paddingBottom: 12 },
-  row: { marginBottom: 10 },
-  qText: { color: "#dce6ff", fontSize: 15 },
-  aText: { color: "#7fe0a0", fontSize: 14, fontWeight: "600" },
+  hint: { paddingHorizontal: space.lg, marginTop: space.xs },
+  log: { flex: 1, marginTop: space.md },
+  logInner: { paddingHorizontal: space.lg, paddingBottom: space.md },
+  row: { marginBottom: space.md },
+  qText: { fontSize: 15, color: color.text },
+  aText: { fontSize: 14, color: color.success, fontWeight: "700", marginTop: 2 },
   panel: {
-    padding: 16,
-    paddingBottom: 28,
-    backgroundColor: "#141a33",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    minHeight: 120,
+    margin: space.lg,
+    minHeight: 130,
     justifyContent: "center",
   },
-  prompt: { color: "#fff", fontSize: 18, fontWeight: "600", marginBottom: 14, textAlign: "center" },
-  done: { color: "#ffd24d", fontSize: 18, fontWeight: "700", textAlign: "center" },
-  btnRow: { flexDirection: "row", justifyContent: "center", gap: 10 },
-  btn: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, minWidth: 80, alignItems: "center" },
-  yes: { backgroundColor: "#2e9e5b" },
-  no: { backgroundColor: "#b5453a" },
-  maybe: { backgroundColor: "#5a69a8" },
-  btnT: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  offline: { color: color.warn, fontSize: 12, fontWeight: "700", textAlign: "center", marginBottom: space.sm },
+  prompt: { color: color.text, fontSize: 19, fontWeight: "700", marginBottom: space.lg, textAlign: "center", lineHeight: 26 },
+  done: { color: color.amber, fontSize: 19, fontWeight: "800", textAlign: "center" },
+  btnRow: { flexDirection: "row", justifyContent: "center", gap: space.sm },
+  btn: {
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.md,
+    minWidth: 84,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  yes: { backgroundColor: "rgba(91,209,107,0.16)", borderColor: color.success },
+  no: { backgroundColor: "rgba(255,82,71,0.16)", borderColor: color.danger },
+  maybe: { backgroundColor: color.surface2, borderColor: color.surfaceLine },
+  btnT: { color: color.text, fontWeight: "800", fontSize: 15 },
+  againBtn: {
+    backgroundColor: color.amber,
+    paddingVertical: space.md,
+    paddingHorizontal: space.xl,
+    borderRadius: radius.md,
+  },
+  againT: { color: color.onAmber, fontWeight: "800", fontSize: 15 },
 });
 
 export const twentyQuestionsGame: GameModule = {
