@@ -18,7 +18,7 @@ export default function Home() {
 
   return (
     <View style={s.fill}>
-      <View style={[s.body, { paddingTop: insets.top }]}>
+      <View style={[s.body, { paddingTop: Math.max(insets.top, 24) }]}>
         {tab === "chat" ? (
           <Chat />
         ) : (
@@ -33,7 +33,7 @@ export default function Home() {
           </ScrollView>
         )}
       </View>
-      <View style={[s.tabs, { paddingBottom: insets.bottom }]}>
+      <View style={[s.tabs, { paddingBottom: Math.max(insets.bottom, 48) }]}>
         <Pressable style={[s.tab, tab === "chat" && s.on]} onPress={() => setTab("chat")}>
           <Text style={[s.tabT, tab === "chat" && s.onT]}>Chat</Text>
         </Pressable>

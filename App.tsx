@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { DISCLAIMER } from "./src/preset";
 import { modelExists, downloadModel, loadModel } from "./src/model";
 import Home from "./src/Home";
@@ -57,7 +57,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="dark" />
       {content}
     </SafeAreaProvider>

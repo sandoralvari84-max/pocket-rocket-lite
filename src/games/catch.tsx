@@ -45,7 +45,7 @@ function Screen({ onExit }: GameContext) {
   return (
     <View style={st.fill}>
       <GameEngine style={st.fill} systems={[Physics]} entities={entities} onEvent={onEvent} />
-      <View style={[st.hud, { top: insets.top + 8 }]} pointerEvents="box-none">
+      <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
         <Text style={st.score}>Caught {score}   ·   Missed {misses}</Text>
         <Pressable style={st.exit} onPress={onExit}><Text style={st.exitT}>← Menu</Text></Pressable>
       </View>
