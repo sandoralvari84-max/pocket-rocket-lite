@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Chat from "./Chat";
+import VoiceChat from "./VoiceChat";
 import { ask } from "./model";
 import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
@@ -20,7 +20,7 @@ export default function Home() {
     <View style={s.fill}>
       <View style={[s.body, { paddingTop: Math.max(insets.top, 24) }]}>
         {tab === "chat" ? (
-          <Chat />
+          <VoiceChat />
         ) : (
           <ScrollView contentContainerStyle={s.list}>
             <Text style={s.lead}>Mini games</Text>
@@ -33,7 +33,7 @@ export default function Home() {
           </ScrollView>
         )}
       </View>
-      <Text style={s.ver}>build 6 · if you see this, the update installed</Text>
+      <Text style={s.ver}>build 7 · 22 games + voice</Text>
       <View style={[s.tabs, { paddingBottom: Math.max(insets.bottom, 56) }]}>
         <Pressable style={[s.tab, tab === "chat" && s.on]} onPress={() => setTab("chat")}>
           <Text style={[s.tabT, tab === "chat" && s.onT]}>Chat</Text>
