@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet,
   KeyboardAvoidingView, Platform,
@@ -30,6 +30,15 @@ export default function VoiceChat() {
   const [voices, setVoices] = useState<Speech.Voice[]>([]);
   const [voiceIdx, setVoiceIdx] = useState(0);
   const voiceId = voices[voiceIdx]?.identifier;
+  const latestVoice = useRef<string | undefined>(undefined);
+  latestVoice.current = voiceId;
+  // KITT-style startup greeting, once.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try { Speech.speak("I am online and ready.", { language: "en-US", voice: latestVoice.current, rate: 0.96, pitch: 0.75 }); } catch {}
+    }, 900);
+    return () => clearTimeout(id);
+  }, []);
   const [recording, setRecording] = useState(false);
   const [sttStatus, setSttStatus] = useState("");
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
