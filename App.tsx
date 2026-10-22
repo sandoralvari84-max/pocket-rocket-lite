@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { DISCLAIMER } from "./src/preset";
 import { modelExists, downloadModel, loadModel } from "./src/model";
 import Home from "./src/Home";
@@ -26,33 +27,41 @@ export default function App() {
     } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
   }
 
-  if (phase === "ready") return <><StatusBar style="dark" /><Home /></>;
+  let content: React.ReactNode;
+  if (phase === "ready") content = <Home />;
+  else {
+    let body: React.ReactNode;
+    if (phase === "disclaimer")
+      body = (<>
+        <Text style={s.title}>Skeptic Lite</Text>
+        <Text style={s.disc}>{DISCLAIMER}</Text>
+        <Pressable style={s.btn} onPress={begin}><Text style={s.btnT}>I understand — continue</Text></Pressable>
+      </>);
+    else if (phase === "need-model")
+      body = (<>
+        <Text style={s.title}>One-time setup</Text>
+        <Text style={s.body}>The on-device model (~1 GB) downloads once, then runs fully offline.</Text>
+        <Pressable style={s.btn} onPress={getModel}><Text style={s.btnT}>Download model</Text></Pressable>
+      </>);
+    else if (phase === "downloading")
+      body = (<><ActivityIndicator /><Text style={s.body}>Downloading… {Math.round(progress * 100)}%</Text></>);
+    else if (phase === "loading")
+      body = (<><ActivityIndicator /><Text style={s.body}>Loading model…</Text></>);
+    else
+      body = (<>
+        <Text style={s.title}>Something went wrong</Text>
+        <Text style={s.body}>{err}</Text>
+        <Pressable style={s.btn} onPress={begin}><Text style={s.btnT}>Retry</Text></Pressable>
+      </>);
+    content = <View style={s.center}>{body}</View>;
+  }
 
-  let body: React.ReactNode;
-  if (phase === "disclaimer")
-    body = (<>
-      <Text style={s.title}>Skeptic Lite</Text>
-      <Text style={s.disc}>{DISCLAIMER}</Text>
-      <Pressable style={s.btn} onPress={begin}><Text style={s.btnT}>I understand — continue</Text></Pressable>
-    </>);
-  else if (phase === "need-model")
-    body = (<>
-      <Text style={s.title}>One-time setup</Text>
-      <Text style={s.body}>The on-device model (~1 GB) downloads once, then runs fully offline.</Text>
-      <Pressable style={s.btn} onPress={getModel}><Text style={s.btnT}>Download model</Text></Pressable>
-    </>);
-  else if (phase === "downloading")
-    body = (<><ActivityIndicator /><Text style={s.body}>Downloading… {Math.round(progress * 100)}%</Text></>);
-  else if (phase === "loading")
-    body = (<><ActivityIndicator /><Text style={s.body}>Loading model…</Text></>);
-  else
-    body = (<>
-      <Text style={s.title}>Something went wrong</Text>
-      <Text style={s.body}>{err}</Text>
-      <Pressable style={s.btn} onPress={begin}><Text style={s.btnT}>Retry</Text></Pressable>
-    </>);
-
-  return <View style={s.center}><StatusBar style="dark" />{body}</View>;
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      {content}
+    </SafeAreaProvider>
+  );
 }
 
 const s = StyleSheet.create({

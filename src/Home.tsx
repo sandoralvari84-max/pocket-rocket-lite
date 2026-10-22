@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Chat from "./Chat";
 import { ask } from "./model";
 import { GAMES } from "./games";
@@ -8,6 +9,7 @@ import type { GameModule } from "./games/contract";
 export default function Home() {
   const [tab, setTab] = useState<"chat" | "games">("chat");
   const [game, setGame] = useState<GameModule | null>(null);
+  const insets = useSafeAreaInsets();
 
   if (game) {
     const Screen = game.Screen;
@@ -16,7 +18,7 @@ export default function Home() {
 
   return (
     <View style={s.fill}>
-      <View style={s.body}>
+      <View style={[s.body, { paddingTop: insets.top }]}>
         {tab === "chat" ? (
           <Chat />
         ) : (
@@ -31,7 +33,7 @@ export default function Home() {
           </ScrollView>
         )}
       </View>
-      <View style={s.tabs}>
+      <View style={[s.tabs, { paddingBottom: insets.bottom }]}>
         <Pressable style={[s.tab, tab === "chat" && s.on]} onPress={() => setTab("chat")}>
           <Text style={[s.tabT, tab === "chat" && s.onT]}>Chat</Text>
         </Pressable>

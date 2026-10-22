@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GameEngine, type GameEngineSystem } from "react-native-game-engine";
 import type { GameModule, GameContext } from "./contract";
 
@@ -30,6 +31,7 @@ const Physics: GameEngineSystem = (entities, { touches, time, dispatch }) => {
 };
 
 function Screen({ onExit }: GameContext) {
+  const insets = useSafeAreaInsets();
   const [score, setScore] = useState(0);
   const [misses, setMisses] = useState(0);
   const entities = useRef({
@@ -43,7 +45,7 @@ function Screen({ onExit }: GameContext) {
   return (
     <View style={st.fill}>
       <GameEngine style={st.fill} systems={[Physics]} entities={entities} onEvent={onEvent} />
-      <View style={st.hud} pointerEvents="box-none">
+      <View style={[st.hud, { top: insets.top + 8 }]} pointerEvents="box-none">
         <Text style={st.score}>Caught {score}   ·   Missed {misses}</Text>
         <Pressable style={st.exit} onPress={onExit}><Text style={st.exitT}>← Menu</Text></Pressable>
       </View>
@@ -55,7 +57,7 @@ const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: "#0b1021" },
   paddle: { position: "absolute", width: PADDLE_W, height: PADDLE_H, borderRadius: 8, backgroundColor: "#4da3ff" },
   dot: { position: "absolute", width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: "#ffd24d" },
-  hud: { position: "absolute", top: 44, left: 0, right: 0, paddingHorizontal: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  hud: { position: "absolute", left: 0, right: 0, paddingHorizontal: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   score: { color: "#fff", fontSize: 16, fontWeight: "600" },
   exit: { backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
   exitT: { color: "#fff", fontWeight: "600" },
