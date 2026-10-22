@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform,
 } from "react-native";
 import * as Speech from "expo-speech";
-import { useAudioRecorder, RecordingPresets, AudioModule } from "expo-audio";
+import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from "expo-audio";
 import { ask } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import VoiceBar from "./VoiceBar";
@@ -33,6 +33,7 @@ export default function VoiceChat() {
   const [recording, setRecording] = useState(false);
   const [sttStatus, setSttStatus] = useState("");
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const radar = useAudioPlayer(require("../assets/radar.wav"));
 
   // English voices, best (en-US / enhanced / male-ish) first. Gender isn't exposed reliably, so the
   // user can tap to CYCLE voices and land on a male/KITT one that's installed on their device.
@@ -51,6 +52,14 @@ export default function VoiceChat() {
       } catch {}
     })();
   }, []);
+
+  // KITT radar sweep loops softly only while the model is thinking.
+  useEffect(() => {
+    try {
+      if (busy) { radar.loop = true; radar.volume = 0.5; radar.seekTo(0); radar.play(); }
+      else { radar.pause(); }
+    } catch {}
+  }, [busy]);
 
   function cycleVoice() {
     if (voices.length === 0) return;
