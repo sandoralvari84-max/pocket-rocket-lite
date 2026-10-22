@@ -107,7 +107,7 @@ export default function VoiceChat() {
         <ScrollView style={s.transcript} contentContainerStyle={{ padding: 12, gap: 8 }}>
           {msgs.map((m, i) => (
             <View key={i} style={[s.bubble, m.role === "user" ? s.user : s.asst]}>
-              <Text style={{ color: m.role === "user" ? "#fff" : "#111" }}>{m.text}</Text>
+              <Text style={{ color: m.role === "user" ? "#fff" : "#eee" }}>{m.text}</Text>
             </View>
           ))}
         </ScrollView>
@@ -118,7 +118,7 @@ export default function VoiceChat() {
           <Text style={s.micT}>{recording ? "■" : "🎤"}</Text>
         </Pressable>
         <TextInput style={s.input} value={input} onChangeText={setInput}
-          placeholder="Ask or tap the mic…" editable={!busy} onSubmitEditing={() => send()} returnKeyType="send" />
+          placeholder="Ask or tap the mic…" placeholderTextColor="#8a6a6a" editable={!busy} onSubmitEditing={() => send()} returnKeyType="send" />
         <Pressable style={s.send} onPress={() => send()} disabled={busy}><Text style={s.sendT}>Send</Text></Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -126,23 +126,23 @@ export default function VoiceChat() {
 }
 
 const s = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#fff" },
+  fill: { flex: 1, backgroundColor: "#0d0607" },
   stage: { alignItems: "center", justifyContent: "center", paddingVertical: 24, paddingHorizontal: 16 },
-  status: { marginTop: 12, fontSize: 16, color: "#555", fontWeight: "600" },
-  last: { marginTop: 12, fontSize: 14, color: "#333", textAlign: "center" },
-  stop: { marginTop: 12, backgroundColor: "#eee", paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
-  stopT: { color: "#111", fontWeight: "600" },
+  status: { marginTop: 12, fontSize: 16, color: "#f0d8d8", fontWeight: "600" },
+  last: { marginTop: 12, fontSize: 14, color: "#cbbaba", textAlign: "center" },
+  stop: { marginTop: 12, backgroundColor: "#2a1414", paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
+  stopT: { color: "#eee", fontWeight: "600" },
   toggle: { alignItems: "center", paddingVertical: 6 },
-  toggleT: { color: "#4da3ff", fontWeight: "600", fontSize: 13 },
-  transcript: { flex: 1, borderTopWidth: 1, borderColor: "#eee" },
+  toggleT: { color: "#ff6b6b", fontWeight: "600", fontSize: 13 },
+  transcript: { flex: 1, borderTopWidth: 1, borderColor: "#2a1414" },
   bubble: { maxWidth: "85%", padding: 10, borderRadius: 12 },
-  user: { alignSelf: "flex-end", backgroundColor: "#111" },
-  asst: { alignSelf: "flex-start", backgroundColor: "#eee" },
-  inputRow: { flexDirection: "row", padding: 8, gap: 8, borderTopWidth: 1, borderColor: "#eee", alignItems: "center" },
-  mic: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#eee", alignItems: "center", justifyContent: "center" },
+  user: { alignSelf: "flex-end", backgroundColor: "#b01820" },
+  asst: { alignSelf: "flex-start", backgroundColor: "#1c1414" },
+  inputRow: { flexDirection: "row", padding: 8, gap: 8, borderTopWidth: 1, borderColor: "#2a1414", alignItems: "center" },
+  mic: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#2a1414", alignItems: "center", justifyContent: "center" },
   micOn: { backgroundColor: "#f3b0b0" },
   micT: { fontSize: 18 },
-  input: { flex: 1, borderWidth: 1, borderColor: "#ddd", borderRadius: 10, paddingHorizontal: 12, height: 44 },
-  send: { backgroundColor: "#111", borderRadius: 10, paddingHorizontal: 16, justifyContent: "center", height: 44 },
+  input: { flex: 1, borderWidth: 1, borderColor: "#3a1e1e", backgroundColor: "#1a1010", color: "#eee", borderRadius: 10, paddingHorizontal: 12, height: 44 },
+  send: { backgroundColor: "#b01820", borderRadius: 10, paddingHorizontal: 16, justifyContent: "center", height: 44 },
   sendT: { color: "#fff", fontWeight: "600" },
 });
