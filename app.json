@@ -30,7 +30,8 @@
     },
     "owner": "asandor",
     "plugins": [
-      "expo-audio"
+      "expo-audio",
+      "expo-asset"
     ]
   }
 }
