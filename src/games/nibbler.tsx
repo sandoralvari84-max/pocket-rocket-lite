@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { ArcadeJoystick } from "../design/Joystick";
 
 /* ----------------------------------------------------------------------------
  * Nibbler — Snake. Grid logic is fully deterministic (visuals never touch it):
@@ -29,8 +30,13 @@ const CELL = Math.floor(Math.min(W - 24, H * 0.56) / COLS);
 const BOARD_W = CELL * COLS;
 const BOARD_H = CELL * ROWS;
 
-const FOOD_IMG = require("../../assets/arcade/pixel-platformer/Tiles/tile_0128.png"); // red apple
-const ROCK_IMG = require("../../assets/arcade/pixel-platformer/Tiles/tile_0047.png"); // crate = obstacle
+// Original owned sprites (v3) — tools/art/gen_nibbler_art.py.
+const FOOD_IMG = require("../../assets/arcade/nibbler/apple.png");
+const ROCK_IMG = require("../../assets/arcade/nibbler/rock.png");
+
+// Nibbler's own period palette: a vivid arcade-green snake on dark.
+const SNAKE_BODY = "#2FA84A";
+const SNAKE_HEAD = "#6CE06B";
 
 type Dir = { dx: number; dy: number };
 type Cell = { r: number; c: number };
@@ -227,32 +233,32 @@ function Screen({ onExit }: GameContext) {
             <Sprite source={FOOD_IMG} size={foodSize} />
           </View>
 
-          {/* snake */}
+          {/* snake — continuous body: full cells connect; head/tail rounded, eyes face travel */}
           {snake.map((s, i) => {
             const isHead = i === 0;
+            const isTail = i === snake.length - 1 && snake.length > 1;
             const crashed = phase === "over" && crashRef.current && crashRef.current.r === s.r && crashRef.current.c === s.c;
+            const bg = crashed ? color.danger : isHead ? SNAKE_HEAD : SNAKE_BODY;
+            const rounded = isHead || isTail ? Math.round(CELL * 0.4) : 0;
             return (
               <View
                 key={`s${i}`}
-                style={[
-                  {
-                    position: "absolute",
-                    left: s.c * CELL + 1,
-                    top: s.r * CELL + 1,
-                    width: CELL - 2,
-                    height: CELL - 2,
-                    borderRadius: isHead ? radius.sm : 3,
-                    backgroundColor: crashed ? color.danger : color.success,
-                    opacity: isHead ? 1 : 0.72,
-                  },
-                ]}
+                style={{ position: "absolute", left: s.c * CELL, top: s.r * CELL, width: CELL, height: CELL, backgroundColor: bg, borderRadius: rounded }}
               >
-                {isHead && (
-                  <>
-                    <View style={[st.eye, { left: CELL * 0.22, top: CELL * 0.28 }]} />
-                    <View style={[st.eye, { left: CELL * 0.58, top: CELL * 0.28 }]} />
-                  </>
-                )}
+                {isHead && (() => {
+                  const d = dirRef.current;
+                  const fx = CELL / 2 + d.dx * CELL * 0.22;
+                  const fy = CELL / 2 + d.dy * CELL * 0.22;
+                  const px = -d.dy, py = d.dx;
+                  const er = Math.max(2, Math.round(CELL * 0.15));
+                  const eyes = [
+                    { x: fx + px * CELL * 0.2, y: fy + py * CELL * 0.2 },
+                    { x: fx - px * CELL * 0.2, y: fy - py * CELL * 0.2 },
+                  ];
+                  return eyes.map((e, k) => (
+                    <View key={k} style={{ position: "absolute", left: e.x - er / 2, top: e.y - er / 2, width: er, height: er, borderRadius: 999, backgroundColor: color.onAmber }} />
+                  ));
+                })()}
               </View>
             );
           })}
@@ -263,12 +269,7 @@ function Screen({ onExit }: GameContext) {
       </View>
 
       <View style={st.dpad} pointerEvents="box-none">
-        <Pressable style={st.pad} onPress={() => turn({ dx: 0, dy: -1 })}><Text style={st.padT}>▲</Text></Pressable>
-        <View style={st.padRow}>
-          <Pressable style={st.pad} onPress={() => turn({ dx: -1, dy: 0 })}><Text style={st.padT}>◀</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => turn({ dx: 0, dy: 1 })}><Text style={st.padT}>▼</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => turn({ dx: 1, dy: 0 })}><Text style={st.padT}>▶</Text></Pressable>
-        </View>
+        <ArcadeJoystick onDirection={(d) => turn(d)} />
       </View>
 
       <GameOverlay
@@ -298,7 +299,6 @@ const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   board: { backgroundColor: "#05070f", borderRadius: radius.md, borderWidth: 1, overflow: "hidden" },
-  eye: { position: "absolute", width: Math.max(2, Math.round(CELL * 0.14)), height: Math.max(2, Math.round(CELL * 0.14)), borderRadius: 999, backgroundColor: color.onAmber },
   hud: {
     position: "absolute", left: 0, right: 0, zIndex: 10, paddingHorizontal: space.lg,
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",

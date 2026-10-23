@@ -1,14 +1,30 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, Dimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 
+// Owned sprite art for the fleet and firing markers.
+const SHIP3_IMG = require("../../assets/arcade/fleet/ship3.png"); // horizontal 3-cell vessel (3:1)
+const SHIP2_IMG = require("../../assets/arcade/fleet/ship2.png"); // horizontal 2-cell vessel (2:1)
+const HIT_IMG = require("../../assets/arcade/fleet/hit.png");     // explosion (1 cell)
+const MISS_IMG = require("../../assets/arcade/fleet/miss.png");   // water splash (1 cell)
+const SUNK_IMG = require("../../assets/arcade/fleet/sunk.png");   // burning hull overlay (1 cell)
+
 const N = 6;
 const SHIP_SIZES = [3, 2, 2];
-const { width: W } = Dimensions.get("window");
-const GRID = Math.min(W - space.lg * 2, 320);
+const { width: W, height: H } = Dimensions.get("window");
+
+// Full-screen dual-grid layout: size each board to fill the width while both
+// boards still fit the screen height (no scroll). A small coordinate ruler
+// frames each grid like a naval chart.
+const RULER = 18;                        // left number gutter + top letter strip
+const GAP = space.md;                    // between the two boards
+const V_CHROME = 300;                    // header + message + two HUD rows + safe areas
+const availW = W - space.lg * 2 - RULER;
+const availH = Math.floor((H - V_CHROME) / 2) - RULER;
+const GRID = Math.max(240, Math.min(availW, availH));
 const CELL = GRID / N;
 const COLS = "ABCDEF";
 
@@ -184,33 +200,128 @@ function Screen({ ask, onExit }: GameContext) {
     setTurn("enemy");
   };
 
-  const shipsLeft = (grid: Grid, ships: Pos[][]): number => ships.filter((s) => !shipSunk(grid, s)).length;
-
-  const renderGrid = (grid: Grid, reveal: boolean, onPress: ((r: number, c: number) => void) | null): React.ReactNode => (
-    <View style={[st.grid, { width: GRID, height: GRID }]}>
-      {grid.map((row, r) =>
-        row.map((cell, c) => {
-          const hit = cell.fired && cell.ship >= 0;
-          const miss = cell.fired && cell.ship < 0;
-          const showShip = reveal && cell.ship >= 0 && !cell.fired;
-          let bg: string = color.surface;
-          if (hit) bg = color.danger;
-          else if (miss) bg = color.surface2;
-          else if (showShip) bg = color.cyanDim;
-          return (
-            <Pressable
-              key={`${r}-${c}`}
-              onPress={onPress ? () => onPress(r, c) : undefined}
-              style={[st.cell, { left: c * CELL, top: r * CELL, width: CELL, height: CELL, backgroundColor: bg }]}
-            >
-              {hit ? <Text style={st.mark}>✕</Text> : null}
-              {miss ? <View style={st.missDot} /> : null}
-            </Pressable>
-          );
-        }),
-      )}
+  // Fleet-status pips: one tick per ship, filled while afloat, hollow once sunk.
+  const fleetPips = (grid: Grid, ships: Pos[][], tint: string): React.ReactNode => (
+    <View style={st.pips}>
+      {ships.map((s, i) => {
+        const afloat = !shipSunk(grid, s);
+        return (
+          <View
+            key={i}
+            style={[st.pip, { borderColor: tint, backgroundColor: afloat ? tint : "transparent" }]}
+          />
+        );
+      })}
     </View>
   );
+
+  // One board = a coordinate ruler (letters on top, numbers down the left) framing a grid.
+  const renderBoard = (
+    grid: Grid,
+    reveal: boolean,
+    onPress: ((r: number, c: number) => void) | null,
+    ships: Pos[][],
+    accent: string,
+  ): React.ReactNode => {
+    const sunk = new Set<string>();
+    ships.forEach((s) => { if (shipSunk(grid, s)) s.forEach((p) => sunk.add(`${p.r}-${p.c}`)); });
+    return (
+      <View style={st.board}>
+        {/* column letters */}
+        <View style={st.colRuler}>
+          {COLS.split("").map((ch) => (
+            <View key={ch} style={[st.rulerCell, { width: CELL }]}>
+              <PixelText size="label" style={{ color: color.textFaint }}>{ch}</PixelText>
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: "row" }}>
+          {/* row numbers */}
+          <View style={st.rowRuler}>
+            {Array.from({ length: N }, (_, i) => (
+              <View key={i} style={[st.rulerCell, { height: CELL }]}>
+                <PixelText size="label" style={{ color: color.textFaint }}>{String(i + 1)}</PixelText>
+              </View>
+            ))}
+          </View>
+          {/* grid */}
+          <View style={[st.grid, { width: GRID, height: GRID, borderColor: accent }]}>
+            {/* Layer 1 — open water + fire tints + the tap targets. */}
+            {grid.map((row, r) =>
+              row.map((cell, c) => {
+                const isSunk = cell.fired && cell.ship >= 0 && sunk.has(`${r}-${c}`);
+                const isHit = cell.fired && cell.ship >= 0 && !isSunk;
+                let bg: string = color.surface;              // open water
+                if (isSunk) bg = color.dangerDim;            // destroyed hull (dark red block)
+                else if (isHit) bg = color.danger;           // fresh hit (bright red)
+                return (
+                  <Pressable
+                    key={`${r}-${c}`}
+                    onPress={onPress ? () => onPress(r, c) : undefined}
+                    accessibilityRole={onPress ? "button" : undefined}
+                    style={[st.cell, { left: c * CELL, top: r * CELL, width: CELL, height: CELL, backgroundColor: bg }]}
+                  />
+                );
+              }),
+            )}
+            {/* Layer 2 — your revealed ships as sprites spanning their cells. */}
+            {reveal &&
+              ships.map((s, i) => {
+                const rows = s.map((p) => p.r);
+                const cols = s.map((p) => p.c);
+                const minR = Math.min(...rows);
+                const minC = Math.min(...cols);
+                const len = s.length;
+                const horizontal = s.every((p) => p.r === s[0].r);
+                const src = len >= 3 ? SHIP3_IMG : SHIP2_IMG;
+                // Un-rotated box is always length*CELL wide by CELL tall (sprite is horizontal).
+                const w = len * CELL;
+                const h = CELL;
+                const shipStyle = horizontal
+                  ? { left: minC * CELL, top: minR * CELL, width: w, height: h }
+                  : {
+                      // Center the horizontal box on the vertical span, then rotate 90°
+                      // about that center so it covers column minC from minR down.
+                      left: minC * CELL + CELL / 2 - w / 2,
+                      top: minR * CELL + len * CELL / 2 - h / 2,
+                      width: w,
+                      height: h,
+                      transform: [{ rotate: "90deg" }],
+                    };
+                return (
+                  <Image
+                    key={`ship-${i}`}
+                    source={src}
+                    resizeMode="contain"
+                    style={[st.shipImg, shipStyle]}
+                  />
+                );
+              })}
+            {/* Layer 3 — firing markers, always on top of water and ships. */}
+            {grid.map((row, r) =>
+              row.map((cell, c) => {
+                if (!cell.fired) return null;
+                const isSunk = cell.ship >= 0 && sunk.has(`${r}-${c}`);
+                const isHit = cell.ship >= 0 && !isSunk;
+                const isMiss = cell.ship < 0;
+                return (
+                  <View
+                    key={`mk-${r}-${c}`}
+                    pointerEvents="none"
+                    style={[st.markCell, { left: c * CELL, top: r * CELL, width: CELL, height: CELL }]}
+                  >
+                    {isMiss ? <Image source={MISS_IMG} resizeMode="contain" style={st.markImg} /> : null}
+                    {isHit ? <Image source={HIT_IMG} resizeMode="contain" style={st.markImg} /> : null}
+                    {isSunk ? <Image source={SUNK_IMG} resizeMode="contain" style={st.markImg} /> : null}
+                  </View>
+                );
+              }),
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={st.fill}>
@@ -221,13 +332,23 @@ function Screen({ ask, onExit }: GameContext) {
       <Body style={st.msg}>{msg}</Body>
 
       <View style={st.col}>
-        <PixelText size="label" style={{ color: color.cyan }}>ENEMY WATERS · {shipsLeft(enemy, enemySetup.current.ships)} LEFT</PixelText>
-        <View style={{ height: space.sm }} />
-        {renderGrid(enemy, false, fireAt)}
-        <View style={{ height: space.lg }} />
-        <PixelText size="label" style={{ color: color.amber }}>YOUR FLEET · {shipsLeft(player, playerSetup.current.ships)} LEFT</PixelText>
-        <View style={{ height: space.sm }} />
-        {renderGrid(player, true, null)}
+        <View style={st.boardWrap}>
+          <View style={[st.hud, { width: GRID + RULER }]}>
+            <PixelText size="label" style={{ color: color.cyan }}>ENEMY WATERS</PixelText>
+            {fleetPips(enemy, enemySetup.current.ships, color.cyan)}
+          </View>
+          {renderBoard(enemy, false, fireAt, enemySetup.current.ships, color.cyanDim)}
+        </View>
+
+        <View style={{ height: GAP }} />
+
+        <View style={st.boardWrap}>
+          <View style={[st.hud, { width: GRID + RULER }]}>
+            <PixelText size="label" style={{ color: color.amber }}>YOUR FLEET</PixelText>
+            {fleetPips(player, playerSetup.current.ships, color.amber)}
+          </View>
+          {renderBoard(player, true, null, playerSetup.current.ships, color.amberDim)}
+        </View>
       </View>
 
       <GameOverlay
@@ -246,11 +367,20 @@ const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   msg: { color: color.text, textAlign: "center", paddingHorizontal: space.lg, marginBottom: space.sm, minHeight: 38 },
-  col: { alignItems: "center", flex: 1, justifyContent: "center" },
-  grid: { position: "relative", borderWidth: 2, borderColor: color.surfaceLine, borderRadius: radius.sm, overflow: "hidden" },
+  col: { flex: 1, alignItems: "center", justifyContent: "center" },
+  boardWrap: { alignItems: "center" },
+  hud: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: RULER, marginBottom: space.xs },
+  pips: { flexDirection: "row", gap: 5 },
+  pip: { width: 12, height: 7, borderRadius: 2, borderWidth: 1.5 },
+  board: { alignItems: "flex-start" },
+  colRuler: { flexDirection: "row", paddingLeft: RULER, height: RULER },
+  rowRuler: { width: RULER, justifyContent: "flex-start" },
+  rulerCell: { alignItems: "center", justifyContent: "center" },
+  grid: { position: "relative", borderWidth: 2, borderRadius: radius.sm, overflow: "hidden", backgroundColor: color.surface },
   cell: { position: "absolute", borderWidth: 0.5, borderColor: color.bg, alignItems: "center", justifyContent: "center" },
-  mark: { color: color.text, fontWeight: "800", fontSize: CELL * 0.5 },
-  missDot: { width: CELL * 0.26, height: CELL * 0.26, borderRadius: CELL * 0.13, backgroundColor: color.textFaint },
+  shipImg: { position: "absolute" },
+  markCell: { position: "absolute", alignItems: "center", justifyContent: "center" },
+  markImg: { width: "100%", height: "100%" },
 });
 
 export const fleetHuntGame: GameModule = {

@@ -1,12 +1,33 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Animated, Easing, Image, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext, AskModel } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+import { useSettings } from "../settings";
 
 const MAX_WRONG = 6;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/* ------------------------------------------------------------------ *
+ * Owned cartoon hangman sprite set (assets/arcade/gallows/, ~200x240).
+ * stage0 = empty gallows; stage1..6 add one body part per wrong guess
+ * (stage6 = fully hanged = LOSS); win.png = escaped stickman = WIN.
+ * ------------------------------------------------------------------ */
+const GALLOWS_STAGES = [
+  require("../../assets/arcade/gallows/stage0.png"),
+  require("../../assets/arcade/gallows/stage1.png"),
+  require("../../assets/arcade/gallows/stage2.png"),
+  require("../../assets/arcade/gallows/stage3.png"),
+  require("../../assets/arcade/gallows/stage4.png"),
+  require("../../assets/arcade/gallows/stage5.png"),
+  require("../../assets/arcade/gallows/stage6.png"),
+];
+const WIN_SPRITE = require("../../assets/arcade/gallows/win.png");
+
+// Sprite fills the upper play area; keep the native ~40:48 (taller-than-wide) ratio.
+const SPRITE_H = Math.round(Dimensions.get("window").height * 0.44);
+const SPRITE_W = Math.round((SPRITE_H * 40) / 48);
 
 interface Secret {
   word: string;
@@ -180,7 +201,7 @@ function Screen({ ask, onExit }: GameContext) {
         </View>
       ) : (
         <View style={st.body}>
-          <Gallows wrong={wrongCount} />
+          <Hangman wrong={wrongCount} won={won} lost={lost} />
           <Body style={st.cat}>Category: {secret ? secret.category : "—"}</Body>
           <Text style={st.word}>{display}</Text>
           <Body style={st.wrongLine}>
@@ -227,27 +248,56 @@ function Screen({ ask, onExit }: GameContext) {
   );
 }
 
-// Gallows drawing built from Views; body parts appear as wrong count grows.
-function Gallows({ wrong }: { wrong: number }): React.ReactElement {
+/* ------------------------------------------------------------------ *
+ * "Getting worse" indicator — the visual signature of this genre.
+ *
+ * An owned cartoon HANGMAN sprite: stage0 is the empty amber gallows,
+ * and each wrong guess adds one body part (stage1..stage6). The sprite
+ * shown is stageN where N = min(wrongCount, 6). A win shows the escaped
+ * stickman (win.png); a loss shows the fully-hanged figure (stage6).
+ * Honours reduced-motion: no bounce/drop, just the still sprite.
+ * ------------------------------------------------------------------ */
+function Hangman({ wrong, won, lost }: { wrong: number; won: boolean; lost: boolean }): React.ReactElement {
+  const { reducedMotion } = useSettings();
+  const shift = useRef(new Animated.Value(0)).current;
+
+  const stage = Math.min(wrong, MAX_WRONG);
+  const source = won ? WIN_SPRITE : lost ? GALLOWS_STAGES[MAX_WRONG] : GALLOWS_STAGES[stage];
+
+  // Light win/lose beat only; the sprite is fully legible with no motion.
+  useEffect(() => {
+    if (reducedMotion) {
+      shift.setValue(0);
+      return;
+    }
+    if (won) {
+      Animated.sequence([
+        Animated.timing(shift, { toValue: -18, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.spring(shift, { toValue: 0, friction: 4, tension: 120, useNativeDriver: true }),
+      ]).start();
+    } else if (lost) {
+      Animated.timing(shift, { toValue: 12, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }).start();
+    } else {
+      shift.setValue(0);
+    }
+  }, [won, lost, reducedMotion, shift]);
+
+  const label = won
+    ? "You escaped the gallows!"
+    : lost
+    ? "Game over — the stickman is fully hanged."
+    : `Hangman: ${wrong} of ${MAX_WRONG} wrong guesses.`;
+
   return (
-    <View style={st.gallows}>
-      <View style={st.base} />
-      <View style={st.post} />
-      <View style={st.beam} />
-      <View style={st.rope} />
-      {wrong >= 1 ? <View style={st.head} /> : null}
-      {wrong >= 2 ? <View style={st.torso} /> : null}
-      {wrong >= 3 ? <View style={[st.arm, st.armL]} /> : null}
-      {wrong >= 4 ? <View style={[st.arm, st.armR]} /> : null}
-      {wrong >= 5 ? <View style={[st.leg, st.legL]} /> : null}
-      {wrong >= 6 ? <View style={[st.leg, st.legR]} /> : null}
-    </View>
+    <Animated.View
+      style={[st.hangWrap, { transform: [{ translateY: shift }] }]}
+      accessible
+      accessibilityLabel={label}
+    >
+      <Image source={source} style={st.sprite} resizeMode="contain" fadeDuration={0} />
+    </Animated.View>
   );
 }
-
-const PART = color.text;       // the figure — high-contrast warm white
-const WOOD = color.amberDim;   // the gallows timber — dim amber (woody)
-const ROPE = color.warn;       // the rope — soft yellow
 
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
@@ -270,19 +320,11 @@ const st = StyleSheet.create({
   newT: { color: color.cyan, fontWeight: "800", fontSize: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   body: { flex: 1, alignItems: "center", paddingHorizontal: space.lg },
-  gallows: { width: 160, height: 180, marginTop: space.sm },
-  base: { position: "absolute", left: 10, bottom: 0, width: 110, height: 8, backgroundColor: WOOD, borderRadius: 2 },
-  post: { position: "absolute", left: 30, bottom: 0, width: 8, height: 170, backgroundColor: WOOD, borderRadius: 2 },
-  beam: { position: "absolute", left: 30, top: 2, width: 80, height: 8, backgroundColor: WOOD, borderRadius: 2 },
-  rope: { position: "absolute", left: 104, top: 8, width: 3, height: 20, backgroundColor: ROPE },
-  head: { position: "absolute", left: 92, top: 28, width: 28, height: 28, borderRadius: 14, borderWidth: 3, borderColor: PART },
-  torso: { position: "absolute", left: 104, top: 56, width: 3, height: 46, backgroundColor: PART },
-  arm: { position: "absolute", top: 62, width: 26, height: 3, backgroundColor: PART },
-  armL: { left: 80, transform: [{ rotate: "25deg" }] },
-  armR: { left: 100, transform: [{ rotate: "-25deg" }] },
-  leg: { position: "absolute", top: 100, width: 26, height: 3, backgroundColor: PART },
-  legL: { left: 82, transform: [{ rotate: "-25deg" }] },
-  legR: { left: 100, transform: [{ rotate: "25deg" }] },
+
+  // --- Cartoon hangman sprite: the "getting worse" indicator ---
+  hangWrap: { alignItems: "center", justifyContent: "center", marginTop: space.sm },
+  sprite: { width: SPRITE_W, height: SPRITE_H },
+
   cat: { color: color.cyan, fontSize: 15, fontWeight: "700", marginTop: space.md },
   word: { color: color.text, fontSize: 30, letterSpacing: 4, fontWeight: "800", marginTop: space.md, textAlign: "center" },
   wrongLine: { color: color.textMuted, fontSize: 14, marginTop: space.md },

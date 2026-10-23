@@ -134,6 +134,83 @@ function heatColor(h: string): string {
   return color.textMuted;
 }
 
+/* Hot/cold scale, coldest -> hottest, for the warmth gauge. */
+const HEAT_STEPS = ["cold", "cool", "warm", "boiling hot"] as const;
+function heatRank(h: string): number {
+  const i = (HEAT_STEPS as readonly string[]).indexOf(h);
+  return i < 0 ? 0 : i;
+}
+
+/* ------------------------------------------------------------------ *
+ * Presentation helpers (no game logic — pure render of current state).
+ * ------------------------------------------------------------------ */
+
+// Wordle/Hangman-style slot row: one box per letter, revealed letters fill in.
+function SlotRow({ word, revealed, won }: { word: string; revealed: number; won: boolean }) {
+  const [w, setW] = useState(0);
+  const len = word.length;
+  const gap = 6;
+  const raw = w > 0 ? Math.floor((w - gap * (len - 1)) / len) : 36;
+  const tile = Math.max(24, Math.min(46, raw));
+  const h = Math.round(tile * 1.2);
+  const fs = Math.max(14, Math.round(tile * 0.52));
+  return (
+    <View style={st.slotWrap} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {word.split("").map((ch, i) => {
+        const show = i < revealed || won;
+        return (
+          <View
+            key={i}
+            style={[
+              st.slot,
+              { width: tile, height: h, marginRight: i === len - 1 ? 0 : gap },
+              show ? (won ? st.slotWon : st.slotFilled) : null,
+            ]}
+          >
+            {show ? (
+              <Text style={[st.slotCh, { fontSize: fs, color: won ? color.success : color.amber }]}>
+                {ch.toUpperCase()}
+              </Text>
+            ) : (
+              <View style={st.slotUnder} />
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// Prominent hot/cold indicator for the last guess: labeled 4-step gauge.
+function HeatGauge({ heat, lastGuess }: { heat: string; lastGuess: string }) {
+  const rank = heatRank(heat);
+  return (
+    <View style={[st.gauge, { borderColor: heatColor(heat) }]}>
+      <View style={st.gaugeHead}>
+        <PixelText size="label" style={{ color: color.cyan }}>WARMTH</PixelText>
+        <PixelText size="label" style={{ color: heatColor(heat) }}>{heat.toUpperCase()}</PixelText>
+      </View>
+      <View style={st.gaugeBar}>
+        {HEAT_STEPS.map((step, i) => (
+          <View
+            key={step}
+            style={[
+              st.gaugeSeg,
+              { backgroundColor: i <= rank ? heatColor(step) : color.surface2 },
+              i === 0 && st.gaugeSegL,
+              i === HEAT_STEPS.length - 1 && st.gaugeSegR,
+            ]}
+          />
+        ))}
+      </View>
+      <View style={st.gaugeFoot}>
+        <Body muted style={st.gaugeFootLabel}>last guess</Body>
+        <Text style={st.gaugeGuess} numberOfLines={1}>{`"${lastGuess}"`}</Text>
+      </View>
+    </View>
+  );
+}
+
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const [secret, setSecret] = useState<Secret | null>(null);
@@ -192,9 +269,10 @@ function Screen({ ask, onExit }: GameContext) {
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 50);
   }, [secret, won, guess]);
 
-  const masked = secret
-    ? secret.word.split("").map((ch, i) => (i < revealed || won ? ch.toUpperCase() : "•")).join(" ")
-    : "";
+  // Last wrong guess, parsed back out of the log for the warmth gauge.
+  const lastTurn = [...log].reverse().find((l) => l.heat !== "win");
+  const lastMatch = lastTurn ? lastTurn.text.match(/^"([\s\S]*?)"\s+—/) : null;
+  const lastGuessWord = lastMatch && lastMatch[1] ? lastMatch[1] : "";
 
   return (
     <View style={st.fill}>
@@ -214,25 +292,30 @@ function Screen({ ask, onExit }: GameContext) {
           <Card><Body muted>Setting up a word…</Body></Card>
         ) : (
           <>
-            <Card>
-              <Body style={st.clueLabel}>CLUE</Body>
+            <View style={st.clueCard}>
+              <View style={st.clueHead}>
+                <View style={st.clueTick} />
+                <PixelText size="label" style={{ color: color.cyan }}>CLUE</PixelText>
+              </View>
               <Body style={st.clue}>{secret.clue}</Body>
-            </Card>
+            </View>
 
-            <Text style={st.masked}>{masked}</Text>
+            <SlotRow word={secret.word} revealed={revealed} won={won} />
             <Body muted style={st.sub}>
               {secret.word.length} letters · {won ? "solved!" : `${revealed}/${secret.word.length - 1} letters revealed`}
             </Body>
 
-            {log.length === 0 && !won ? (
+            {won ? null : lastTurn ? (
+              <HeatGauge heat={lastTurn.heat} lastGuess={lastGuessWord} />
+            ) : (
               <Body muted style={st.instructions}>
-                Type a word and tap Guess. Each wrong try reveals a letter and tells you how hot you are.
+                Type a word and tap Guess. Each wrong try reveals a letter and shows how hot you are.
               </Body>
-            ) : null}
+            )}
 
             <ScrollView ref={scroller} style={st.log} contentContainerStyle={st.logInner}>
               {log.map((l, i) => (
-                <Body key={i} style={{ fontSize: 15, marginBottom: 4, color: l.heat === "win" ? color.success : heatColor(l.heat) }}>
+                <Body key={i} style={[st.logLine, { color: l.heat === "win" ? color.success : heatColor(l.heat) }]}>
                   • {l.text}
                 </Body>
               ))}
@@ -240,8 +323,8 @@ function Screen({ ask, onExit }: GameContext) {
 
             {won ? (
               <View style={st.winRow}>
-                <Body style={st.win}>You found it!</Body>
-                <Pressable style={st.goBtn} onPress={() => void newRound()} accessibilityRole="button">
+                <Body style={st.win}>You got it!</Body>
+                <Pressable style={st.goBtn} onPress={() => void newRound()} accessibilityRole="button" accessibilityLabel="Next word">
                   <Body style={st.goT}>Next word →</Body>
                 </Pressable>
               </View>
@@ -257,7 +340,7 @@ function Screen({ ask, onExit }: GameContext) {
                   onSubmitEditing={submit}
                   returnKeyType="go"
                 />
-                <Pressable style={st.goBtn} onPress={submit} accessibilityRole="button">
+                <Pressable style={st.goBtn} onPress={submit} accessibilityRole="button" accessibilityLabel="Submit guess">
                   <Body style={st.goT}>Guess</Body>
                 </Pressable>
               </View>
@@ -289,16 +372,68 @@ const st = StyleSheet.create({
   },
   newT: { color: color.cyan, fontWeight: "800", fontSize: 14 },
   body: { flex: 1, paddingHorizontal: space.lg, paddingTop: space.sm },
-  clueLabel: { color: color.cyan, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
-  clue: { fontSize: 18, marginTop: space.xs, lineHeight: 24 },
-  masked: { fontSize: 28, fontWeight: "800", letterSpacing: 4, textAlign: "center", marginTop: space.lg, color: color.amber },
-  sub: { textAlign: "center", marginTop: space.sm },
-  instructions: { marginTop: space.md },
+
+  // Clue card — prominent, cyan-accented.
+  clueCard: {
+    backgroundColor: color.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: color.cyanDim,
+    padding: space.lg,
+  },
+  clueHead: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: space.sm },
+  clueTick: { width: 4, height: 14, borderRadius: 1, backgroundColor: color.cyan },
+  clue: { fontSize: 20, lineHeight: 27 },
+
+  // Letter-reveal slot row.
+  slotWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    rowGap: 6,
+    marginTop: space.xl,
+  },
+  slot: {
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: color.surfaceLine,
+    backgroundColor: color.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slotFilled: { borderColor: color.amber, backgroundColor: color.amberGlowBg },
+  slotWon: { borderColor: color.success, backgroundColor: "rgba(91,209,107,0.14)" },
+  slotCh: { fontWeight: "800", letterSpacing: 1 },
+  slotUnder: { position: "absolute", bottom: 6, height: 2, width: "55%", backgroundColor: color.textFaint, borderRadius: 1 },
+
+  sub: { textAlign: "center", marginTop: space.md },
+  instructions: { marginTop: space.lg, textAlign: "center" },
+
+  // Hot/cold warmth gauge.
+  gauge: {
+    marginTop: space.lg,
+    backgroundColor: color.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    padding: space.md,
+    gap: space.sm,
+  },
+  gaugeHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  gaugeBar: { flexDirection: "row", height: 14, gap: 3 },
+  gaugeSeg: { flex: 1, backgroundColor: color.surface2 },
+  gaugeSegL: { borderTopLeftRadius: radius.pill, borderBottomLeftRadius: radius.pill },
+  gaugeSegR: { borderTopRightRadius: radius.pill, borderBottomRightRadius: radius.pill },
+  gaugeFoot: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  gaugeFootLabel: { fontSize: 13 },
+  gaugeGuess: { flex: 1, color: color.text, fontSize: 15, fontWeight: "800" },
+
   log: { flex: 1, marginTop: space.md },
   logInner: { paddingBottom: space.sm },
   logLine: { fontSize: 15, marginBottom: 4 },
   winRow: { alignItems: "center", paddingVertical: space.lg, gap: space.md },
-  win: { color: color.success, fontSize: 20, fontWeight: "800" },
+  win: { color: color.success, fontSize: 22, fontWeight: "800" },
   inputRow: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingBottom: space.xl, paddingTop: space.sm },
   goBtn: {
     backgroundColor: color.amber,

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Dimensions, Pressable } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Pressable, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { ArcadeJoystick } from "../design/Joystick";
 
 /* ----------------------------------------------------------------------------
  * Road Hopper — Frogger. Now a real game with win/lose:
@@ -26,16 +27,17 @@ const TICK = 33; // ms
 const DT = TICK / 1000;
 const LIVES_START = 3;
 
-// Sprites (Kenney Pixel Platformer, CC0).
-const GRASS = require("../../assets/arcade/pixel-platformer/Tiles/tile_0000.png"); // grass-top ground
-const WATER = require("../../assets/arcade/pixel-platformer/Tiles/tile_0053.png"); // cyan water
-const ROAD = require("../../assets/arcade/pixel-platformer/Tiles/tile_0046.png");  // dark asphalt tile
-const PLAYER_IMG = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0000.png"); // green blob
-const V_RED = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0017.png");
-const V_RED2 = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0015.png");
-const V_CAR = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0018.png");
-const V_TRUCK = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0021.png");
-const V_BUG = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0024.png");
+// Original owned sprites (v3) — tools/art/gen_roadhopper_art.py. Own period palette.
+const GRASS = require("../../assets/arcade/roadhopper/grass.png");
+const WATER = require("../../assets/arcade/roadhopper/water.png");
+const ROAD = require("../../assets/arcade/roadhopper/road.png");
+const HOPPER_IDLE = require("../../assets/arcade/roadhopper/hopper_idle.png");
+const HOPPER_HOP = require("../../assets/arcade/roadhopper/hopper_hop.png");
+const V_RED = require("../../assets/arcade/roadhopper/car_red.png");   // 1 wide
+const V_RED2 = require("../../assets/arcade/roadhopper/truck.png");    // 2 wide
+const V_CAR = require("../../assets/arcade/roadhopper/car_blue.png");  // 1 wide
+const V_TRUCK = require("../../assets/arcade/roadhopper/truck.png");   // 2 wide
+const V_BUG = require("../../assets/arcade/roadhopper/bug.png");       // 1 wide
 
 type LaneDef = {
   row: number; dir: 1 | -1; speed: number; width: number; count: number;
@@ -85,6 +87,8 @@ function Screen({ onExit }: GameContext) {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(LIVES_START);
   const [level, setLevel] = useState(1);
+  const [hopping, setHopping] = useState(false);
+  const hopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [phase, setPhase] = useState<"ready" | "playing" | "paused" | "clear" | "over">("ready");
 
   const bump = () => setFrame((f) => f + 1);
@@ -106,6 +110,9 @@ function Screen({ onExit }: GameContext) {
     const nr = Math.min(START_ROW, Math.max(GOAL_ROW, rowRef.current + dr));
     colRef.current = nc;
     rowRef.current = nr;
+    setHopping(true);
+    if (hopTimer.current) clearTimeout(hopTimer.current);
+    hopTimer.current = setTimeout(() => setHopping(false), 140);
     if (nr === GOAL_ROW) {
       // reached the top -> level complete
       setScore((s) => s + 100 + level * 20);
@@ -169,6 +176,8 @@ function Screen({ onExit }: GameContext) {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => () => { if (hopTimer.current) clearTimeout(hopTimer.current); }, []);
+
   // static lane backgrounds (sprited) — constant, built once
   const laneLayer = useMemo(() => {
     const out: React.ReactNode[] = [];
@@ -196,7 +205,6 @@ function Screen({ onExit }: GameContext) {
   }, []);
 
   const row = rowRef.current;
-  const vehSize = CELL;
 
   return (
     <View style={st.fill}>
@@ -220,31 +228,25 @@ function Screen({ onExit }: GameContext) {
 
             {lanesRef.current.map((lane) =>
               lane.vehicles.map((v, i) => (
-                <View
+                <Image
                   key={`v${lane.def.row}-${i}`}
+                  source={lane.def.img}
+                  resizeMode="contain"
+                  fadeDuration={0}
                   style={{
                     position: "absolute",
                     left: v.x * CELL,
                     top: lane.def.row * CELL,
                     width: lane.def.width * CELL,
                     height: CELL,
-                    flexDirection: "row",
+                    transform: lane.def.dir === -1 ? [{ scaleX: -1 }] : undefined,
                   }}
-                >
-                  {Array.from({ length: lane.def.width }).map((_, k) => (
-                    <Sprite
-                      key={k}
-                      source={lane.def.img}
-                      size={CELL}
-                      style={lane.def.dir === -1 ? { transform: [{ scaleX: -1 }] } : undefined}
-                    />
-                  ))}
-                </View>
+                />
               ))
             )}
 
             <View style={{ position: "absolute", left: colRef.current * CELL, top: row * CELL }}>
-              <Sprite source={PLAYER_IMG} size={vehSize} />
+              <Sprite source={hopping ? HOPPER_HOP : HOPPER_IDLE} size={CELL} />
             </View>
           </View>
         </Pressable>
@@ -254,12 +256,7 @@ function Screen({ onExit }: GameContext) {
       </View>
 
       <View style={st.dpad} pointerEvents="box-none">
-        <Pressable style={st.pad} onPress={hop}><Text style={st.padT}>▲</Text></Pressable>
-        <View style={st.padRow}>
-          <Pressable style={st.pad} onPress={() => move(-1, 0)}><Text style={st.padT}>◀</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => move(0, 1)}><Text style={st.padT}>▼</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => move(1, 0)}><Text style={st.padT}>▶</Text></Pressable>
-        </View>
+        <ArcadeJoystick onDirection={(d) => move(d.dx, d.dy)} />
       </View>
 
       <GameOverlay

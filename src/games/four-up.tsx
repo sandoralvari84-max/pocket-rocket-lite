@@ -1,9 +1,10 @@
 import React, { useRef, useState } from "react";
-import { View, StyleSheet, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, Dimensions, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+import { useSettings } from "../settings";
 
 type Disc = "P" | "M" | null; // P = player (amber), M = machine (cyan)
 type Board = Disc[]; // row-major, length COLS*ROWS, index 0 = top-left
@@ -13,10 +14,17 @@ const ROWS = 6;
 const NEED = 4;
 const DEPTH = 6; // alpha-beta search depth
 
-const { width: W } = Dimensions.get("window");
-const GRID_W = Math.min(W - space.lg * 2, 350);
-const SLOT = Math.floor((GRID_W - 12) / COLS);
-const DISC = Math.floor(SLOT * 0.82);
+// Chunky, near-full-width board. Size the slot from whichever of width/height
+// is tighter so the grid keeps its aspect and fills as much screen as possible.
+const { width: W, height: H } = Dimensions.get("window");
+const PAD = 7; // inner padding of the board frame (per side)
+const maxGridW = W - space.md * 2;
+const maxGridH = H * 0.6;
+const slotByW = Math.floor((maxGridW - PAD * 2) / COLS);
+const slotByH = Math.floor((maxGridH - PAD * 2) / ROWS);
+const SLOT = Math.max(48, Math.min(slotByW, slotByH)); // keep columns >= 48px touch target
+const GRID_W = SLOT * COLS + PAD * 2;
+const DISC = Math.floor(SLOT * 0.84);
 
 const idx = (r: number, c: number): number => r * COLS + c;
 const emptyBoard = (): Board => Array<Disc>(COLS * ROWS).fill(null);
@@ -149,6 +157,7 @@ function bestColumn(b: Board): number {
 
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
   const [board, setBoard] = useState<Board>(emptyBoard);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
@@ -156,7 +165,24 @@ function Screen({ ask, onExit }: GameContext) {
   const [status, setStatus] = useState("Your turn — drop into a column");
   const [quip, setQuip] = useState("");
   const [last, setLast] = useState<number | null>(null);
+  const [dropCell, setDropCell] = useState<number | null>(null); // cell index currently falling
+  const drop = useRef(new Animated.Value(1)).current; // 0 = top of column, 1 = seated
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Animate a disc falling from the top of its column into its seated slot.
+  // Honors reduced motion: when on, the disc simply appears seated.
+  const runDrop = (cell: number) => {
+    if (reducedMotion) { setDropCell(null); return; }
+    const r = Math.floor(cell / COLS);
+    setDropCell(cell);
+    drop.setValue(0);
+    Animated.timing(drop, {
+      toValue: 1,
+      duration: 190 + (r + 1) * 45, // longer fall for lower rows
+      easing: Easing.bounce,        // satisfying settle at the bottom
+      useNativeDriver: true,
+    }).start(({ finished }) => { if (finished) setDropCell(null); });
+  };
 
   const fetchTaunt = () => {
     ask(
@@ -176,6 +202,7 @@ function Screen({ ask, onExit }: GameContext) {
       const { next, row } = placeInto(b, c, "M");
       setBoard(next);
       setLast(row >= 0 ? idx(row, c) : null);
+      if (row >= 0) runDrop(idx(row, c));
       setBusy(false);
       if (row !== -1 && winnerAt(next, row, c)) { setStatus("The machine connects four."); setResult("lose"); setOver(true); return; }
       if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
@@ -190,6 +217,7 @@ function Screen({ ask, onExit }: GameContext) {
     if (row === -1) return;
     setBoard(next);
     setLast(idx(row, c));
+    runDrop(idx(row, c));
     setQuip("");
     if (winnerAt(next, row, c)) { setStatus("You connect four — you win!"); setResult("win"); setOver(true); return; }
     if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
@@ -198,6 +226,8 @@ function Screen({ ask, onExit }: GameContext) {
 
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
+    drop.setValue(1);
+    setDropCell(null);
     setBoard(emptyBoard());
     setOver(false);
     setResult(null);
@@ -217,21 +247,47 @@ function Screen({ ask, onExit }: GameContext) {
       <View style={st.body}>
         <Body style={st.status}>{status}</Body>
 
-        <View style={st.grid}>
+        <View style={[st.grid, { width: GRID_W, padding: PAD }]}>
           {Array.from({ length: COLS }, (_, c) => (
             <Pressable key={c} style={st.colTap} disabled={busy || over} onPress={() => onColumn(c)}>
               {Array.from({ length: ROWS }, (_, r) => {
-                const v = board[idx(r, c)];
-                const isLast = last === idx(r, c);
+                const cell = idx(r, c);
+                const v = board[cell];
+                const isLast = last === cell;
+                const falling = dropCell === cell && !reducedMotion;
+                const startY = -((r + 1) * SLOT); // start above the top of the board
+                const translateY = falling
+                  ? drop.interpolate({ inputRange: [0, 1], outputRange: [startY, 0] })
+                  : 0;
                 return (
                   <View key={r} style={[st.slot, { width: SLOT, height: SLOT }]}>
-                    <View
-                      style={[
-                        { width: DISC, height: DISC, borderRadius: DISC / 2 },
-                        v === "P" ? st.player : v === "M" ? st.machine : st.empty,
-                        isLast && { borderWidth: 2, borderColor: color.text },
-                      ]}
-                    />
+                    {v === null ? (
+                      <View style={[st.hole, { width: DISC, height: DISC, borderRadius: DISC / 2 }]} />
+                    ) : (
+                      <Animated.View
+                        style={[
+                          st.disc,
+                          { width: DISC, height: DISC, borderRadius: DISC / 2 },
+                          v === "P" ? st.player : st.machine,
+                          isLast && st.lastRing,
+                          falling && { transform: [{ translateY }] },
+                        ]}
+                      >
+                        {/* top-left gloss highlight for a chunky, physical read */}
+                        <View
+                          style={[
+                            st.gloss,
+                            {
+                              width: DISC * 0.5,
+                              height: DISC * 0.34,
+                              borderRadius: DISC * 0.25,
+                              top: DISC * 0.12,
+                              left: DISC * 0.16,
+                            },
+                          ]}
+                        />
+                      </Animated.View>
+                    )}
                   </View>
                 );
               })}
@@ -261,13 +317,19 @@ const st = StyleSheet.create({
   status: { color: color.text, fontWeight: "700", textAlign: "center", paddingHorizontal: space.lg },
   grid: {
     flexDirection: "row", backgroundColor: color.surface, borderRadius: radius.lg,
-    padding: 6, borderWidth: 1, borderColor: color.surfaceLine,
+    borderWidth: 2, borderColor: color.surfaceLine,
+    overflow: "hidden", // clip the falling disc to the board frame
   },
   colTap: { flexDirection: "column" },
   slot: { alignItems: "center", justifyContent: "center" },
-  empty: { backgroundColor: color.bg, borderWidth: 1, borderColor: color.surfaceLine },
-  player: { backgroundColor: color.amber },
-  machine: { backgroundColor: color.cyan },
+  // empty cell = a punched hole in the board surface
+  hole: { backgroundColor: color.bg, borderWidth: 2, borderColor: color.surfaceLine },
+  // seated disc: chunky circle with a rim for dimensionality
+  disc: { alignItems: "center", justifyContent: "flex-start", borderWidth: 3, overflow: "hidden" },
+  gloss: { position: "absolute", backgroundColor: "rgba(255,255,255,0.28)" },
+  player: { backgroundColor: color.amber, borderColor: color.amberDim },
+  machine: { backgroundColor: color.cyan, borderColor: color.cyanDim },
+  lastRing: { borderColor: color.text },
   quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
 });
 

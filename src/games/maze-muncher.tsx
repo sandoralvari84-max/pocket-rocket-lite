@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { ArcadeJoystick } from "../design/Joystick";
 
 /* ----------------------------------------------------------------------------
  * Maze Muncher — Pac-Man-style muncher with DETERMINISTIC chase AI.
@@ -330,15 +331,25 @@ function Screen({ onExit }: GameContext) {
         const nonRev = options.filter((o) => !(o.dx === -e.dx && o.dy === -e.dy));
         const pool = nonRev.length > 0 ? nonRev : options;
 
+        // Four distinct personalities (deterministic): direct chaser, ambusher,
+        // flanker/cut-off, and a shy one that peels off when it gets close.
         let tr: number, tc: number;
+        const pd = dirRef.current;
         if (e.frightened) {
-          tr = p.r; tc = p.c;
+          tr = p.r; tc = p.c;                                 // flee (distance maximised)
         } else if (modeRef.current === "scatter") {
           tr = e.corner.r; tc = e.corner.c;
-        } else if (e.idx === 1 && (dirRef.current.dx !== 0 || dirRef.current.dy !== 0)) {
-          tr = p.r + dirRef.current.dy * 2; tc = p.c + dirRef.current.dx * 2;
+        } else if (e.idx === 0) {
+          tr = p.r; tc = p.c;                                 // direct: straight at the player
+        } else if (e.idx === 1) {
+          tr = p.r + pd.dy * 4; tc = p.c + pd.dx * 4;         // ambush: 4 tiles ahead
+        } else if (e.idx === 2) {
+          tr = p.r + pd.dy * 2 + pd.dx * 2;                   // flank: ahead + to the side
+          tc = p.c + pd.dx * 2 - pd.dy * 2;
         } else {
-          tr = p.r; tc = p.c;
+          const far = dist2(e.r, e.c, p.r, p.c) > 64;          // shy (>8 tiles): chase, else retreat
+          tr = far ? p.r : e.corner.r;
+          tc = far ? p.c : e.corner.c;
         }
 
         const order = rotatedDirs(e.idx).filter((o) => pool.some((o2) => o2.dx === o.dx && o2.dy === o.dy));
@@ -479,12 +490,7 @@ function Screen({ onExit }: GameContext) {
       </View>
 
       <View style={st.dpad} pointerEvents="box-none">
-        <Pressable style={st.pad} onPress={() => setDir(UP)}><Text style={st.padT}>▲</Text></Pressable>
-        <View style={st.padRow}>
-          <Pressable style={st.pad} onPress={() => setDir(LEFT)}><Text style={st.padT}>◀</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => setDir(DOWN)}><Text style={st.padT}>▼</Text></Pressable>
-          <Pressable style={st.pad} onPress={() => setDir(RIGHT)}><Text style={st.padT}>▶</Text></Pressable>
-        </View>
+        <ArcadeJoystick onDirection={(d) => setDir(d)} />
       </View>
 
       <GameOverlay

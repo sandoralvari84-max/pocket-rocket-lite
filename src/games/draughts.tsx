@@ -295,12 +295,28 @@ function Screen({ ask, onExit }: GameContext) {
                         {
                           width: SZ * 0.72, height: SZ * 0.72, borderRadius: SZ * 0.36,
                           backgroundColor: ownerOf(v) === 1 ? color.amber : color.cyan,
-                          borderColor: selected ? color.text : "rgba(0,0,0,0.35)",
-                          borderWidth: selected ? 3 : 2,
+                          // Kings wear a bright warm-white rim so they read as crowned at a glance.
+                          borderColor: selected ? color.text : isKing(v) ? color.text : "rgba(0,0,0,0.35)",
+                          borderWidth: selected ? 3 : isKing(v) ? 3 : 2,
                         },
                       ]}
                     >
-                      {isKing(v) ? <Text style={[st.crown, { fontSize: SZ * 0.34, color: ownerOf(v) === 1 ? color.onAmber : color.onCyan }]}>♛</Text> : null}
+                      {isKing(v) ? (
+                        <>
+                          {/* Double-disc ring — classic "stacked" king read, no glyph dependency. */}
+                          <View
+                            style={[
+                              st.kingRing,
+                              {
+                                width: SZ * 0.5, height: SZ * 0.5, borderRadius: SZ * 0.25,
+                                borderColor: ownerOf(v) === 1 ? color.onAmber : color.onCyan,
+                              },
+                            ]}
+                          />
+                          {/* Crown glyph centred on top (plain Text — system font, not the ASCII pixel font). */}
+                          <Text style={[st.crown, { fontSize: SZ * 0.42, color: ownerOf(v) === 1 ? color.onAmber : color.onCyan }]}>♚</Text>
+                        </>
+                      ) : null}
                     </View>
                   ) : null}
                   {target ? <View style={[st.dot, { width: SZ * 0.26, height: SZ * 0.26, borderRadius: SZ * 0.13 }]} /> : null}
@@ -334,8 +350,9 @@ const st = StyleSheet.create({
   boardWrap: { alignItems: "center" },
   board: { position: "relative", borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: color.surfaceLine },
   sq: { position: "absolute", alignItems: "center", justifyContent: "center" },
-  piece: { alignItems: "center", justifyContent: "center" },
-  crown: { fontWeight: "900", textAlign: "center" },
+  piece: { alignItems: "center", justifyContent: "center", borderStyle: "solid" },
+  kingRing: { position: "absolute", borderWidth: 2.5, backgroundColor: "transparent" },
+  crown: { fontWeight: "900", textAlign: "center", includeFontPadding: false },
   dot: { position: "absolute", backgroundColor: color.success, opacity: 0.85 },
 });
 

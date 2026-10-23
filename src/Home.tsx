@@ -29,7 +29,7 @@ const BLURB: Record<string, string> = {
   "word-gallows": "Guess the word one letter at a time.",
   "twenty-questions": "Think of something; the model guesses in twenty.",
   "trivia-time": "Answer the questions the model puts to you.",
-  "word-hunt": "Build as many words as you can from the letters.",
+  "word-hunt": "Crack the hidden word from a clue, with hot/cold hints.",
   "riddle-me": "Solve the riddles the model poses.",
 };
 
