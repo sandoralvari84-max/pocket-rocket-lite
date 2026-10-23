@@ -27,7 +27,7 @@ export async function downloadModel(onProgress: (frac: number) => void): Promise
 
 export async function loadModel(): Promise<void> {
   if (ctx) return;
-  ctx = await initLlama({ model: MODEL_PATH, n_ctx: MODEL.n_ctx, n_gpu_layers: 0 });
+  ctx = await initLlama({ model: MODEL_PATH, n_ctx: Math.min(MODEL.n_ctx, 2048), n_gpu_layers: 0 });
 }
 
 // SCR inference — folded single user turn + frozen sampler. `note` is an optional reference note.
@@ -38,7 +38,7 @@ export async function ask(question: string, note?: string): Promise<string> {
     temperature: SAMPLER.temperature,
     top_p: SAMPLER.top_p,
     seed: SAMPLER.seed,
-    n_predict: SAMPLER.n_predict,
+    n_predict: Math.min(SAMPLER.n_predict, 400),  // live cap: bounded + lower memory (preset value stays 1024)
     stop: ["<|im_end|>", "<|endoftext|>"],
   });
   return (res.text ?? "").trim();
