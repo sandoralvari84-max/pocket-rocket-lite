@@ -19,77 +19,98 @@ import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
  *   - Enemies pursue the player by greedy tile-distance (no reverse), with a
  *     periodic scatter phase and a frightened/flee phase after a power-pellet.
  *   - Power-pellets, lives, two maze layouts, difficulty ramp on each clear.
- *   - Pixel-art canvas (Kenney CC0 Pixel Platformer); token-driven chrome.
+ *   - ORIGINAL owned art (v3): chomping directional muncher, wobbling ghosts
+ *     with a frightened state, neon bevel walls, floor tiles, pulsing orbs.
+ *     Sprites generated in-repo via tools/art/gen_maze_art.py (CC0 / full rights).
  * All movement is grid-locked and RNG-free, so the sim is fully deterministic.
  * ------------------------------------------------------------------------- */
 
 type Dir = { dx: number; dy: number };
 type Pos = { r: number; c: number };
-type MazeDef = {
-  grid: string[];
-  player: Pos;
-  homes: Pos[];   // enemy spawn tiles (distinct, open floor)
-  corners: Pos[]; // scatter targets per enemy index
-};
+type MazeDef = { grid: string[]; player: Pos; homes: Pos[]; corners: Pos[] };
 
 // '#' wall · '.' pellet · 'o' power-pellet · 'P' player start · ' ' empty floor
+// 13 x 15, horizontally symmetric, flood-fill-verified fully connected.
 const LAYOUT_A: string[] = [
-  "###########",
-  "#o...#...o#",
-  "#.##.#.##.#",
-  "#.........#",
-  "#.##.#.##.#",
-  "#....#....#",
-  "#.##.#.##.#",
-  "#o...P..o.#",
-  "###########",
+  "#############",
+  "#o..#...#..o#",
+  "#.#.#.#.#.#.#",
+  "#...........#",
+  "#.#.#.#.#.#.#",
+  "#.....#.....#",
+  "#.##.###.##.#",
+  "#.#...#...#.#",
+  "#.#.#...#.#.#",
+  "#...#.#.#...#",
+  "#.#.#.#.#.#.#",
+  "#.....#.....#",
+  "#.#.#.#.#.#.#",
+  "#o..#.P.#..o#",
+  "#############",
 ];
-const LAYOUT_B: string[] = [
-  "###########",
-  "#o.......o#",
-  "#.#.###.#.#",
-  "#.#.....#.#",
-  "#...#.#...#",
-  "#.#.....#.#",
-  "#.#.###.#.#",
-  "#o..P#...o#",
-  "###########",
-];
+const flipV = (g: string[]): string[] => [...g].reverse();
+const LAYOUTS: string[][] = [LAYOUT_A, flipV(LAYOUT_A)];
 
 const ROWS = LAYOUT_A.length;
 const COLS = LAYOUT_A[0].length;
 
-const MAZES: MazeDef[] = [
-  {
-    grid: LAYOUT_A,
-    player: { r: 7, c: 5 },
-    homes: [ { r: 3, c: 1 }, { r: 3, c: 9 }, { r: 3, c: 3 }, { r: 3, c: 7 } ],
-    corners: [ { r: 1, c: 1 }, { r: 1, c: COLS - 2 }, { r: ROWS - 2, c: 1 }, { r: ROWS - 2, c: COLS - 2 } ],
-  },
-  {
-    grid: LAYOUT_B,
-    player: { r: 7, c: 4 },
-    homes: [ { r: 4, c: 5 }, { r: 3, c: 3 }, { r: 3, c: 7 }, { r: 5, c: 5 } ],
-    corners: [ { r: 1, c: 1 }, { r: 1, c: COLS - 2 }, { r: ROWS - 2, c: 1 }, { r: ROWS - 2, c: COLS - 2 } ],
-  },
-];
+// Derive player / enemy homes / scatter corners from the grid so any valid
+// layout works without hand-indexed coordinates.
+function buildMaze(grid: string[]): MazeDef {
+  let player: Pos = { r: 1, c: 1 };
+  const open: Pos[] = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c] === "P") player = { r, c };
+      if (grid[r][c] !== "#") open.push({ r, c });
+    }
+  const cr = Math.floor(ROWS / 2), cc = Math.floor(COLS / 2);
+  const d2 = (p: Pos, tr: number, tc: number) => (p.r - tr) ** 2 + (p.c - tc) ** 2;
+  const homes = [...open]
+    .filter((p) => !(p.r === player.r && p.c === player.c))
+    .sort((a, b) => d2(a, cr, cc) - d2(b, cr, cc))
+    .slice(0, 4);
+  const targets: [number, number][] = [
+    [1, 1], [1, COLS - 2], [ROWS - 2, 1], [ROWS - 2, COLS - 2],
+  ];
+  const corners = targets.map(([tr, tc]) =>
+    open.reduce((best, p) => (d2(p, tr, tc) < d2(best, tr, tc) ? p : best), open[0]));
+  return { grid, player, homes, corners };
+}
+const MAZES: MazeDef[] = LAYOUTS.map(buildMaze);
 
 const { width: W, height: H } = Dimensions.get("window");
-const CELL = Math.floor(Math.min(W - 24, H * 0.52) / COLS);
+const CHROME = 212; // top HUD + bottom d-pad allowance
+const CELL = Math.max(16, Math.floor(Math.min((W - 8) / COLS, (H - CHROME) / ROWS)));
 const BOARD_W = CELL * COLS;
 const BOARD_H = CELL * ROWS;
 const LIVES_START = 3;
 
-// Sprites (Kenney Pixel Platformer, CC0).
-const WALL_IMG = require("../../assets/arcade/pixel-platformer/Tiles/tile_0047.png");       // wood crate
-const PELLET_IMG = require("../../assets/arcade/pixel-platformer/Tiles/tile_0151.png");     // gold coin
-const POWER_IMG = require("../../assets/arcade/pixel-platformer/Tiles/tile_0067.png");      // cyan gem
-const PLAYER_IMG = require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0000.png"); // green blob
-const ENEMY_IMGS = [
-  require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0004.png"), // pink
-  require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0002.png"), // blue
-  require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0006.png"), // orange
-  require("../../assets/arcade/pixel-platformer/Tiles/Characters/tile_0008.png"), // grey robot
+// Original owned sprites (tools/art/gen_maze_art.py).
+const WALL_IMG = require("../../assets/arcade/maze/wall.png");
+const FLOOR_IMG = require("../../assets/arcade/maze/floor.png");
+const PELLET_IMG = require("../../assets/arcade/maze/pellet.png");
+const POWER_IMGS = [
+  require("../../assets/arcade/maze/power_0.png"),
+  require("../../assets/arcade/maze/power_1.png"),
+];
+const MUNCH: Record<string, ReturnType<typeof require>> = {
+  closed: require("../../assets/arcade/maze/muncher_closed.png"),
+  r: require("../../assets/arcade/maze/muncher_r.png"),
+  l: require("../../assets/arcade/maze/muncher_l.png"),
+  u: require("../../assets/arcade/maze/muncher_u.png"),
+  d: require("../../assets/arcade/maze/muncher_d.png"),
+};
+const GHOST_COLORS = ["rose", "teal", "lime", "amber"] as const;
+const GHOST_IMGS: Record<string, ReturnType<typeof require>[]> = {
+  rose: [require("../../assets/arcade/maze/ghost_rose_0.png"), require("../../assets/arcade/maze/ghost_rose_1.png")],
+  teal: [require("../../assets/arcade/maze/ghost_teal_0.png"), require("../../assets/arcade/maze/ghost_teal_1.png")],
+  lime: [require("../../assets/arcade/maze/ghost_lime_0.png"), require("../../assets/arcade/maze/ghost_lime_1.png")],
+  amber: [require("../../assets/arcade/maze/ghost_amber_0.png"), require("../../assets/arcade/maze/ghost_amber_1.png")],
+};
+const FRIGHT_IMGS = [
+  require("../../assets/arcade/maze/ghost_fright_0.png"),
+  require("../../assets/arcade/maze/ghost_fright_1.png"),
 ];
 
 type Enemy = {
@@ -97,6 +118,7 @@ type Enemy = {
   spawn: Pos; corner: Pos; idx: number;
   frightened: boolean; eaten: boolean;
 };
+type Facing = "r" | "l" | "u" | "d";
 
 const UP: Dir = { dx: 0, dy: -1 };
 const LEFT: Dir = { dx: -1, dy: 0 };
@@ -129,8 +151,6 @@ const scatterTicks = (level: number) => Math.max(8, 30 - (level - 1) * 4);
 const chaseTicks = (level: number) => 55 + (level - 1) * 15;
 const frightTicks = (level: number) => Math.max(18, 60 - (level - 1) * 7);
 
-// rotate DIRS so equal-distance ties resolve differently per enemy -> enemies
-// never permanently stack even when chasing the same target tile.
 function rotatedDirs(idx: number): Dir[] {
   const off = idx % 4;
   return DIRS.map((_, i) => DIRS[(i + off) % 4]);
@@ -147,6 +167,7 @@ function Screen({ onExit }: GameContext) {
   const playerRef = useRef<Pos>({ ...MAZES[0].player });
   const dirRef = useRef<Dir>({ dx: 0, dy: 0 });
   const nextDirRef = useRef<Dir>({ dx: 0, dy: 0 });
+  const facingRef = useRef<Facing>("l");
   const enemiesRef = useRef<Enemy[]>([]);
   const pelletsRef = useRef<Set<string>>(new Set());
   const powersRef = useRef<Set<string>>(new Set());
@@ -187,6 +208,7 @@ function Screen({ onExit }: GameContext) {
     playerRef.current = { ...maze.player };
     dirRef.current = { dx: 0, dy: 0 };
     nextDirRef.current = { dx: 0, dy: 0 };
+    facingRef.current = "l";
     enemiesRef.current = spawnEnemies(maze, lvl);
     stepRef.current = 0;
     modeRef.current = "scatter";
@@ -194,7 +216,6 @@ function Screen({ onExit }: GameContext) {
     frightRef.current = 0;
   }
 
-  // one-time init before first render
   const didInit = useRef(false);
   if (!didInit.current) { didInit.current = true; loadLevel(1); }
 
@@ -203,6 +224,7 @@ function Screen({ onExit }: GameContext) {
     playerRef.current = { ...maze.player };
     dirRef.current = { dx: 0, dy: 0 };
     nextDirRef.current = { dx: 0, dy: 0 };
+    facingRef.current = "l";
     enemiesRef.current = spawnEnemies(maze, levelRef.current);
     stepRef.current = 0;
     modeRef.current = "scatter";
@@ -235,7 +257,6 @@ function Screen({ onExit }: GameContext) {
     function stepGame() {
       if (phaseRef.current !== "playing") return;
 
-      // re-arm the interval if a new level changed the cadence
       const want = tickMs(levelRef.current);
       if (want !== curTick) { clearInterval(id); curTick = want; arm(); }
 
@@ -243,7 +264,6 @@ function Screen({ onExit }: GameContext) {
       const grid = mazeRef.current.grid;
       const p = playerRef.current;
 
-      // player: honour queued turn, else continue straight
       const nd = nextDirRef.current;
       if ((nd.dx !== 0 || nd.dy !== 0) && !isWall(grid, p.r + nd.dy, p.c + nd.dx)) {
         dirRef.current = nd;
@@ -251,9 +271,12 @@ function Screen({ onExit }: GameContext) {
       const d = dirRef.current;
       if ((d.dx !== 0 || d.dy !== 0) && !isWall(grid, p.r + d.dy, p.c + d.dx)) {
         p.r += d.dy; p.c += d.dx;
+        if (d.dx > 0) facingRef.current = "r";
+        else if (d.dx < 0) facingRef.current = "l";
+        else if (d.dy > 0) facingRef.current = "d";
+        else if (d.dy < 0) facingRef.current = "u";
       }
 
-      // eat
       const pk = key(p.r, p.c);
       if (pelletsRef.current.has(pk)) { pelletsRef.current.delete(pk); setScore((s) => s + 10); }
       if (powersRef.current.has(pk)) {
@@ -269,7 +292,6 @@ function Screen({ onExit }: GameContext) {
         phaseRef.current = "clear"; setPhase("clear"); bump(); return;
       }
 
-      // mode timing (frightened pauses the scatter/chase cycle)
       if (frightRef.current > 0) {
         frightRef.current -= 1;
         if (frightRef.current === 0) enemiesRef.current.forEach((e) => { e.frightened = false; });
@@ -299,7 +321,6 @@ function Screen({ onExit }: GameContext) {
 
       if (collide()) { onDeath(); return; }
 
-      // enemies: deterministic greedy pursuit
       enemiesRef.current = enemiesRef.current.map((e) => {
         const period = e.frightened ? 3 : 2;
         if (stepRef.current % period !== 0) return e;
@@ -311,11 +332,11 @@ function Screen({ onExit }: GameContext) {
 
         let tr: number, tc: number;
         if (e.frightened) {
-          tr = p.r; tc = p.c; // flee: maximise distance to player
+          tr = p.r; tc = p.c;
         } else if (modeRef.current === "scatter") {
           tr = e.corner.r; tc = e.corner.c;
         } else if (e.idx === 1 && (dirRef.current.dx !== 0 || dirRef.current.dy !== 0)) {
-          tr = p.r + dirRef.current.dy * 2; tc = p.c + dirRef.current.dx * 2; // ambush ahead
+          tr = p.r + dirRef.current.dy * 2; tc = p.c + dirRef.current.dx * 2;
         } else {
           tr = p.r; tc = p.c;
         }
@@ -369,29 +390,41 @@ function Screen({ onExit }: GameContext) {
   };
   const start = () => { phaseRef.current = "playing"; setPhase("playing"); bump(); };
 
-  // static wall layer — re-memoised per level so it is not rebuilt each frame
+  // static floor + wall layers — re-memoised per level, not rebuilt each frame
+  const floorLayer = useMemo(() => {
+    const cells: React.ReactNode[] = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        cells.push(
+          <View key={`f${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
+            <Sprite source={FLOOR_IMG} size={CELL} />
+          </View>
+        );
+    return cells;
+  }, []);
+
   const wallLayer = useMemo(() => {
     const grid = mazeRef.current.grid;
     const cells: React.ReactNode[] = [];
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (grid[r][c] === "#") {
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (grid[r][c] === "#")
           cells.push(
             <View key={`w${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
               <Sprite source={WALL_IMG} size={CELL} />
             </View>
           );
-        }
-      }
-    }
     return cells;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level]);
 
   const p = playerRef.current;
   const enemies = enemiesRef.current;
-  const pelletSize = Math.round(CELL * 0.42);
-  const powerSize = Math.round(CELL * 0.8);
+  const pelletSize = Math.round(CELL * 0.4);
+  const powerSize = Math.round(CELL * 0.9);
+  const animF = stepRef.current % 2;
+  const moving = dirRef.current.dx !== 0 || dirRef.current.dy !== 0;
+  const munchImg = moving && animF === 0 ? MUNCH.closed : MUNCH[facingRef.current];
 
   return (
     <View style={st.fill}>
@@ -410,6 +443,7 @@ function Screen({ onExit }: GameContext) {
 
       <View style={st.center}>
         <View style={[st.board, { width: BOARD_W, height: BOARD_H }]} {...pan.panHandlers}>
+          {floorLayer}
           {wallLayer}
 
           {Array.from(pelletsRef.current).map((kk) => {
@@ -424,23 +458,22 @@ function Screen({ onExit }: GameContext) {
             const [r, c] = kk.split(",").map(Number);
             return (
               <View key={`pw${kk}`} style={{ position: "absolute", left: c * CELL + (CELL - powerSize) / 2, top: r * CELL + (CELL - powerSize) / 2 }}>
-                <Sprite source={POWER_IMG} size={powerSize} />
+                <Sprite source={POWER_IMGS[animF]} size={powerSize} />
               </View>
             );
           })}
 
           {enemies.map((e, i) => (
-            <View key={`e${i}`} style={{ position: "absolute", left: e.c * CELL, top: e.r * CELL, opacity: e.frightened ? 0.65 : 1 }}>
+            <View key={`e${i}`} style={{ position: "absolute", left: e.c * CELL, top: e.r * CELL }}>
               <Sprite
-                source={ENEMY_IMGS[e.idx % ENEMY_IMGS.length]}
+                source={e.frightened ? FRIGHT_IMGS[animF] : GHOST_IMGS[GHOST_COLORS[e.idx % 4]][animF]}
                 size={CELL}
-                style={e.frightened ? { tintColor: color.cyan } : undefined}
               />
             </View>
           ))}
 
           <View style={{ position: "absolute", left: p.c * CELL, top: p.r * CELL }}>
-            <Sprite source={PLAYER_IMG} size={CELL} />
+            <Sprite source={munchImg} size={CELL} />
           </View>
         </View>
       </View>
@@ -489,7 +522,7 @@ function Screen({ onExit }: GameContext) {
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  board: { backgroundColor: "#05070f", borderRadius: radius.md, overflow: "hidden" },
+  board: { backgroundColor: "#090d14", borderRadius: radius.md, overflow: "hidden" },
   hud: {
     position: "absolute", left: 0, right: 0, zIndex: 10, paddingHorizontal: space.lg,
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",

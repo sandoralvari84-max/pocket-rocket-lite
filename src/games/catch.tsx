@@ -6,7 +6,9 @@ import type { GameModule, GameContext } from "./contract";
 import { color, space } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite } from "../design/ui";
 
-const SHIP = require("../../assets/arcade/pixel-shmup/Ships/ship_0000.png");
+// Original owned sprites (v3) — generated in-repo via tools/art/gen_sprites.py.
+const SHIP = require("../../assets/arcade/original/ship_fighter.png");
+const POD = require("../../assets/arcade/original/pod.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 const PADDLE_W = 84, SHIP_W = 72, PADDLE_Y = H - 170, DOT_R = 15;
