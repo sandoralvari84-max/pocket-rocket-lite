@@ -33,7 +33,7 @@ export default function About({ onBack }: { onBack: () => void }) {
 
       <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
         <PixelText size="title" style={cs.appName}>{appMeta.name.toUpperCase()}</PixelText>
-        <Body muted style={cs.version}>Version {appMeta.version}</Body>
+        <Body muted style={cs.version}>Version {appMeta.version} · build {appMeta.build}</Body>
         <Body muted style={cs.tagline}>A self-contained voice assistant and arcade that runs on your device.</Body>
 
         <Panel label="MODEL" tone="cyan">

@@ -7,6 +7,7 @@ import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
 import { PixelText, Chip, GameErrorBoundary } from "./design/ui";
+import { appMeta } from "./appMeta";
 import Settings from "./screens/Settings";
 import About from "./screens/About";
 
@@ -105,6 +106,8 @@ export default function Home() {
 
         {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} />}
       </View>
+
+      <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>
 
       {/* Console deck: chunky physical keys, restrained amber glow on the active one. */}
       <View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }]}>

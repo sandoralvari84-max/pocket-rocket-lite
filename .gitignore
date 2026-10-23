@@ -45,3 +45,6 @@ yarn-error.*
 # Android test outputs
 artifacts/
 dist-check/
+android/keystore.properties
+*.keystore
+.keystore-env
