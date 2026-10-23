@@ -217,23 +217,25 @@ function GameScreen({ onExit }: GameContext) {
   };
 
   useEffect(() => {
-    let raf = 0;
+    // Lighter than a 60fps requestAnimationFrame loop: a 60ms interval that
+    // accumulates time and only steps gravity while playing. Much less work
+    // per second, and it idles cheaply when paused / over.
     lastRef.current = Date.now();
     accRef.current = 0;
-    const loop = () => {
+    const id = setInterval(() => {
       const now = Date.now();
-      const dt = now - lastRef.current;
+      accRef.current += now - lastRef.current;
       lastRef.current = now;
-      if (phaseRef.current === "play") {
-        accRef.current += dt;
-        let guard = 0;
-        while (accRef.current >= dropMs() && guard < 4) { accRef.current -= dropMs(); try { gravityStep(); } catch (e) { console.warn("[block-drop]", e); } guard++; }
+      if (phaseRef.current !== "play") { accRef.current = 0; return; }
+      let guard = 0;
+      while (accRef.current >= dropMs() && guard < 4) {
+        accRef.current -= dropMs();
+        try { gravityStep(); } catch (e) { console.warn("[block-drop]", e); }
+        guard++;
       }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
+    }, 60);
     return () => {
-      cancelAnimationFrame(raf);
+      clearInterval(id);
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
