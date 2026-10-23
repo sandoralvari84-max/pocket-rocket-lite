@@ -262,3 +262,26 @@ const ps = StyleSheet.create({
   bannerTitle: { fontSize: 14, fontWeight: "800", letterSpacing: 0.3 },
   bannerBtn: { borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: 8 },
 });
+
+/* ---------- Game error boundary: a crashing game returns to menu, not out of the app ---------- */
+export class GameErrorBoundary extends React.Component<
+  { children: React.ReactNode; onExit: () => void },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error) { try { console.warn("[game crash]", error?.message); } catch {} }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, backgroundColor: color.bg, alignItems: "center", justifyContent: "center", padding: space.xl, gap: space.lg }}>
+          <Text style={{ fontSize: 40 }}>⚠️</Text>
+          <H2 style={{ textAlign: "center" }}>This game hit a snag</H2>
+          <Body muted style={{ textAlign: "center" }}>It stopped so the app wouldn’t. Back to the menu.</Body>
+          <Button title="Back to menu" onPress={this.props.onExit} />
+        </View>
+      );
+    }
+    return this.props.children as React.ReactElement;
+  }
+}

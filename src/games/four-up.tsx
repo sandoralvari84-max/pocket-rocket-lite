@@ -181,7 +181,7 @@ function Screen({ ask, onExit }: GameContext) {
       duration: 190 + (r + 1) * 45, // longer fall for lower rows
       easing: Easing.bounce,        // satisfying settle at the bottom
       useNativeDriver: true,
-    }).start(({ finished }) => { if (finished) setDropCell(null); });
+    }).start(() => setDropCell(null));
   };
 
   const fetchTaunt = () => {

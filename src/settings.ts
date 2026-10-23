@@ -4,14 +4,16 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 export type VoiceId = "sentinel" | "nova";
+export type AppLang = "en" | "de" | "es";
 export type Settings = {
   voice: VoiceId;        // selected TTS persona (voice track wires the engine behind this)
   speechRate: number;    // 0.5..1.3
   reducedMotion: boolean;
   gameSound: boolean;
+  language: AppLang;     // interface language (en/de/es)
 };
 
-const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true };
+const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true, language: "en" };
 const FILE = FileSystem.documentDirectory + "settings.json";
 
 let cache: Settings = { ...DEFAULTS };

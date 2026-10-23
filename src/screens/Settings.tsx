@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { color, space, radius, type as T, HIT } from "../design/tokens";
 import { PixelText, Body, Chip, Panel, Segmented } from "../design/ui";
 import { useSettings, setSetting } from "../settings";
+import { LANGS } from "../i18n";
 import type { VoiceId } from "../settings";
 
 const PERSONA_OPTS: { key: VoiceId; label: string }[] = [
@@ -25,6 +26,13 @@ export default function Settings({ onAbout }: { onAbout: () => void }) {
   return (
     <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
       <PixelText size="title" style={cs.screenTitle}>SETTINGS</PixelText>
+
+      {/* ---- LANGUAGE ---- */}
+      <Panel label="LANGUAGE" tone="cyan">
+        <Label>App language</Label>
+        <Segmented options={LANGS} value={st.language} onChange={(v) => setSetting("language", v)} />
+        <Note>Interface language. Chat works best in English; German and Spanish are supported.</Note>
+      </Panel>
 
       {/* ---- VOICE ---- */}
       <Panel label="VOICE" tone="amber">

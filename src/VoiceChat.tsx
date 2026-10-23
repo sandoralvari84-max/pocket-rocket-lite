@@ -44,12 +44,6 @@ export default function VoiceChat() {
   const [error, setError] = useState("");            // transient error flag for bar + status
   const [permDenied, setPermDenied] = useState(false); // persistent mic-permission notice
 
-  const [voices, setVoices] = useState<Speech.Voice[]>([]);
-  const [voiceIdx, setVoiceIdx] = useState(0);
-  const voiceId = voices[voiceIdx]?.identifier;
-  const latestVoice = useRef<string | undefined>(undefined);
-  latestVoice.current = voiceId;
-
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const radar = useAudioPlayer(require("../assets/radar.wav"));
   const scrollRef = useRef<ScrollView>(null);
@@ -61,9 +55,8 @@ export default function VoiceChat() {
     const st = getSettings();
     return {
       language: "en-US",
-      voice: latestVoice.current,
       rate: st.speechRate ?? 0.96,
-      pitch: st.voice === "nova" ? 1.0 : 0.75,
+      pitch: st.voice === "nova" ? 1.0 : 0.75,  // persona: nova = natural, sentinel = low
     };
   }
 
@@ -86,24 +79,6 @@ export default function VoiceChat() {
     return () => clearTimeout(id);
   }, []);
 
-  // English voices, best (en-US / enhanced / male-ish) first. Gender isn't exposed reliably, so the
-  // user can tap to CYCLE voices and land on a male/console one that's installed on their device.
-  useEffect(() => {
-    (async () => {
-      try {
-        const all = await Speech.getAvailableVoicesAsync();
-        const en = all.filter((v) => (v.language || "").toLowerCase().startsWith("en"));
-        const score = (v: Speech.Voice) =>
-          ((v.language || "").toLowerCase().startsWith("en-us") ? 3 : 0) +
-          (v.quality === Speech.VoiceQuality.Enhanced ? 2 : 0) +
-          (/male|#male|-iom-|-iol-|_m_|us-x/i.test(v.name || "") ? 2 : 0) +
-          (/female|#female|-tpf-|_f_/i.test(v.name || "") ? -3 : 0);
-        en.sort((a, b) => score(b) - score(a));
-        setVoices(en);
-      } catch {}
-    })();
-  }, []);
-
   // Radar sweep loops softly only while the model is thinking (preserved behavior).
   useEffect(() => {
     try {
@@ -124,14 +99,6 @@ export default function VoiceChat() {
     recording ? "listening" :
     (busy || sttBusy) ? "thinking" :
     speaking ? "speaking" : "idle";
-
-  function cycleVoice() {
-    if (voices.length === 0) return;
-    const ni = (voiceIdx + 1) % voices.length;
-    setVoiceIdx(ni);
-    Speech.stop();
-    Speech.speak("Voice check. This is how I sound.", { ...speakOpts(), voice: voices[ni]?.identifier });
-  }
 
   async function send(text?: string) {
     const q = (text ?? input).trim(); if (!q || busy) return;
@@ -237,17 +204,6 @@ export default function VoiceChat() {
             <Text style={[s.status, { color: statusColor }]}>{statusText}</Text>
           </View>
           <View style={s.hudControls}>
-            {voices.length > 0 && (
-              <Pressable
-                onPress={cycleVoice}
-                accessibilityRole="button" accessibilityLabel="Change voice"
-                style={({ pressed }) => [s.voiceBtn, pressed && { backgroundColor: color.cyanGlowBg }]}
-              >
-                <Text style={s.voiceBtnT} numberOfLines={1}>
-                  Voice · {voices[voiceIdx]?.name?.slice(0, 20) || "default"}
-                </Text>
-              </Pressable>
-            )}
             {speaking && (
               <Pressable
                 onPress={stopSpeak}

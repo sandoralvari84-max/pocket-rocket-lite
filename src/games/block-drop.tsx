@@ -227,7 +227,7 @@ function GameScreen({ onExit }: GameContext) {
       if (phaseRef.current === "play") {
         accRef.current += dt;
         let guard = 0;
-        while (accRef.current >= dropMs() && guard < 4) { accRef.current -= dropMs(); gravityStep(); guard++; }
+        while (accRef.current >= dropMs() && guard < 4) { accRef.current -= dropMs(); try { gravityStep(); } catch (e) { console.warn("[block-drop]", e); } guard++; }
       }
       raf = requestAnimationFrame(loop);
     };
@@ -382,7 +382,7 @@ function GameScreen({ onExit }: GameContext) {
 function Btn({ label, onPress, accent, small }: { label: string; onPress: () => void; accent?: boolean; small?: boolean }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => { try { onPress(); } catch (e) { console.warn("[block-drop]", e); } }}
       style={({ pressed }) => [
         st.btn,
         accent && { borderColor: color.amber, backgroundColor: color.amberGlowBg },

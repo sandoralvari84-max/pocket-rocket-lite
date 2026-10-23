@@ -6,7 +6,7 @@ import { ask } from "./model";
 import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
-import { PixelText, Chip } from "./design/ui";
+import { PixelText, Chip, GameErrorBoundary } from "./design/ui";
 import Settings from "./screens/Settings";
 import About from "./screens/About";
 
@@ -60,7 +60,11 @@ export default function Home() {
   // A launched game owns the whole screen; preserve the frozen { ask, onExit } wiring.
   if (game) {
     const GameScreen = game.Screen;
-    return <GameScreen ask={ask} onExit={() => setGame(null)} />;
+    return (
+      <GameErrorBoundary key={game.id} onExit={() => setGame(null)}>
+        <GameScreen ask={ask} onExit={() => setGame(null)} />
+      </GameErrorBoundary>
+    );
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.
