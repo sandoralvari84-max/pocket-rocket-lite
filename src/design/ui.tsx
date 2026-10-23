@@ -191,3 +191,74 @@ const os = StyleSheet.create({
   gameScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(6,9,13,0.82)", alignItems: "center", justifyContent: "center", padding: space.xl, zIndex: 50 },
   gamePanel: { width: "100%", maxWidth: 360, backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 2, padding: space.xl },
 });
+
+/* ---------- Titled console panel (shared by Settings / About) ---------- */
+export function Panel({ label, tone = "amber", children, style }: {
+  label: string; tone?: "amber" | "cyan"; children: React.ReactNode; style?: ViewStyle;
+}) {
+  const c = tone === "cyan" ? color.cyan : color.amber;
+  return (
+    <View style={[ps.panel, style]}>
+      <View style={ps.panelHead}>
+        <View style={[ps.panelTick, { backgroundColor: c }]} />
+        <PixelText size="label" style={{ letterSpacing: 1, color: c }}>{label}</PixelText>
+      </View>
+      <View style={ps.panelBody}>{children}</View>
+    </View>
+  );
+}
+
+/* ---------- Determinate progress bar ---------- */
+export function ProgressBar({ progress, label }: { progress: number; label?: string }) {
+  const pct = Math.max(0, Math.min(1, progress));
+  return (
+    <View style={{ gap: space.sm, alignSelf: "stretch" }}>
+      {!!label && <Body muted style={{ textAlign: "center" }}>{label}</Body>}
+      <View
+        style={ps.track}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(pct * 100) }}
+      >
+        <View style={{ backgroundColor: color.amber, flexGrow: pct, flexBasis: 0 }} />
+        <View style={{ flexGrow: 1 - pct, flexBasis: 0 }} />
+      </View>
+      <Body muted style={{ textAlign: "center" }}>{Math.round(pct * 100)}%</Body>
+    </View>
+  );
+}
+
+/* ---------- Inline persistent banner (permissions / offline / notices) ---------- */
+export function Banner({ tone = "warn", title, message, actionLabel, onAction }: {
+  tone?: "warn" | "danger" | "info"; title: string; message?: string; actionLabel?: string; onAction?: () => void;
+}) {
+  const c = tone === "danger" ? color.danger : tone === "info" ? color.cyan : color.warn;
+  return (
+    <View style={[ps.banner, { borderColor: c }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[ps.bannerTitle, { color: c }]}>{title}</Text>
+        {!!message && <Body muted style={{ marginTop: 2 }}>{message}</Body>}
+      </View>
+      {!!actionLabel && !!onAction && (
+        <Pressable
+          onPress={onAction}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+          style={({ pressed }) => [ps.bannerBtn, { borderColor: c }, pressed && { backgroundColor: color.surface2 }]}
+        >
+          <Text style={{ color: c, fontWeight: "700", fontSize: 13 }}>{actionLabel}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+const ps = StyleSheet.create({
+  panel: { backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, overflow: "hidden" },
+  panelHead: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, borderBottomWidth: 1, borderColor: color.surfaceLine, backgroundColor: color.surface2 },
+  panelTick: { width: 4, height: 12, borderRadius: 1 },
+  panelBody: { padding: space.lg, gap: space.sm },
+  track: { flexDirection: "row", height: 12, borderRadius: radius.pill, backgroundColor: color.surface2, borderWidth: 1, borderColor: color.surfaceLine, overflow: "hidden" },
+  banner: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: color.surface, borderWidth: 1, borderRadius: radius.md, padding: space.md },
+  bannerTitle: { fontSize: 14, fontWeight: "800", letterSpacing: 0.3 },
+  bannerBtn: { borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: 8 },
+});

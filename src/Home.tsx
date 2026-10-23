@@ -102,8 +102,6 @@ export default function Home() {
         {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} />}
       </View>
 
-      <Text style={s.ver}>v2 arcade · 17 games</Text>
-
       {/* Console deck: chunky physical keys, restrained amber glow on the active one. */}
       <View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }]}>
         <NavKey icon="▭" label="Chat" active={tab === "chat"} onPress={() => setTab("chat")} />

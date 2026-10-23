@@ -2,7 +2,8 @@ import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { color, space, radius, type as T, HIT } from "../design/tokens";
-import { PixelText, Body } from "../design/ui";
+import { PixelText, Body, Panel } from "../design/ui";
+import { appMeta } from "../appMeta";
 
 type Credit = { name: string; detail: string; license: string };
 
@@ -31,10 +32,11 @@ export default function About({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
-        <PixelText size="title" style={cs.appName}>POCKET ROCKET LITE</PixelText>
+        <PixelText size="title" style={cs.appName}>{appMeta.name.toUpperCase()}</PixelText>
+        <Body muted style={cs.version}>Version {appMeta.version}</Body>
         <Body muted style={cs.tagline}>A self-contained voice assistant and arcade that runs on your device.</Body>
 
-        <Section label="MODEL">
+        <Panel label="MODEL" tone="cyan">
           <Body style={cs.para}>
             Conversations are handled by Qwen2.5-1.5B Instruct, a compact instruction-tuned language
             model. It is quantized and runs on-device through llama.rn — no cloud service answers for it.
@@ -43,9 +45,9 @@ export default function About({ onBack }: { onBack: () => void }) {
             Speech recognition runs on-device through whisper.rn. Game art is rendered from bundled
             pixel sprites.
           </Body>
-        </Section>
+        </Panel>
 
-        <Section label="CREDITS & LICENSES">
+        <Panel label="CREDITS & LICENSES" tone="cyan">
           {CREDITS.map((c) => (
             <View key={c.name} style={cs.credit}>
               <Text style={cs.creditName}>{c.name}</Text>
@@ -57,21 +59,9 @@ export default function About({ onBack }: { onBack: () => void }) {
             Kenney art is public domain (CC0); attribution here is voluntary. Each pack's original
             License.txt is bundled with the app as license evidence.
           </Body>
-        </Section>
+        </Panel>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={cs.panel}>
-      <View style={cs.panelHead}>
-        <View style={cs.panelTick} />
-        <PixelText size="label" style={cs.panelLabel}>{label}</PixelText>
-      </View>
-      <View style={cs.panelBody}>{children}</View>
-    </View>
   );
 }
 
@@ -98,29 +88,8 @@ const cs = StyleSheet.create({
 
   pad: { padding: space.lg, paddingBottom: space.xxl, gap: space.md },
   appName: { color: color.amber, letterSpacing: 1.5, marginTop: space.sm },
+  version: { ...T.small, color: color.textFaint, marginTop: 2 },
   tagline: { marginBottom: space.sm },
-
-  panel: {
-    backgroundColor: color.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: color.surfaceLine,
-    overflow: "hidden",
-  },
-  panelHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingTop: space.md,
-    paddingBottom: space.sm,
-    borderBottomWidth: 1,
-    borderColor: color.surfaceLine,
-    backgroundColor: color.surface2,
-  },
-  panelTick: { width: 4, height: 12, borderRadius: 1, backgroundColor: color.cyan },
-  panelLabel: { color: color.cyan, letterSpacing: 1 },
-  panelBody: { padding: space.lg, gap: space.sm },
 
   para: { marginBottom: space.xs },
 

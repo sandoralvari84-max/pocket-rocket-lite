@@ -1,8 +1,14 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { color, space, radius, type as T, HIT } from "../design/tokens";
-import { PixelText, Body, Chip } from "../design/ui";
+import { PixelText, Body, Chip, Panel, Segmented } from "../design/ui";
 import { useSettings, setSetting } from "../settings";
+import type { VoiceId } from "../settings";
+
+const PERSONA_OPTS: { key: VoiceId; label: string }[] = [
+  { key: "sentinel", label: "Sentinel" },
+  { key: "nova", label: "Nova" },
+];
 
 const RATE_MIN = 0.5;
 const RATE_MAX = 1.3;
@@ -23,10 +29,7 @@ export default function Settings({ onAbout }: { onAbout: () => void }) {
       {/* ---- VOICE ---- */}
       <Panel label="VOICE" tone="amber">
         <Label>Assistant persona</Label>
-        <Persona
-          value={st.voice}
-          onChange={(v) => setSetting("voice", v)}
-        />
+        <Segmented options={PERSONA_OPTS} value={st.voice} onChange={(v) => setSetting("voice", v)} />
         <Note>Your choice is saved now. Spoken voices arrive with the voice update.</Note>
 
         <Divider />
@@ -104,19 +107,6 @@ export default function Settings({ onAbout }: { onAbout: () => void }) {
 
 /* ---------- local building blocks (console look, token-driven) ---------- */
 
-function Panel({ label, tone, children }: { label: string; tone: "amber" | "cyan"; children: React.ReactNode }) {
-  const c = tone === "amber" ? color.amber : color.cyan;
-  return (
-    <View style={cs.panel}>
-      <View style={cs.panelHead}>
-        <View style={[cs.panelTick, { backgroundColor: c }]} />
-        <PixelText size="label" style={{ letterSpacing: 1, color: c }}>{label}</PixelText>
-      </View>
-      <View style={cs.panelBody}>{children}</View>
-    </View>
-  );
-}
-
 function Label({ children }: { children: React.ReactNode }) {
   return <Text style={cs.label}>{children}</Text>;
 }
@@ -128,32 +118,6 @@ function Row({ children }: { children: React.ReactNode }) {
 }
 function Divider() {
   return <View style={cs.divider} />;
-}
-
-function Persona({ value, onChange }: { value: "sentinel" | "nova"; onChange: (v: "sentinel" | "nova") => void }) {
-  const opts: { key: "sentinel" | "nova"; label: string }[] = [
-    { key: "sentinel", label: "Sentinel" },
-    { key: "nova", label: "Nova" },
-  ];
-  return (
-    <View style={cs.seg}>
-      {opts.map((o) => {
-        const on = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={o.label}
-            style={[cs.segItem, on && cs.segItemOn]}
-          >
-            <Text style={[cs.segText, on && cs.segTextOn]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
 }
 
 function StepKey({ glyph, label, onPress, disabled }: { glyph: string; label: string; onPress: () => void; disabled?: boolean }) {
@@ -194,28 +158,6 @@ const cs = StyleSheet.create({
   pad: { padding: space.lg, paddingBottom: space.xxl, gap: space.md },
   screenTitle: { color: color.amber, letterSpacing: 2, marginBottom: space.xs },
 
-  panel: {
-    backgroundColor: color.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: color.surfaceLine,
-    overflow: "hidden",
-  },
-  panelHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingTop: space.md,
-    paddingBottom: space.sm,
-    borderBottomWidth: 1,
-    borderColor: color.surfaceLine,
-    backgroundColor: color.surface2,
-  },
-  panelTick: { width: 4, height: 12, borderRadius: 1 },
-  panelLabel: { letterSpacing: 1 },
-  panelBody: { padding: space.lg, gap: space.sm },
-
   label: { ...T.body, fontWeight: "700" },
   note: { ...T.small, color: color.textFaint, fontStyle: "italic" },
   rowHint: { marginTop: 2 },
@@ -224,26 +166,10 @@ const cs = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: HIT },
   divider: { height: 1, backgroundColor: color.surfaceLine, marginVertical: space.xs },
 
-  // Persona selector (physical segmented keys)
-  seg: {
-    flexDirection: "row",
-    backgroundColor: color.surface2,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: color.surfaceLine,
-    padding: 3,
-    gap: 3,
-    marginTop: space.xs,
-  },
-  segItem: { flex: 1, minHeight: 40, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
-  segItemOn: { backgroundColor: color.amber },
-  segText: { color: color.textMuted, fontWeight: "700", fontSize: 14 },
-  segTextOn: { color: color.onAmber },
-
   // Speech-rate stepper
   stepper: { flexDirection: "row", alignItems: "center", gap: space.sm },
   stepKey: {
-    width: 44, height: 44, borderRadius: radius.md,
+    width: HIT, height: HIT, borderRadius: radius.md,
     borderWidth: 1, borderColor: color.surfaceLine, backgroundColor: color.surface2,
     alignItems: "center", justifyContent: "center",
   },

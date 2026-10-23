@@ -7,7 +7,8 @@ import { DISCLAIMER } from "./src/preset";
 import { modelExists, downloadModel, loadModel } from "./src/model";
 import Home from "./src/Home";
 import { color, space } from "./src/design/tokens";
-import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card } from "./src/design/ui";
+import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar } from "./src/design/ui";
+import { appMeta } from "./src/appMeta";
 
 type Phase = "onboard" | "need-model" | "downloading" | "loading" | "ready" | "error";
 
@@ -55,7 +56,7 @@ function SetupGate({ phase, progress, err, onContinue, onGetModel, fontsLoaded }
         {phase === "onboard" && (
           <>
             <View style={{ alignItems: "center", gap: space.sm }}>
-              <PixelText size="title" style={{ color: color.amber, textAlign: "center" }}>SKEPTIC{"\n"}LITE</PixelText>
+              <PixelText size="title" style={{ color: color.amber, textAlign: "center" }}>{appMeta.name.toUpperCase().split(" ").join("\n")}</PixelText>
               <Body muted style={{ textAlign: "center" }}>A pocket AI buddy that runs entirely on your phone.</Body>
             </View>
             <Card>
@@ -74,7 +75,13 @@ function SetupGate({ phase, progress, err, onContinue, onGetModel, fontsLoaded }
             <Button title="Download model" onPress={onGetModel} full />
           </View>
         )}
-        {phase === "downloading" && <Spinner label={`Downloading model… ${Math.round(progress * 100)}%`} />}
+        {phase === "downloading" && (
+          <View style={{ gap: space.lg, alignItems: "center", paddingHorizontal: space.lg }}>
+            <Title>Getting ready</Title>
+            <ProgressBar progress={progress} label="Downloading the on-device model…" />
+            <Body muted style={{ textAlign: "center", fontSize: 12 }}>Over Wi-Fi, once. Keep the app open.</Body>
+          </View>
+        )}
         {phase === "loading" && <Spinner label="Loading model…" />}
         {phase === "error" && (
           <View style={{ gap: space.lg, alignItems: "center" }}>

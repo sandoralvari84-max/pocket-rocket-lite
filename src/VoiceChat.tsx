@@ -10,8 +10,9 @@ import { ask } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings } from "./settings";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
-import { Body, PixelText, Input } from "./design/ui";
+import { Body, PixelText, Input, Banner } from "./design/ui";
 import VoiceBar, { VoiceBarState } from "./VoiceBar";
+import { appMeta } from "./appMeta";
 
 type Msg = { role: "user" | "assistant"; text: string };
 
@@ -41,6 +42,7 @@ export default function VoiceChat() {
   const [sttBusy, setSttBusy] = useState(false);     // whisper loading / transcribing
   const [sttStatus, setSttStatus] = useState("");    // transient non-error notice
   const [error, setError] = useState("");            // transient error flag for bar + status
+  const [permDenied, setPermDenied] = useState(false); // persistent mic-permission notice
 
   const [voices, setVoices] = useState<Speech.Voice[]>([]);
   const [voiceIdx, setVoiceIdx] = useState(0);
@@ -160,7 +162,8 @@ export default function VoiceChat() {
     if (!recording) {
       try {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
-        if (!perm.granted) { flagError("Microphone permission denied. Enable it in system settings to use voice."); return; }
+        if (!perm.granted) { setPermDenied(true); flagError("Microphone permission denied. Enable it in system settings to use voice."); return; }
+        setPermDenied(false);
         setSttBusy(true); setSttStatus("Loading speech model…");
         await ensureWhisper(() => {});
         setSttStatus(""); setSttBusy(false);
@@ -212,7 +215,7 @@ export default function VoiceChat() {
         {/* Console header */}
         <View style={s.header}>
           <View style={{ flex: 1 }}>
-            <PixelText size="h2" style={{ color: color.amber }}>SKEPTIC</PixelText>
+            <PixelText size="h2" style={{ color: color.amber }}>{appMeta.name.toUpperCase()}</PixelText>
             <Text style={s.sub}>On-device assistant · offline</Text>
           </View>
           {msgs.length > 0 && (
@@ -320,6 +323,16 @@ export default function VoiceChat() {
           </ScrollView>
         )}
 
+        {permDenied && (
+          <View style={{ paddingHorizontal: space.md, paddingBottom: space.sm }}>
+            <Banner
+              tone="warn"
+              title="Microphone blocked"
+              message="Enable mic access in system settings to use voice input."
+            />
+          </View>
+        )}
+
         {/* Composer */}
         <View style={s.composer}>
           <Pressable
@@ -381,7 +394,7 @@ const s = StyleSheet.create({
   sub: { ...T.small, color: color.textMuted, marginTop: 4 },
   clearBtn: {
     borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.md,
-    paddingHorizontal: space.md, height: 36, justifyContent: "center",
+    paddingHorizontal: space.md, height: 44, justifyContent: "center",
   },
   clearT: { color: color.textMuted, fontSize: 13, fontWeight: "700" },
 
