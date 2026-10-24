@@ -23,6 +23,7 @@ habits/water/sleep/measurements/meal-planner/recipes/timers/converter). Separate
 | **Diet** (#2) | Food log over a bundled 48-food reference table; calories + macros scaled deterministically (round(v·g/100)), daily total vs an adjustable goal, today's entries. | ✅ tsc · ✅ bundle · ✅ logic test (scaling, totals, goal %) | 🕹️ feel; food-table coverage is reference data, verify values |
 | **Fitness** (#3) | Workout log over a bundled 36-exercise list; training volume (sets×reps×weight) + best-weight per exercise, deterministic; today's sets. | ✅ tsc · ✅ bundle · ✅ logic test (volume, best) | 🕹️ feel |
 | **Budget** (#4) | Income/expense log by category; monthly income, expenses, balance, and per-category breakdown all deterministic sums; single currency (€). Offline. | ✅ tsc · ✅ bundle (786) | 🕹️ feel; multi-currency FX (Open ER-API) is a later add |
+| **Habits** (#6) | Daily check-in + consecutive-day streaks; streak = deterministic date math; done-today toggle. Offline. | ✅ tsc · ✅ bundle · ✅ logic test (streak incl. gaps, today-pending, stale) | 🕹️ feel |
 
 All three: correctness is deterministic code; no model involvement. Wired into Tools +
 Home routes; de/es for headline strings (data-term labels fall back to English this pass).

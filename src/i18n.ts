@@ -94,6 +94,16 @@ const TR: Record<string, Pair> = {
   "Software": { de: "Software", es: "Software" },
   "Webdesign": { de: "Webdesign", es: "Diseño web" },
 
+  // ---- Habits ----
+  "HABITS": { de: "GEWOHNHEITEN", es: "HÁBITOS" },
+  "Habits": { de: "Gewohnheiten", es: "Hábitos" },
+  "Build streaks — check in daily, keep the chain going":
+    { de: "Serien aufbauen — täglich eintragen, die Kette halten", es: "Crea rachas — regístrate a diario y mantén la cadena" },
+  "New habit…": { de: "Neue Gewohnheit…", es: "Nuevo hábito…" },
+  "Add a habit to start a streak.": { de: "Füge eine Gewohnheit hinzu, um eine Serie zu starten.", es: "Añade un hábito para empezar una racha." },
+  "day streak": { de: "Tage-Serie", es: "días seguidos" },
+  "not started": { de: "nicht begonnen", es: "sin empezar" },
+
   // ---- Budget ----
   "BUDGET": { de: "BUDGET", es: "PRESUPUESTO" },
   "Budget": { de: "Budget", es: "Presupuesto" },

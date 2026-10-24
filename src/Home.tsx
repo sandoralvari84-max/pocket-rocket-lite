@@ -19,9 +19,10 @@ import Diet from "./screens/Diet";
 import Fitness from "./screens/Fitness";
 import Experts from "./screens/Experts";
 import Budget from "./screens/Budget";
+import Habits from "./screens/Habits";
 
 type Tab = "chat" | "games" | "tools" | "settings";
-type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget";
+type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -152,6 +153,9 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   }
   if (screen === "budget") {
     return <Budget onBack={() => setScreen(null)} />;
+  }
+  if (screen === "habits") {
+    return <Habits onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.
