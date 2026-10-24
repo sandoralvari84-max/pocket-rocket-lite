@@ -26,7 +26,7 @@ function tagToIdx(tag: string): number[] {
 
 export function ScoreboardOverlay({
   visible, gameId, score, ordering = "high", title = "GAME OVER",
-  scoreLabel, onPlayAgain, onExit,
+  scoreLabel, children, onPlayAgain, onExit,
 }: {
   visible: boolean;
   gameId: string;
@@ -34,6 +34,7 @@ export function ScoreboardOverlay({
   ordering?: Ordering;
   title?: string;
   scoreLabel?: string;
+  children?: React.ReactNode;
   onPlayAgain: () => void;
   onExit?: () => void;
 }) {
@@ -83,6 +84,7 @@ export function ScoreboardOverlay({
         {!!scoreLabel && (
           <PixelText size="score" style={{ textAlign: "center", marginTop: space.sm }}>{scoreLabel}</PixelText>
         )}
+        {children}
 
         {showEntry ? (
           <View style={{ marginTop: space.lg, alignItems: "center", gap: space.md }}>

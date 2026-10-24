@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay } from "../design/ui";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
 
@@ -390,10 +391,10 @@ function GameScreen({ onExit }: GameContext) {
         </View>
       </View>
 
-      <GameOverlay
-        visible={over} kind="over" title="STACK OVERFLOW"
-        score={`SCORE ${score}  ·  LVL ${level}`}
-        primaryLabel="Play again" onPrimary={reset} onExit={onExit}
+      <ScoreboardOverlay
+        visible={over} gameId="block-drop" score={score} title="STACK OVERFLOW"
+        scoreLabel={`SCORE ${score}  ·  LVL ${level}`}
+        onPlayAgain={reset} onExit={onExit}
       />
     </View>
   );

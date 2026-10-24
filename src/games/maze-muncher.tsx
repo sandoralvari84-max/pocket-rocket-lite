@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 import { ArcadeJoystick } from "../design/Joystick";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
@@ -174,7 +175,7 @@ function initPellets(grid: string[]): { pellets: Set<string>; powers: Set<string
 }
 
 const enemyCount = (level: number) => Math.min(2 + (level - 1), 4);
-const tickMs = (level: number) => Math.max(95, 175 - (level - 1) * 14);
+const tickMs = (level: number) => Math.max(100, 195 - (level - 1) * 14); // ease level 1
 const scatterTicks = (level: number) => Math.max(8, 30 - (level - 1) * 4);
 const chaseTicks = (level: number) => 55 + (level - 1) * 15;
 const frightTicks = (level: number) => Math.max(18, 60 - (level - 1) * 7);
@@ -571,9 +572,9 @@ function Screen({ onExit }: GameContext) {
         </Body>
       </GameOverlay>
 
-      <GameOverlay
-        visible={phase === "over"} kind="over" title="GAME OVER" score={`SCORE ${score}`}
-        primaryLabel="Play again" onPrimary={fullRestart} onExit={onExit}
+      <ScoreboardOverlay
+        visible={phase === "over"} gameId="maze-muncher" score={score}
+        scoreLabel={`SCORE ${score}`} onPlayAgain={fullRestart} onExit={onExit}
       />
     </View>
   );

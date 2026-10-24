@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 
 // Owned tileable textures (tools/art/gen_putt_art.py) — collision rects unchanged.
 const GRASS = require("../../assets/arcade/putt/grass.png");
@@ -380,11 +381,11 @@ function GameScreen({ onExit }: GameContext) {
         primaryLabel={holeIdx >= HOLES.length - 1 ? "See results" : "Next hole"}
         onPrimary={nextHole} onExit={onExit}
       />
-      <GameOverlay
-        visible={phase === "courseDone"} kind="win"
-        title="COURSE COMPLETE"
-        score={`TOTAL ${totalRef.current}  ·  PAR ${parRef.current}  (${totalRef.current - parRef.current >= 0 ? "+" : ""}${totalRef.current - parRef.current})`}
-        primaryLabel="Play again" onPrimary={restartCourse} onExit={onExit}
+      <ScoreboardOverlay
+        visible={phase === "courseDone"} gameId="putt-pal" ordering="low"
+        score={totalRef.current} title="COURSE COMPLETE"
+        scoreLabel={`TOTAL ${totalRef.current}  ·  PAR ${parRef.current}  (${totalRef.current - parRef.current >= 0 ? "+" : ""}${totalRef.current - parRef.current})`}
+        onPlayAgain={restartCourse} onExit={onExit}
       >
         <View style={st.card}>
           {HOLES.map((h, i) => {
@@ -397,7 +398,7 @@ function GameScreen({ onExit }: GameContext) {
             );
           })}
         </View>
-      </GameOverlay>
+      </ScoreboardOverlay>
     </View>
   );
 }

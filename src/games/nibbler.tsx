@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 import { ArcadeJoystick } from "../design/Joystick";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
@@ -77,7 +78,7 @@ function activeObstacles(score: number): Set<string> {
 }
 
 // speed ramps up with score; grid steps stay fixed-size and deterministic.
-const delayFor = (score: number) => Math.max(70, 150 - score * 4);
+const delayFor = (score: number) => Math.max(85, 185 - score * 3); // gentler ramp: slower start, smoother climb
 
 function randFood(snake: Cell[], obstacles: Set<string>): Cell {
   const taken = new Set(snake.map((s) => `${s.r},${s.c}`));
@@ -342,9 +343,9 @@ function Screen({ onExit }: GameContext) {
         primaryLabel="Resume" onPrimary={togglePause} onExit={onExit}
       />
 
-      <GameOverlay
-        visible={phase === "over"} kind="over" title="GAME OVER" score={`SCORE ${score}`}
-        primaryLabel="Play again" onPrimary={restart} onExit={onExit}
+      <ScoreboardOverlay
+        visible={phase === "over"} gameId="nibbler" score={score}
+        scoreLabel={`SCORE ${score}`} onPlayAgain={restart} onExit={onExit}
       />
     </View>
   );

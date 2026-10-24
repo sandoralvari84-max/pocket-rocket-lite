@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay, Sprite } from "../design/ui";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
 
@@ -312,8 +313,8 @@ function GameScreen({ onExit }: GameContext) {
       </GameOverlay>
       <GameOverlay visible={phase === "paused" && !over} kind="pause" title="PAUSED"
         primaryLabel="Resume" onPrimary={togglePause} onExit={onExit} />
-      <GameOverlay visible={over} kind="over" title="GAME OVER" score={`SCORE ${score}`}
-        primaryLabel="Play again" onPrimary={reset} onExit={onExit} />
+      <ScoreboardOverlay visible={over} gameId="flipper-frenzy" score={score}
+        scoreLabel={`SCORE ${score}`} onPlayAgain={reset} onExit={onExit} />
     </View>
   );
 }
