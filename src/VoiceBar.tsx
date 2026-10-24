@@ -29,6 +29,11 @@ export default function VoiceBar({ state, persona = "sentinel", reducedMotion = 
   const soft = persona === "nova";
   const bw = soft ? 0.2 : 0.12;        // beam half-width (sweep)
   const baseIdle = soft ? 0.27 : 0.2;  // resting brightness
+  // Shape + spacing carry the character, not just colour: Nova = wider bars, round
+  // caps, airy spacing; Sentinel = thin tight bars, square caps, dense spacing.
+  const segW = soft ? 7 : 5;
+  const cap = soft ? 4 : 1;
+  const gapW = soft ? 6 : 3;
   const sweep = state === "listening" || state === "thinking" || (idle && persona === "sentinel");
   const breathe = state === "speaking" || (idle && persona === "nova");
   const voiceActive = state === "listening" || state === "thinking" || state === "speaking";
@@ -37,10 +42,12 @@ export default function VoiceBar({ state, persona = "sentinel", reducedMotion = 
   useEffect(() => {
     anim.stopAnimation();
     if (!animated) { Animated.timing(anim, { toValue: 0.5, duration: 220, useNativeDriver: false }).start(); return; }
-    const dur = voiceActive ? (sweep ? 760 : 540) : 1800;
+    // Sentinel sweeps sharp + quick (quad); Nova breathes slow + smooth (sin).
+    const dur = voiceActive ? (sweep ? (soft ? 820 : 600) : 540) : (soft ? 2300 : 1400);
+    const ease = sweep && !soft ? Easing.inOut(Easing.quad) : Easing.inOut(Easing.sin);
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(anim, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-      Animated.timing(anim, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+      Animated.timing(anim, { toValue: 1, duration: dur, easing: ease, useNativeDriver: false }),
+      Animated.timing(anim, { toValue: 0, duration: dur, easing: ease, useNativeDriver: false }),
     ]));
     loop.start();
     return () => loop.stop();
@@ -55,7 +62,7 @@ export default function VoiceBar({ state, persona = "sentinel", reducedMotion = 
       <View style={[s.housing, { borderColor: col + "4D" }]}>
         {/* soft bloom behind the bank */}
         <View pointerEvents="none" style={[s.bloom, { backgroundColor: col, opacity: glow ? (soft ? 0.18 : 0.15) : idle ? (soft ? 0.1 : 0.06) : 0.1, left: soft ? "8%" : "13%", right: soft ? "8%" : "13%" }]} />
-        <View style={s.segs}>
+        <View style={[s.segs, { gap: gapW }]}>
           {[...Array(N)].map((_, i) => {
             const x = i / (N - 1);
             // lens silhouette — centre segments taller
@@ -81,8 +88,10 @@ export default function VoiceBar({ state, persona = "sentinel", reducedMotion = 
               coreOp = anim.interpolate({ inputRange: [0, 1], outputRange: [0, idle ? 0.25 : 0.7 * hMul] });
             }
             return (
-              <View key={i} style={[s.segWrap, { height: segMax }]}>
+              <View key={i} style={[s.segWrap, { height: segMax, width: segW }]}>
                 <Animated.View style={[s.seg, {
+                  width: segW,
+                  borderRadius: cap,
                   height: segMax * hMul,
                   backgroundColor: col,
                   opacity,
@@ -92,7 +101,7 @@ export default function VoiceBar({ state, persona = "sentinel", reducedMotion = 
                   elevation: glow ? 4 : 0,
                 }]} />
                 {/* white-hot core overlay on the beam */}
-                <Animated.View pointerEvents="none" style={[s.core, { height: segMax * hMul * 0.5, opacity: coreOp }]} />
+                <Animated.View pointerEvents="none" style={[s.core, { width: soft ? 4 : 2, borderRadius: soft ? 2 : 0, height: segMax * hMul * 0.5, opacity: coreOp }]} />
               </View>
             );
           })}

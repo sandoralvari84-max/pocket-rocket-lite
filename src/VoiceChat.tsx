@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, Pressable, ScrollView, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Animated, Easing, Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Speech from "expo-speech";
@@ -17,10 +17,101 @@ import { appMeta } from "./appMeta";
 
 const EMBLEM = require("../assets/brand/emblem.png");
 
+const { width: SW, height: SH } = Dimensions.get("window");
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 // Restrained starfield for the home hero depth (static; a handful of dots).
 const HERO_STARS = Array.from({ length: 16 }, () => ({
   x: Math.random(), y: Math.random(), sz: 1 + Math.random() * 1.6, op: 0.18 + Math.random() * 0.4,
 }));
+
+// Persona is a whole CHARACTER, not a colour swap: different ambient backdrop,
+// card shape, idle motion, greeting voice. Sentinel = sharp, angular, dry/cynical;
+// Nova = soft, organic, warm. The locked amber/charcoal/cyan shell stays the base.
+const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
+const PERSONA = {
+  sentinel: {
+    accent: "#FF9800", cardRadius: 5, tileRadius: 4,
+    greet: [
+      "Let's get this over with.",
+      "Online. Unfortunately.",
+      "Go on — impress me.",
+      "State your business.",
+      "Back already? Fine.",
+      "Ready. Try not to break anything.",
+    ],
+  },
+  nova: {
+    accent: "#00E5FF", cardRadius: 22, tileRadius: 15,
+    greet: [
+      "Hey — good to see you.",
+      "I'm right here whenever you need me.",
+      "Take your time. I've got you.",
+      "Whatever you need, I'm listening.",
+      "Hi you. Where shall we start?",
+      "Ready when you are. ♥",
+    ],
+  },
+} as const;
+
+// Home's first action is NOT a duplicate of the bottom nav (Games/Tools/Settings) —
+// it's one-tap head-starts into a task, in each persona's voice. Tapping seeds the
+// composer; the user adds the detail and sends.
+const CHIPS = {
+  sentinel: [
+    { label: "Sanity-check this", seed: "Sanity-check this for me: " },
+    { label: "Draft a reply", seed: "Draft a short, sharp reply to: " },
+    { label: "Explain simply", seed: "Explain this simply: " },
+  ],
+  nova: [
+    { label: "Think it through", seed: "Help me think this through: " },
+    { label: "Reword kindly", seed: "Reword this more kindly: " },
+    { label: "Explain simply", seed: "Explain this gently and simply: " },
+  ],
+} as const;
+
+// Ambient backdrop geometry (built once).
+const GRID_STEP = 54;
+const GRID_V = Array.from({ length: Math.ceil(SW / GRID_STEP) + 1 }, (_, i) => i * GRID_STEP);
+const GRID_H = Array.from({ length: Math.ceil(SH / GRID_STEP) + 1 }, (_, i) => i * GRID_STEP);
+const SENTINEL_STARS = Array.from({ length: 48 }, () => ({ x: Math.random() * SW, y: Math.random() * SH, s: 1 + Math.random() * 1.4 }));
+const NOVA_STARS = Array.from({ length: 22 }, () => ({ x: Math.random() * SW, y: Math.random() * SH, s: 2 + Math.random() * 2.4 }));
+
+// The persona-driven ambient field behind the whole screen. Two layers crossfaded by
+// `np` (0 = Sentinel, 1 = Nova); each has its own slow, subtle motion.
+function PersonaBackdrop({ np, breathe, scan, reduced }: {
+  np: Animated.Value; breathe: Animated.Value; scan: Animated.Value; reduced: boolean;
+}) {
+  const sentinelOp = np.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {/* SENTINEL — angular grid, sharp star-points, a slow scanline sweep */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: sentinelOp }]}>
+        {GRID_V.map((x) => (
+          <View key={`v${x}`} style={{ position: "absolute", left: x, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,152,0,0.045)" }} />
+        ))}
+        {GRID_H.map((y) => (
+          <View key={`h${y}`} style={{ position: "absolute", top: y, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,152,0,0.04)" }} />
+        ))}
+        {SENTINEL_STARS.map((st, i) => (
+          <View key={i} style={{ position: "absolute", left: st.x, top: st.y, width: st.s, height: st.s, backgroundColor: "#FFD9A6", opacity: 0.5 }} />
+        ))}
+        {!reduced && (
+          <Animated.View style={{ position: "absolute", left: 0, right: 0, height: 2, backgroundColor: "rgba(255,152,0,0.16)", transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-30, SH] }) }] }} />
+        )}
+      </Animated.View>
+      {/* NOVA — soft aurora glow blobs that breathe, sparse round stars */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: np }]}>
+        <Animated.View style={{ position: "absolute", left: -SW * 0.25, top: SH * 0.04, width: SW * 0.9, height: SW * 0.9, borderRadius: SW, backgroundColor: "#00E5FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.17] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] }) }] }} />
+        <Animated.View style={{ position: "absolute", right: -SW * 0.3, top: SH * 0.3, width: SW, height: SW, borderRadius: SW, backgroundColor: "#8A63FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.14, 0.08] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1.1, 0.96] }) }] }} />
+        <Animated.View style={{ position: "absolute", left: SW * 0.1, bottom: SH * 0.06, width: SW * 0.7, height: SW * 0.7, borderRadius: SW, backgroundColor: "#00E5FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.06, 0.12] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.1] }) }] }} />
+        {NOVA_STARS.map((st, i) => (
+          <View key={i} style={{ position: "absolute", left: st.x, top: st.y, width: st.s, height: st.s, borderRadius: st.s / 2, backgroundColor: "#BBF0FF", opacity: 0.45 }} />
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
 
 type Msg = { role: "user" | "assistant"; text: string };
 
@@ -73,6 +164,51 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   const sendLock = useRef(false);
   const micTransitionLock = useRef(false);
   const speechGeneration = useRef(0);
+
+  // --- Persona as a living character: morphing backdrop, card shape, idle motion, copy ---
+  const persona = settings.voice;
+  const np = useRef(new Animated.Value(persona === "nova" ? 1 : 0)).current;  // 0 Sentinel .. 1 Nova
+  const sweepAnim = useRef(new Animated.Value(0)).current;                     // whole-screen switch sweep
+  const pulse = useRef(new Animated.Value(0)).current;                         // emblem idle
+  const breathe = useRef(new Animated.Value(0)).current;                       // Nova aurora
+  const scan = useRef(new Animated.Value(0)).current;                          // Sentinel scanline
+  const prevPersona = useRef(persona);
+  const [greeting, setGreeting] = useState(() => pick(PERSONA[persona].greet));
+
+  // Switching persona morphs background + cards together, sweeps the screen once, and
+  // speaks + shows a fresh greeting in the new voice — the whole app changes character.
+  useEffect(() => {
+    setGreeting(pick(PERSONA[persona].greet));
+    if (settings.reducedMotion) { np.setValue(persona === "nova" ? 1 : 0); prevPersona.current = persona; return; }
+    Animated.timing(np, { toValue: persona === "nova" ? 1 : 0, duration: 580, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
+    if (prevPersona.current !== persona) {
+      sweepAnim.setValue(0);
+      Animated.timing(sweepAnim, { toValue: 1, duration: 640, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    }
+    prevPersona.current = persona;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persona, settings.reducedMotion]);
+
+  // Idle motion differs by character: Sentinel = sharp, quick emblem pulse; Nova = slow,
+  // soft breathing of both the emblem and the aurora. Scanline drifts for Sentinel.
+  useEffect(() => {
+    pulse.stopAnimation(); breathe.stopAnimation(); scan.stopAnimation();
+    if (settings.reducedMotion) return;
+    const pDur = persona === "nova" ? 2600 : 1150;
+    const pl = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: pDur, easing: persona === "nova" ? Easing.inOut(Easing.sin) : Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: pDur, easing: persona === "nova" ? Easing.inOut(Easing.sin) : Easing.in(Easing.quad), useNativeDriver: true }),
+    ]));
+    // Slow aurora drift (reference: 8–20s loops read as "alive" not busy).
+    const bl = Animated.loop(Animated.sequence([
+      Animated.timing(breathe, { toValue: 1, duration: 9000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 0, duration: 9000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const sl = Animated.loop(Animated.timing(scan, { toValue: 1, duration: 5200, easing: Easing.linear, useNativeDriver: true }));
+    pl.start(); bl.start(); sl.start();
+    return () => { pl.stop(); bl.stop(); sl.stop(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persona, settings.reducedMotion]);
 
   // Speech options sourced from settings: speechRate drives rate; the persona biases pitch
   // (sentinel = low KITT-like, nova = natural). The device voice itself comes from the voice list.
@@ -239,14 +375,27 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      <PersonaBackdrop np={np} breathe={breathe} scan={scan} reduced={settings.reducedMotion} />
+      {!settings.reducedMotion && (
+        <Animated.View pointerEvents="none" style={[s.sweep, {
+          backgroundColor: PERSONA[persona].accent,
+          opacity: sweepAnim.interpolate({ inputRange: [0, 0.08, 0.6, 1], outputRange: [0, 0.6, 0.35, 0] }),
+          transform: [{ translateY: sweepAnim.interpolate({ inputRange: [0, 1], outputRange: [-40, SH] }) }],
+        }]} />
+      )}
       <KeyboardAvoidingView
-        style={s.fill}
+        style={[s.fill, { backgroundColor: "transparent" }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         {/* Masthead: brand + persona swap */}
         <View style={s.header}>
-          <Sprite source={EMBLEM} size={34} />
+          <Animated.View style={{
+            transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, persona === "nova" ? 1.05 : 1.09] }) }],
+            opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: persona === "nova" ? [0.9, 1] : [0.8, 1] }),
+          }}>
+            <Sprite source={EMBLEM} size={34} />
+          </Animated.View>
           <View style={{ flex: 1, marginLeft: space.sm }}>
             <PixelText size="label" style={{ color: color.amber, fontSize: 11 }}>{appMeta.name.toUpperCase()}</PixelText>
             <Text style={s.sub}>{L("On-device assistant · offline")}</Text>
@@ -291,15 +440,14 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
         {/* Home hero (empty) vs transcript (conversation) */}
         {msgs.length === 0 ? (
           <ScrollView
-            style={s.fill}
+            style={[s.fill, { backgroundColor: "transparent" }]}
             contentContainerStyle={s.heroWrap}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {HERO_STARS.map((st, i) => (
-              <View key={i} pointerEvents="none" style={[s.star, { left: `${st.x * 100}%`, top: st.y * 220, width: st.sz, height: st.sz, borderRadius: st.sz, opacity: st.op }]} />
-            ))}
-            <Text style={s.greeting}>{L("Ready when you are.")}</Text>
+            {/* Greeting carries the persona's voice AND type: Sentinel = sharp, uppercase,
+                tight tracking; Nova = soft, airy, lighter weight. */}
+            <Text style={[s.greeting, persona === "nova" ? s.greetNova : s.greetSentinel]}>{greeting}</Text>
             <Text style={s.heroSub}>{L("On-device · private · fully offline")}</Text>
 
             <View style={s.composerHero}>
@@ -316,10 +464,14 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
               </Pressable>
             </View>
 
-            <View style={s.keyRow}>
-              <ConsoleKey glyph="◉" label={L("ARCADE")} tint={color.amber} onPress={onOpenGames} />
-              <ConsoleKey glyph="▤" label={L("Tools")} tint={color.cyan} onPress={onOpenTools} />
-              <ConsoleKey glyph="✎" label={L("NOTES")} tint={color.textMuted} onPress={onOpenNotes} />
+            <Text style={[s.chipHint, { color: PERSONA[persona].accent }]}>
+              {persona === "nova" ? "try one — I'll take it from there" : "QUICK START"}
+            </Text>
+            <View style={s.chipRow}>
+              {CHIPS[persona].map((c) => (
+                <SuggestChip key={c.label} label={c.label} np={np} accent={PERSONA[persona].accent}
+                  onPress={() => setInput(c.seed)} />
+              ))}
             </View>
           </ScrollView>
         ) : (
@@ -421,16 +573,18 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   );
 }
 
-// A tactile console key (Arcade / Tools / Notes) for the home hero.
-function ConsoleKey({ glyph, label, tint, onPress }: { glyph: string; label: string; tint: string; onPress?: () => void }) {
+// Persona suggestion chip. Its corner radius morphs with `np` — sharp/squared under
+// Sentinel, soft/pill under Nova — so the shape itself carries the persona (the ruled
+// card-shape split, moved onto the element that actually belongs on the home screen).
+function SuggestChip({ label, np, accent, onPress }: {
+  label: string; np: Animated.Value; accent: string; onPress: () => void;
+}) {
+  const r = np.interpolate({ inputRange: [0, 1], outputRange: [5, 22] });
   return (
-    <Pressable onPress={() => onPress?.()} accessibilityRole="button" accessibilityLabel={label}
-      style={({ pressed }) => [s.key, pressed && { borderColor: tint, backgroundColor: color.surface2 }]}>
-      <View style={[s.keyTile, { borderColor: tint }]}>
-        <Text style={[s.keyGlyph, { color: tint }]}>{glyph}</Text>
-      </View>
-      <PixelText size="label" style={{ color: color.text, marginTop: 6 }}>{label}</PixelText>
-    </Pressable>
+    <AnimatedPressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+      style={({ pressed }) => [s.chip, { borderRadius: r as unknown as number, borderColor: accent, backgroundColor: accent + (pressed ? "2A" : "16") }]}>
+      <Text style={[s.chipT, { color: accent }]}>{label}</Text>
+    </AnimatedPressable>
   );
 }
 
@@ -445,13 +599,16 @@ const s = StyleSheet.create({
   meterWrap: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs, alignItems: "center" },
   heroWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
   star: { position: "absolute", backgroundColor: "#E8F0FF" },
-  greeting: { fontSize: 30, fontWeight: "800", color: color.text, textAlign: "center", letterSpacing: 0.2 },
+  greeting: { fontSize: 30, fontWeight: "800", color: color.text, textAlign: "center", letterSpacing: 0.2, paddingHorizontal: space.md },
+  greetSentinel: { fontSize: 23, fontWeight: "800", letterSpacing: 1.3, textTransform: "uppercase" },
+  greetNova: { fontSize: 31, fontWeight: "500", letterSpacing: 0.2, lineHeight: 40 },
   heroSub: { ...T.small, color: color.textMuted, textAlign: "center", marginBottom: space.md },
   composerHero: { flexDirection: "row", gap: space.sm, alignItems: "center", alignSelf: "stretch", maxWidth: 440, width: "100%", backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.lg, padding: space.sm },
-  keyRow: { flexDirection: "row", gap: space.md, marginTop: space.lg, alignSelf: "stretch", maxWidth: 440, width: "100%" },
-  key: { flex: 1, backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.lg, paddingVertical: space.md, alignItems: "center" },
-  keyTile: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
-  keyGlyph: { fontSize: 22, fontWeight: "900" },
+  chipHint: { fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: space.lg, opacity: 0.85 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.sm, marginTop: space.sm, alignSelf: "stretch", maxWidth: 440, width: "100%" },
+  chip: { borderWidth: 1.5, borderColor: color.surfaceLine, backgroundColor: "rgba(20,26,34,0.55)", paddingHorizontal: 16, paddingVertical: 11 },
+  chipT: { fontSize: 13, fontWeight: "700" },
+  sweep: { position: "absolute", left: 0, right: 0, height: 3, zIndex: 20, shadowColor: "#FFFFFF", shadowOpacity: 0.6, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
 
   header: {
     flexDirection: "row", alignItems: "center",
