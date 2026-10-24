@@ -70,3 +70,22 @@ export const elevation = {
 
 // Minimum comfortable touch target (brief §I).
 export const HIT = 48;
+
+// CRT-console surfaces (CRT_CONSOLE_DESIGN.md): the physical control-deck + display frame.
+// Reused so every screen reads as one machine, not separate dark pages.
+export const consoleUI = {
+  deckBg: "#141A22",       // control-deck housing
+  deckRail: "#2E3A49",     // top lip / structural edge
+  deckHi: "#39485A",       // thin highlight on the lip
+  keyBg: "#1C242F",        // raised key cap
+  keyBorder: "#2E3A49",
+  keyPressed: "#10151C",   // depressed cap
+  ledOff: "#3A4654",       // unlit indicator
+  frame: "#1A222C",        // display bezel
+  frameLine: "#303E4E",
+} as const;
+
+// Motion tokens — deliberate, restrained (honor reduced motion at call sites).
+export const motion = {
+  fast: 120, base: 200, slow: 320,
+} as const;

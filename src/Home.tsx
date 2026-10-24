@@ -5,7 +5,7 @@ import VoiceChat from "./VoiceChat";
 import { ask } from "./model";
 import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
-import { color, space, radius, type as T, HIT } from "./design/tokens";
+import { color, space, radius, type as T, HIT, consoleUI } from "./design/tokens";
 import { PixelText, Chip, GameErrorBoundary, Sprite } from "./design/ui";
 import { appMeta } from "./appMeta";
 import { L, useLang } from "./i18n";
@@ -171,8 +171,9 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
 
       <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>
 
-      {/* Console deck: chunky physical keys, restrained amber glow on the active one. */}
+      {/* Console control deck: tactile illuminated hardware keys on a housing rail. */}
       <View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }]}>
+        <View style={s.deckRail} pointerEvents="none" />
         <NavKey icon="▭" label="Chat" active={tab === "chat"} onPress={() => setTab("chat")} />
         <NavKey icon="◉" label="Games" active={tab === "games"} onPress={() => setTab("games")} />
         <NavKey icon="▤" label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
@@ -194,9 +195,10 @@ function NavKey({ icon, label, active, onPress }: {
       style={({ pressed }) => [
         s.key,
         active && s.keyOn,
-        pressed && !active && s.keyPressed,
+        pressed && s.keyPressed,
       ]}
     >
+      <View style={[s.led, active && s.ledOn]} />
       <Text style={[s.keyIcon, active && s.keyIconOn]}>{icon}</Text>
       <Text style={[s.keyLabel, active && s.keyLabelOn]}>{L(label)}</Text>
     </Pressable>
@@ -310,32 +312,35 @@ const s = StyleSheet.create({
     backgroundColor: color.bg,
   },
 
-  // Console deck (bottom navigation)
+  // Console control deck (bottom navigation) — a tactile illuminated hardware panel.
   deck: {
     flexDirection: "row",
-    backgroundColor: color.surface,
-    borderTopWidth: 2,
-    borderColor: color.surfaceLine,
-    paddingTop: space.sm,
-    paddingHorizontal: space.sm,
+    backgroundColor: consoleUI.deckBg,
+    borderTopWidth: 1,
+    borderColor: consoleUI.deckRail,
+    paddingTop: space.md,
+    paddingHorizontal: space.md,
     gap: space.sm,
   },
+  deckRail: { position: "absolute", left: 0, right: 0, top: 1, height: 1, backgroundColor: consoleUI.deckHi, opacity: 0.6 },
   key: {
     flex: 1,
-    minHeight: HIT,
+    minHeight: HIT + 6,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: color.surfaceLine,
-    backgroundColor: color.surface2,
+    borderColor: consoleUI.keyBorder,
+    backgroundColor: consoleUI.keyBg,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: space.sm,
-    gap: 2,
+    gap: 3,
   },
-  keyPressed: { backgroundColor: color.surfaceLine },
+  keyPressed: { backgroundColor: consoleUI.keyPressed, transform: [{ translateY: 1 }] },
   keyOn: { borderColor: color.amber, backgroundColor: color.amberGlowBg },
+  led: { width: 6, height: 6, borderRadius: 3, backgroundColor: consoleUI.ledOff },
+  ledOn: { backgroundColor: color.amber, shadowColor: color.amber, shadowOpacity: 0.9, shadowRadius: 5, elevation: 3 },
   keyIcon: { fontSize: 18, color: color.textMuted, lineHeight: 22 },
   keyIconOn: { color: color.amber },
-  keyLabel: { ...T.small, color: color.textMuted },
+  keyLabel: { ...T.small, color: color.textMuted, fontSize: 11 },
   keyLabelOn: { color: color.amber, fontWeight: "700" },
 });
