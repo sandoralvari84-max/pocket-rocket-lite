@@ -36,11 +36,12 @@ const WATER = require("../../assets/arcade/roadhopper/water.png");
 const ROAD = require("../../assets/arcade/roadhopper/road.png");
 const HOPPER_IDLE = require("../../assets/arcade/roadhopper/hopper_idle.png");
 const HOPPER_HOP = require("../../assets/arcade/roadhopper/hopper_hop.png");
-const V_RED = require("../../assets/arcade/roadhopper/car_red.png");   // 1 wide
-const V_RED2 = require("../../assets/arcade/roadhopper/truck.png");    // 2 wide
-const V_CAR = require("../../assets/arcade/roadhopper/car_blue.png");  // 1 wide
-const V_TRUCK = require("../../assets/arcade/roadhopper/truck.png");   // 2 wide
-const V_BUG = require("../../assets/arcade/roadhopper/bug.png");       // 1 wide
+const V_COUPE = require("../../assets/arcade/roadhopper/car_red.png");  // 1 wide (sports coupe)
+const V_SEDAN = require("../../assets/arcade/roadhopper/car_blue.png"); // 1 wide (classic sedan)
+const V_BUG = require("../../assets/arcade/roadhopper/bug.png");        // 1 wide (bubble beetle)
+const V_TAXI = require("../../assets/arcade/roadhopper/taxi.png");      // 1 wide (checker taxi)
+const V_VAN = require("../../assets/arcade/roadhopper/van.png");        // 1 wide (delivery van)
+const V_TRUCK = require("../../assets/arcade/roadhopper/truck.png");    // 2 wide (semi)
 
 type LaneDef = {
   row: number; dir: 1 | -1; speed: number; width: number; count: number;
@@ -49,13 +50,13 @@ type LaneDef = {
 
 // Base (level 1). Difficulty scales these per level.
 const LANES: LaneDef[] = [
-  { row: 1, dir: 1, speed: 2.2, width: 1, count: 2, img: V_RED },
+  { row: 1, dir: 1, speed: 2.2, width: 1, count: 2, img: V_COUPE },
   { row: 2, dir: -1, speed: 1.6, width: 2, count: 2, img: V_TRUCK },
   { row: 3, dir: 1, speed: 2.8, width: 1, count: 2, img: V_BUG },
-  { row: 4, dir: -1, speed: 2.0, width: 1, count: 3, img: V_CAR },
-  { row: 5, dir: 1, speed: 1.5, width: 2, count: 2, img: V_RED2 },
-  { row: 6, dir: -1, speed: 3.0, width: 1, count: 2, img: V_BUG },
-  { row: 7, dir: 1, speed: 2.3, width: 1, count: 3, img: V_CAR },
+  { row: 4, dir: -1, speed: 2.0, width: 1, count: 3, img: V_SEDAN },
+  { row: 5, dir: 1, speed: 1.5, width: 2, count: 2, img: V_TRUCK },
+  { row: 6, dir: -1, speed: 3.0, width: 1, count: 2, img: V_TAXI },
+  { row: 7, dir: 1, speed: 2.3, width: 1, count: 3, img: V_VAN },
 ];
 
 type Vehicle = { x: number };

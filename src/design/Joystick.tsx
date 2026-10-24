@@ -15,13 +15,19 @@ export function ArcadeJoystick({ onDirection, size = 128 }: {
   const R = size / 2;
   const travel = R * 0.52;           // how far the ball can move from centre
   const deadzone = travel * 0.45;    // must push past this to register
+  const DIAG = 1.6;                  // dominant axis must beat the other by this
   const pos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastKey = useRef("");
 
   const emit = (dx: number, dy: number) => {
     const mag = Math.hypot(dx, dy);
     if (mag < deadzone) { lastKey.current = ""; return; }   // back in deadzone -> re-arm
-    const d: JoyDir = Math.abs(dx) > Math.abs(dy)
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    // Strict 4-way: in the diagonal wedge (neither axis clearly dominant) HOLD the
+    // current direction instead of flip-flopping. Keeps Pac-Man / the maze & snake
+    // from snapping sideways and stops spurious hops in Road Hopper.
+    if (Math.max(ax, ay) < Math.min(ax, ay) * DIAG) return;
+    const d: JoyDir = ax > ay
       ? { dx: dx > 0 ? 1 : -1, dy: 0 }
       : { dx: 0, dy: dy > 0 ? 1 : -1 };
     const key = `${d.dx},${d.dy}`;

@@ -1,60 +1,59 @@
 #!/usr/bin/env python3
 """
-Rock-Paper-Scissors — original hand-token art (Pillow, in-repo).
-
-Clean, readable arcade tokens instead of emoji:
-  rock.png      120px  faceted grey boulder with highlight
-  paper.png     120px  cream sheet with a folded corner + rule lines
-  scissors.png  120px  open steel scissors with amber/cyan handles
-
-Drawn at native 120 px (no upscaling → no blur).
-Full rights, no third-party assets. Regenerate: python tools/art/gen_rps_art.py
+Rock-Paper-Scissors — hand tokens, "Pocket Rocket nostalgia" polish (smooth, shaded,
+glossy chrome). Smooth 2x->1x via shared helpers. Same filenames/sizes. Pillow, owned.
 """
 import os
-from PIL import Image, ImageDraw
+import sys
+from PIL import Image, ImageDraw, ImageFilter
+sys.path.insert(0, os.path.dirname(__file__))
+from polish import P  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "arcade", "rps")
-S = 120
-CLEAR = (0, 0, 0, 0)
-OUTLINE = (16, 22, 32, 255)
+STEEL_HI = (224, 232, 242); STEEL = (150, 164, 182); STEEL_DK = (78, 90, 106)
 
 
-def rock() -> Image.Image:
-    img = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(img)
-    g, gl, gd = (120, 130, 144, 255), (168, 178, 192, 255), (78, 88, 102, 255)
-    pts = [(20, 84), (16, 56), (40, 34), (74, 30), (100, 50), (104, 80), (86, 96), (44, 96)]
-    d.polygon(pts, fill=g, outline=OUTLINE)
-    d.polygon([(40, 34), (74, 30), (66, 58), (36, 56)], fill=gl)           # top light facet
-    d.polygon([(66, 58), (100, 50), (104, 80), (82, 78)], fill=gd)         # right dark facet
-    d.line([(36, 56), (82, 78)], fill=gd, width=2)
-    d.line([(66, 58), (44, 96)], fill=gd, width=2)
-    return img
+def shadow(im, box, a=90):
+    g = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(g).ellipse(box, fill=(0, 0, 0, a))
+    im.alpha_composite(g.filter(ImageFilter.GaussianBlur(9)))
 
 
-def paper() -> Image.Image:
-    img = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(img)
-    cream, line = (238, 236, 222, 255), (150, 158, 150, 255)
-    d.polygon([(26, 16), (84, 16), (104, 36), (104, 104), (26, 104)], fill=cream, outline=OUTLINE)
-    d.polygon([(84, 16), (104, 36), (84, 36)], fill=(206, 204, 190, 255), outline=OUTLINE)  # folded corner
-    for y in (52, 66, 80):
-        d.line([(38, y), (92, y)], fill=line, width=3)
-    return img
+def rock():
+    W = 240
+    im, d = P.canvas(W)
+    P.glow(im, 120, 130, 80, (150, 162, 180), 36)
+    shadow(im, [52, 180, 192, 210])
+    pts = [(40, 168), (32, 112), (80, 68), (148, 60), (200, 100), (208, 160), (172, 192), (88, 192)]
+    P.poly_grad(im, pts, (190, 200, 214), (70, 80, 96))
+    P.poly_grad(im, [(80, 68), (148, 60), (132, 116), (72, 112)], (210, 218, 230), (150, 160, 176), outline=None)
+    P.spec(im, 108, 96, 26, 16)
+    return P.finish(im, 120)
 
 
-def scissors() -> Image.Image:
-    img = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(img)
-    steel, steel_hi = (176, 186, 200, 255), (220, 228, 238, 255)
-    # two open blades meeting at a pivot
-    d.polygon([(60, 64), (96, 18), (104, 26), (70, 70)], fill=steel, outline=OUTLINE)
-    d.polygon([(60, 64), (24, 18), (16, 26), (50, 70)], fill=steel_hi, outline=OUTLINE)
-    # handle loops
-    d.ellipse([40, 74, 64, 100], outline=(255, 152, 16, 255), width=7)   # amber loop
-    d.ellipse([56, 74, 80, 100], outline=(0, 229, 255, 255), width=7)    # cyan loop
-    d.ellipse([56, 60, 64, 68], fill=(40, 48, 60, 255), outline=OUTLINE)  # pivot
-    return img
+def paper():
+    W = 240
+    im, d = P.canvas(W)
+    shadow(im, [48, 196, 196, 216], a=70)
+    P.poly_grad(im, [(52, 32), (168, 32), (208, 72), (208, 208), (52, 208)], (248, 246, 236), (206, 204, 190))
+    P.poly_grad(im, [(168, 32), (208, 72), (168, 72)], (210, 208, 194), (170, 168, 156))
+    for y in (104, 132, 160):
+        d.line([(76, y), (184, y)], fill=(150, 158, 150, 255), width=5)
+    P.gloss(im, [52, 32, 208, 130])
+    return P.finish(im, 120)
+
+
+def scissors():
+    W = 240
+    im, d = P.canvas(W)
+    P.glow(im, 120, 120, 80, STEEL, 34)
+    shadow(im, [60, 196, 180, 214], a=70)
+    P.poly_grad(im, [(120, 128), (196, 34), (210, 50), (140, 142)], STEEL_HI, STEEL_DK)
+    P.poly_grad(im, [(120, 128), (44, 34), (30, 50), (100, 142)], STEEL_HI, STEEL_DK)
+    d.ellipse([78, 146, 130, 200], outline=(255, 170, 40, 255), width=14)
+    d.ellipse([110, 146, 162, 200], outline=(40, 224, 255, 255), width=14)
+    P.ell_grad(im, [108, 112, 132, 136], STEEL_HI, STEEL_DK)  # pivot
+    return P.finish(im, 120)
 
 
 def main():
@@ -62,7 +61,7 @@ def main():
     rock().save(os.path.join(OUT, "rock.png"))
     paper().save(os.path.join(OUT, "paper.png"))
     scissors().save(os.path.join(OUT, "scissors.png"))
-    print("wrote rock, paper, scissors to", os.path.normpath(OUT))
+    print("wrote polished rock, paper, scissors to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":
