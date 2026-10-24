@@ -13,9 +13,10 @@ import Settings from "./screens/Settings";
 import About from "./screens/About";
 import Tools from "./screens/Tools";
 import Notes from "./screens/Notes";
+import Memory from "./screens/Memory";
 
 type Tab = "chat" | "games" | "tools" | "settings";
-type FeatureScreen = "notes";
+type FeatureScreen = "notes" | "memory";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -119,6 +120,9 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   // Feature screens (Dictaphone, …) own the whole screen, reached from Tools.
   if (screen === "notes") {
     return <Notes onBack={() => setScreen(null)} />;
+  }
+  if (screen === "memory") {
+    return <Memory onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.

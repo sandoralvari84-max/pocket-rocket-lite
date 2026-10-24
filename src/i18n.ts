@@ -53,6 +53,30 @@ const TR: Record<string, Pair> = {
   "Record voice notes (transcribed) or jot text — saved on-device":
     { de: "Sprachnotizen (transkribiert) oder Text — lokal gespeichert",
       es: "Graba notas de voz (transcritas) o escribe texto — guardado en el dispositivo" },
+
+  // ---- Memory (owner profile + facts) ----
+  "MEMORY": { de: "SPEICHER", es: "MEMORIA" },
+  "Memory": { de: "Speicher", es: "Memoria" },
+  "What your buddy remembers about you — on-device, you control it":
+    { de: "Was sich dein Buddy über dich merkt — lokal, von dir gesteuert",
+      es: "Lo que tu colega recuerda sobre ti — en el dispositivo, tú lo controlas" },
+  "What your buddy remembers about you. Stored only on this phone, sent to the on-device model as context. Edit or clear it anytime.":
+    { de: "Was sich dein Buddy über dich merkt. Nur auf diesem Telefon gespeichert und als Kontext an das lokale Modell übergeben. Jederzeit änderbar oder löschbar.",
+      es: "Lo que tu colega recuerda sobre ti. Se guarda solo en este teléfono y se envía al modelo local como contexto. Edítalo o bórralo cuando quieras." },
+  "Name": { de: "Name", es: "Nombre" },
+  "What should it call you?": { de: "Wie soll es dich nennen?", es: "¿Cómo debería llamarte?" },
+  "Pronouns": { de: "Pronomen", es: "Pronombres" },
+  "e.g. they/them": { de: "z. B. sie/ihr", es: "p. ej. elle" },
+  "About you": { de: "Über dich", es: "Sobre ti" },
+  "A sentence or two of context": { de: "Ein, zwei Sätze zum Kontext", es: "Una o dos frases de contexto" },
+  "Reply preferences": { de: "Antwort-Vorlieben", es: "Preferencias de respuesta" },
+  "Tone, length, language notes…": { de: "Ton, Länge, Sprachhinweise…", es: "Tono, longitud, notas de idioma…" },
+  "Remembered facts": { de: "Gemerkte Fakten", es: "Datos recordados" },
+  "Something to remember…": { de: "Etwas zum Merken…", es: "Algo para recordar…" },
+  "Add": { de: "Hinzufügen", es: "Añadir" },
+  "No remembered facts yet.": { de: "Noch keine gemerkten Fakten.", es: "Aún no hay datos recordados." },
+  "Forget": { de: "Vergessen", es: "Olvidar" },
+  "Clear all memory": { de: "Gesamten Speicher löschen", es: "Borrar toda la memoria" },
   "Paste & Ask": { de: "Einfügen & Fragen", es: "Pegar y preguntar" },
   "Drop in text and ask about it": { de: "Text einfügen und dazu fragen", es: "Pega texto y pregunta sobre él" },
   "Fact-check a claim": { de: "Behauptung prüfen", es: "Verificar una afirmación" },

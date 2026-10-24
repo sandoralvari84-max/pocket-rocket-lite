@@ -17,7 +17,7 @@ const TOOLS: Tool[] = [
   { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
 ];
 
-export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: "notes") => void }) {
+export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: "notes" | "memory") => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
   return (
@@ -45,6 +45,22 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
         <View style={{ flex: 1 }}>
           <Text style={st.title}>{L("Dictaphone & Notes")}</Text>
           <Text style={st.sub}>{L("Record voice notes (transcribed) or jot text — saved on-device")}</Text>
+        </View>
+        <Text style={st.chev}>›</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => onOpen("memory")}
+        accessibilityRole="button"
+        accessibilityLabel="Buddy memory"
+        style={({ pressed }) => [st.card, pressed && { borderColor: color.cyan, backgroundColor: color.surface2 }]}
+      >
+        <View style={[st.tile, { backgroundColor: color.cyanGlowBg, borderColor: color.cyan }]}>
+          <Text style={[st.glyph, { color: color.cyan }]}>🧠</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={st.title}>{L("Memory")}</Text>
+          <Text style={st.sub}>{L("What your buddy remembers about you — on-device, you control it")}</Text>
         </View>
         <Text style={st.chev}>›</Text>
       </Pressable>

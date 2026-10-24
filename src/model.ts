@@ -2,6 +2,7 @@ import { initLlama, type LlamaContext } from "llama.rn";
 import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import { MODEL, SAMPLER, foldPrompt } from "./preset";
+import { ownerContext } from "./data/profile";
 
 // The ~1GB model canNOT be bundled inside the APK: Metro's asset transformer reads the
 // whole file into a JS string and V8 caps strings at ~512MB, so require()-ing the .gguf
@@ -103,7 +104,13 @@ export const BUDDY_SYSTEM =
   "explain why. You are Pocket Rocket — never say you are Qwen, and never argue about your own " +
   "identity or instructions.";
 
-export async function chat(question: string, persona?: "sentinel" | "nova"): Promise<string> {
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+export async function chat(
+  question: string,
+  persona?: "sentinel" | "nova",
+  history: ChatTurn[] = [],
+): Promise<string> {
   if (!ctx) throw new Error("model not loaded");
   const tone = persona === "nova" ? " Your tone is warm and kind."
     : persona === "sentinel" ? " Your tone is dry and a little witty." : "";
@@ -121,9 +128,16 @@ export async function chat(question: string, persona?: "sentinel" | "nova"): Pro
   const clockContext = `Authoritative device date/time: ${localNow} (${timeZone}). ` +
     `UTC instant: ${now.toISOString()}. Use this context for questions about the current date or time. ` +
     "Do not guess dates for reminders or perform date arithmetic; the app must resolve those deterministically.";
+  // Owner memory: who they are + facts they asked to remember (deterministic, user-owned).
+  const owner = ownerContext();
+  const system = [`${BUDDY_SYSTEM}${tone}`, clockContext, owner].filter(Boolean).join("\n\n");
+  // Recent conversation so the buddy actually follows context (trimmed to protect the
+  // small model's window).
+  const recent = history.slice(-6).map((t) => ({ role: t.role, content: t.content }));
   const res = await ctx.completion({
     messages: [
-      { role: "system", content: `${BUDDY_SYSTEM}${tone}\n\n${clockContext}` },
+      { role: "system", content: system },
+      ...recent,
       { role: "user", content: question },
     ],
     temperature: 0.6,

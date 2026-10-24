@@ -155,9 +155,13 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     const q = (text ?? input).trim(); if (!q || busy || sendLock.current) return;
     sendLock.current = true;
     clearError();
-    setInput(""); setMsgs((m) => [...m, { role: "user", text: q }]); setBusy(true);
+    setInput(""); setBusy(true);
+    // Pass the running conversation so the buddy follows context (owner memory is
+    // injected by the model layer). Captured before we append the new user turn.
+    const history = msgs.map((m) => ({ role: m.role, content: m.text }));
+    setMsgs((m) => [...m, { role: "user", text: q }]);
     try {
-      const a = await chat(q, settings.voice);
+      const a = await chat(q, settings.voice, history);
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setBusy(false);
       speakText(a);
       sendLock.current = false;
