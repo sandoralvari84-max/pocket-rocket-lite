@@ -78,8 +78,10 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   // (sentinel = low KITT-like, nova = natural). The device voice itself comes from the voice list.
   function speakOpts() {
     const st = getSettings();
+    // Spoken locale follows the saved interface language so TTS is pronounced correctly.
+    const locale = st.language === "de" ? "de-DE" : st.language === "es" ? "es-ES" : "en-US";
     return {
-      language: "en-US",
+      language: locale,
       rate: st.speechRate ?? 0.96,
       pitch: st.voice === "nova" ? 1.0 : 0.75,  // persona: nova = natural, sentinel = low
     };
@@ -123,7 +125,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   // Onboard-computer startup greeting, once. Reads live settings at speak time.
   useEffect(() => {
     const id = setTimeout(() => {
-      speakText("I am online and ready.");
+      speakText(L("I am online and ready."));
     }, 900);
     return () => clearTimeout(id);
   }, []);
@@ -250,7 +252,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
               const on = settings.voice === p;
               const c = p === "nova" ? color.cyan : color.amber;
               return (
-                <Pressable key={p} onPress={() => setSetting("voice", p)}
+                <Pressable key={p} onPress={() => { if (settings.voice !== p) { setSetting("voice", p); speakText(L("I am online and ready.")); } }}
                   accessibilityRole="button" accessibilityLabel={`${p} persona`}
                   style={[s.personaBtn, on && { backgroundColor: c + "22", borderColor: c }]}>
                   <Text style={[s.personaT, { color: on ? c : color.textFaint }]}>{p === "nova" ? "NOVA" : "SENTINEL"}</Text>

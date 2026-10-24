@@ -160,6 +160,7 @@ const TR: Record<string, Pair> = {
   "Ready when you are.": { de: "Bereit, wenn du es bist.", es: "Listo cuando quieras." },
   "On-device · private · fully offline": { de: "Auf dem Gerät · privat · komplett offline", es: "En el dispositivo · privado · sin conexión" },
   "NOTES": { de: "NOTIZEN", es: "NOTAS" },
+  "I am online and ready.": { de: "Ich bin online und bereit.", es: "Estoy en línea y listo." },
 };
 
 // Translate an English source string to the current language (English fallback).
