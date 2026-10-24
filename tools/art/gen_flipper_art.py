@@ -108,8 +108,8 @@ def main():
     bumper(False).save(os.path.join(OUT, "bumper_idle.png"))
     bumper(True).save(os.path.join(OUT, "bumper_lit.png"))
     ball().save(os.path.join(OUT, "ball.png"))
-    playfield().save(os.path.join(OUT, "playfield.png"))
-    print("wrote bumper_idle/lit + ball + playfield to", os.path.normpath(OUT))
+    # playfield.png is now an AI-generated background (Pollinations) — do NOT overwrite here.
+    print("wrote bumper_idle/lit + ball to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":
