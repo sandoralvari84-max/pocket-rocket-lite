@@ -94,6 +94,27 @@ const TR: Record<string, Pair> = {
   "Software": { de: "Software", es: "Software" },
   "Webdesign": { de: "Webdesign", es: "Diseño web" },
 
+  // ---- Budget ----
+  "BUDGET": { de: "BUDGET", es: "PRESUPUESTO" },
+  "Budget": { de: "Budget", es: "Presupuesto" },
+  "Track income & expenses, monthly balance by category":
+    { de: "Einnahmen & Ausgaben, Monatssaldo nach Kategorie", es: "Ingresos y gastos, saldo mensual por categoría" },
+  "THIS MONTH": { de: "DIESER MONAT", es: "ESTE MES" },
+  "in": { de: "ein", es: "entra" },
+  "out": { de: "aus", es: "sale" },
+  "Expense": { de: "Ausgabe", es: "Gasto" },
+  "Income": { de: "Einnahme", es: "Ingreso" },
+  "SPENDING BY CATEGORY": { de: "AUSGABEN NACH KATEGORIE", es: "GASTO POR CATEGORÍA" },
+  "TRANSACTIONS": { de: "TRANSAKTIONEN", es: "TRANSACCIONES" },
+  "No transactions this month yet.": { de: "Diesen Monat noch keine Transaktionen.", es: "Aún no hay transacciones este mes." },
+  "Food": { de: "Essen", es: "Comida" },
+  "Transport": { de: "Transport", es: "Transporte" },
+  "Bills": { de: "Rechnungen", es: "Facturas" },
+  "Shopping": { de: "Einkaufen", es: "Compras" },
+  "Fun": { de: "Freizeit", es: "Ocio" },
+  "Salary": { de: "Gehalt", es: "Salario" },
+  "Gift": { de: "Geschenk", es: "Regalo" },
+
   // ---- Tools niches: Grocery / Diet / Fitness ----
   "GROCERY": { de: "EINKAUF", es: "COMPRA" },
   "DIET": { de: "ERNÄHRUNG", es: "DIETA" },

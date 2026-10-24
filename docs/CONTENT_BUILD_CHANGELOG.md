@@ -22,6 +22,7 @@ habits/water/sleep/measurements/meal-planner/recipes/timers/converter). Separate
 | **Grocery** (#1) | Shopping list: add item + qty + category (8 cats), grouped view, check-off, clear-in-cart. Counts (to-buy / in-cart / total) deterministic. `data/store` collection, offline. | ✅ tsc · ✅ bundle (782) · ✅ logic test (counts) | 🕹️ layout/feel, keyboard |
 | **Diet** (#2) | Food log over a bundled 48-food reference table; calories + macros scaled deterministically (round(v·g/100)), daily total vs an adjustable goal, today's entries. | ✅ tsc · ✅ bundle · ✅ logic test (scaling, totals, goal %) | 🕹️ feel; food-table coverage is reference data, verify values |
 | **Fitness** (#3) | Workout log over a bundled 36-exercise list; training volume (sets×reps×weight) + best-weight per exercise, deterministic; today's sets. | ✅ tsc · ✅ bundle · ✅ logic test (volume, best) | 🕹️ feel |
+| **Budget** (#4) | Income/expense log by category; monthly income, expenses, balance, and per-category breakdown all deterministic sums; single currency (€). Offline. | ✅ tsc · ✅ bundle (786) | 🕹️ feel; multi-currency FX (Open ER-API) is a later add |
 
 All three: correctness is deterministic code; no model involvement. Wired into Tools +
 Home routes; de/es for headline strings (data-term labels fall back to English this pass).

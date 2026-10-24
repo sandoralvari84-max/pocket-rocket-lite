@@ -17,7 +17,7 @@ const TOOLS: Tool[] = [
   { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
 ];
 
-type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts";
+type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget";
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
@@ -71,6 +71,7 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
         { route: "grocery" as const, glyph: "🛒", tint: color.amber, bg: color.amberGlowBg, title: "Grocery", sub: "Shopping list by category — check it off as you shop" },
         { route: "diet" as const, glyph: "🥗", tint: color.cyan, bg: color.cyanGlowBg, title: "Diet", sub: "Log food, track calories & macros vs a daily goal" },
         { route: "fitness" as const, glyph: "🏋", tint: color.amber, bg: color.amberGlowBg, title: "Fitness", sub: "Log workouts, track training volume & progress" },
+        { route: "budget" as const, glyph: "💶", tint: color.cyan, bg: color.cyanGlowBg, title: "Budget", sub: "Track income & expenses, monthly balance by category" },
       ]).map((f) => (
         <Pressable key={f.route} onPress={() => onOpen(f.route)} accessibilityRole="button" accessibilityLabel={f.title}
           style={({ pressed }) => [st.card, pressed && { borderColor: f.tint, backgroundColor: color.surface2 }]}>
