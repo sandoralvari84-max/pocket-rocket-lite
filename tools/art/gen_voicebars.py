@@ -24,7 +24,7 @@ CYAN = (0, 229, 255)
 
 
 def render(points, rgb, core=True, gw=11, lw=4.5):
-    ss = 2
+    ss = 3   # higher supersample -> smoother line when stretched in-app
     w, h = W * ss, H * ss
     pts = [(x * ss, y * ss) for (x, y) in points]
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -57,26 +57,31 @@ def wave4():
     return render(pts, AMBER)
 
 
+def _bump(x0, w, depth, n=10):
+    # a smooth rounded half-sine bump (depth<0 = upward on screen)
+    return [(x0 + (k / n) * w, MID + depth * math.sin(math.pi * (k / n))) for k in range(n + 1)]
+
+
 def ekg():
-    # Gentle heartbeat: flat baseline with a soft P–QRS–T complex each period.
-    period = 240                         # 5 beats across the strip (1200 = 5*240, tileable)
-    A = H * 0.34
+    # Gentle heartbeat: smooth rounded P and T waves, a crisp QRS spike, flat baseline.
+    # Fewer, wider beats so the trace reads smooth (not cramped) when scrolled in-app.
+    period = 400                          # 3 beats across the strip (1200 = 3*400, tileable)
+    A = H * 0.30
     pts = []
     for b in range(W // period):
         x0 = b * period
-        seg = [
-            (x0 + 0, MID), (x0 + 58, MID),
-            (x0 + 74, MID - A * 0.22),    # P bump
-            (x0 + 90, MID), (x0 + 100, MID),
-            (x0 + 108, MID + A * 0.30),   # Q dip
-            (x0 + 117, MID - A),          # R spike
-            (x0 + 126, MID + A * 0.42),   # S dip
-            (x0 + 136, MID), (x0 + 156, MID),
-            (x0 + 176, MID - A * 0.28),   # T bump
-            (x0 + 198, MID), (x0 + period, MID),
-        ]
+        seg = [(x0, MID), (x0 + 96, MID)]            # flat
+        seg += _bump(x0 + 96, 52, -A * 0.22)         # P (smooth)
+        seg += [(x0 + 156, MID), (x0 + 176, MID)]    # flat PR
+        seg += [(x0 + 186, MID + A * 0.26),          # Q dip (crisp)
+                (x0 + 198, MID - A),                 # R spike (crisp)
+                (x0 + 210, MID + A * 0.38),          # S dip (crisp)
+                (x0 + 222, MID)]                     # back to baseline
+        seg += [(x0 + 248, MID)]                     # flat ST
+        seg += _bump(x0 + 252, 78, -A * 0.30)        # T (smooth, wider)
+        seg += [(x0 + 336, MID), (x0 + period, MID)] # flat to the seam
         pts.extend(seg)
-    return render(pts, CYAN, gw=12, lw=5)
+    return render(pts, CYAN, gw=16, lw=6.5)
 
 
 def main():
