@@ -34,12 +34,13 @@ const playW = SH_X - playL;
 const CX = (playL + SH_X) / 2;
 const LANE_TOP = TOP + 92;          // shooter wall runs down from here; the ball exits over the top
 
-// Flippers — bigger than before, pivots inside the (narrower) play area.
-const FLIP_LEN = Math.min(playW * 0.33, 152);
+// Flippers — sized so the tips leave a clear drain gap in the middle (they used to
+// touch). Pivots sit wider; length is capped so left/right tips never overlap.
+const FLIP_LEN = Math.min(playW * 0.25, 140);
 const FLIP_HALF = 11;
 const PIVOT_Y = H - 172;
-const PIVOT_LX = playL + playW * 0.21;
-const PIVOT_RX = playL + playW * 0.79;
+const PIVOT_LX = playL + playW * 0.19;
+const PIVOT_RX = playL + playW * 0.81;
 const L_REST = 0.30, L_ACTIVE = -0.58;
 const R_REST = Math.PI - 0.30, R_ACTIVE = Math.PI + 0.58;
 const RAISE = 0.54, LOWER = 0.26;
@@ -64,10 +65,8 @@ const SEGS: Seg[] = [
   // top corner arches (funnel the ball back down)
   { ax: playL, ay: TOP + 74, bx: playL + playW * 0.30, by: TOP + 4, rest: 0.6, kind: "wall" },
   { ax: SH_X, ay: TOP + 74, bx: SH_X - playW * 0.22, by: TOP + 4, rest: 0.6, kind: "wall" },
-  // shooter-lane inner wall (vertical) — separates lane from play, open above LANE_TOP
+  // shooter-lane inner wall (vertical) — separates lane from play
   { ax: SH_X, ay: LANE_TOP, bx: SH_X, by: H - 18, rest: 0.4, kind: "wall" },
-  // lane exit deflector — a rising ball is pushed left into play
-  { ax: laneR, ay: TOP + 12, bx: SH_X - 6, by: LANE_TOP - 8, rest: 0.5, kind: "wall" },
   // slingshots above the flippers
   { ax: playL + 4, ay: PIVOT_Y - 150, bx: PIVOT_LX + 16, by: PIVOT_Y - 34, rest: 0.9, kind: "sling" },
   { ax: SH_X - 4, ay: PIVOT_Y - 150, bx: PIVOT_RX - 16, by: PIVOT_Y - 34, rest: 0.9, kind: "sling" },
@@ -123,6 +122,7 @@ function GameScreen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const ballRef = useRef<Ball>(servedBall());
   const servedRef = useRef(true);
+  const servedFramesRef = useRef(0);
   const leftDown = useRef(false);
   const rightDown = useRef(false);
   const leftF = useRef<Flip>({ angle: L_REST, omega: 0 });
@@ -162,7 +162,14 @@ function GameScreen({ onExit }: GameContext) {
     // advance flippers regardless (so they respond while the ball waits in the lane)
     updateFlipper(leftF.current, leftDown.current, L_REST, L_ACTIVE);
     updateFlipper(rightF.current, rightDown.current, R_REST, R_ACTIVE);
-    if (servedRef.current) { bump(); return; } // ball parked on the plunger
+    if (servedRef.current) {
+      // Safety auto-launch: a parked ball fires itself after ~1.5s so the player can
+      // never get stuck if the manual LAUNCH tap is missed.
+      servedFramesRef.current += 1;
+      if (servedFramesRef.current > 85) { servedFramesRef.current = 0; launch(); }
+      bump(); return;
+    }
+    servedFramesRef.current = 0;
 
     const lf = leftF.current, rf = rightF.current;
     const lbx = PIVOT_LX + FLIP_LEN * Math.cos(lf.angle);
@@ -230,6 +237,12 @@ function GameScreen({ onExit }: GameContext) {
 
     for (let i = 0; i < flashRef.current.length; i++) if (flashRef.current[i] > 0) flashRef.current[i] -= 1;
 
+    // Safety: if a ball ever stalls inside the shooter lane, re-serve it so LAUNCH returns.
+    if (!servedRef.current && b.x > SH_X && b.y > LANE_TOP && Math.hypot(b.vx, b.vy) < 1.0) {
+      ballRef.current = servedBall(); servedRef.current = true; setServed(true);
+      bump(); return;
+    }
+
     // drain — only in the play area (not the shooter lane)
     if (b.y - R > H && b.x < SH_X) {
       comboRef.current = 0;
@@ -255,8 +268,11 @@ function GameScreen({ onExit }: GameContext) {
   const start = () => { phaseRef.current = "playing"; setPhase("playing"); };
   const launch = () => {
     if (!servedRef.current || phaseRef.current !== "playing") return;
-    const b = ballRef.current;
-    b.vx = -0.6; b.vy = -LAUNCH_V;
+    // Inject the ball at the top-right of the play area moving LEFT along the ceiling so
+    // it rolls into the bumpers (instead of dropping straight down the right outlane).
+    // Reliable: the old "shoot up the lane" approach couldn't clear the lane under the
+    // speed cap, so the ball fell back and stalled with no way to re-launch.
+    ballRef.current = { x: SH_X - 22, y: TOP + R + 8, vx: -4.6, vy: 0.8 };
     servedRef.current = false; setServed(false);
   };
   const togglePause = () => {
@@ -285,9 +301,12 @@ function GameScreen({ onExit }: GameContext) {
       <Image source={PLAYFIELD} resizeMode="stretch" fadeDuration={0}
         style={{ position: "absolute", left: 0, top: TOP, width: W, height: H - TOP }} />
 
-      {/* flipper control halves (press-and-hold) */}
-      <Pressable style={[st.half, { left: 0 }]} onPressIn={() => { leftDown.current = true; }} onPressOut={() => { leftDown.current = false; }} />
-      <Pressable style={[st.half, { right: 0 }]} onPressIn={() => { rightDown.current = true; }} onPressOut={() => { rightDown.current = false; }} />
+      {/* flipper control halves (press-and-hold). While a ball waits in the lane they
+          stop short of the bottom so the full-width LAUNCH bar gets the tap cleanly. */}
+      {(() => { const hb = served ? Math.max(insets.bottom, 10) + 76 : 0; return (<>
+        <Pressable style={[st.half, { left: 0, bottom: hb }]} onPressIn={() => { leftDown.current = true; }} onPressOut={() => { leftDown.current = false; }} />
+        <Pressable style={[st.half, { right: 0, bottom: hb }]} onPressIn={() => { rightDown.current = true; }} onPressOut={() => { rightDown.current = false; }} />
+      </>); })()}
 
       {/* outer walls + shooter-lane frame */}
       <View style={[st.wall, { left: 0, top: TOP, width: WALL, height: H - TOP }]} pointerEvents="none" />
@@ -339,11 +358,11 @@ function GameScreen({ onExit }: GameContext) {
 
       <EffectsLayer ref={fxRef} reduced={reducedMotion} />
 
-      {/* plunger LAUNCH button while a ball waits in the lane */}
+      {/* full-width LAUNCH bar while a ball waits in the lane — its own zone, no flipper overlap */}
       {served && phase === "playing" && (
         <Pressable onPress={launch} accessibilityRole="button" accessibilityLabel="Launch the ball"
-          style={[st.launch, { left: SH_X - 8, width: LANE_W + WALL + 8 }]}>
-          <Text style={st.launchT}>LAUNCH ▲</Text>
+          style={[st.launch, { left: WALL, right: WALL, bottom: Math.max(insets.bottom, 10) + 10 }]}>
+          <Text style={st.launchT}>⬆   TAP TO LAUNCH</Text>
         </Pressable>
       )}
 
@@ -360,7 +379,7 @@ function GameScreen({ onExit }: GameContext) {
       </View>
 
       <GameOverlay visible={phase === "ready"} kind="pause" title="FLIPPER FRENZY"
-        primaryLabel="Launch" onPrimary={start} onExit={onExit}>
+        primaryLabel="Start" onPrimary={start} onExit={onExit}>
         <Body muted style={{ textAlign: "center", marginTop: space.md }}>
           Tap LAUNCH to fire the ball up the shooter lane. Hold the left or right side to flip.
           Chain bumpers and slingshots for a score multiplier — don't let it drain.
@@ -381,8 +400,8 @@ const st = StyleSheet.create({
   laneWall: { position: "absolute", width: 6, backgroundColor: "#46557A", borderRadius: 3 },
   flip: { position: "absolute", borderRadius: FLIP_HALF, backgroundColor: color.cyan },
   flipHi: { position: "absolute", left: 4, top: -FLIP_HALF + 2, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.45)" },
-  launch: { position: "absolute", bottom: 40, height: 52, borderRadius: radius.md, backgroundColor: color.amber, alignItems: "center", justifyContent: "center", zIndex: 6 },
-  launchT: { color: color.onAmber, fontWeight: "900", fontSize: 13, letterSpacing: 1 },
+  launch: { position: "absolute", height: 58, borderRadius: radius.md, backgroundColor: color.amber, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#B86B07", zIndex: 20 },
+  launchT: { color: color.onAmber, fontWeight: "900", fontSize: 17, letterSpacing: 1.5 },
   hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
 });
