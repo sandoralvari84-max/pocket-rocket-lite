@@ -94,6 +94,16 @@ const TR: Record<string, Pair> = {
   "Software": { de: "Software", es: "Software" },
   "Webdesign": { de: "Webdesign", es: "Diseño web" },
 
+  // ---- Tools screen grouping ----
+  "Your on-device toolkit — everything here runs offline, nothing leaves the phone.":
+    { de: "Dein lokaler Werkzeugkasten — alles läuft offline, nichts verlässt das Telefon.", es: "Tu kit de herramientas en el dispositivo — todo funciona sin conexión, nada sale del teléfono." },
+  "Assistant": { de: "Assistent", es: "Asistente" },
+  "Health & body": { de: "Gesundheit & Körper", es: "Salud y cuerpo" },
+  "Money & home": { de: "Geld & Haushalt", es: "Dinero y hogar" },
+  "Utilities": { de: "Werkzeuge", es: "Utilidades" },
+  "Quick chat": { de: "Schnell-Chat", es: "Chat rápido" },
+  "Fact-check": { de: "Faktencheck", es: "Verificar" },
+
   // ---- Calendar / Meal planner / Recipes ----
   "CALENDAR": { de: "KALENDER", es: "CALENDARIO" },
   "Calendar": { de: "Kalender", es: "Calendario" },

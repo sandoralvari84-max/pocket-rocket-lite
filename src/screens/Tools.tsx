@@ -1,146 +1,128 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius, type as T } from "../design/tokens";
+import { color, space, radius } from "../design/tokens";
 import { PixelText, Body } from "../design/ui";
 import { L, useLang } from "../i18n";
 
-// Real shortcuts only — each opens Chat with a head-start prompt and routes to the
-// on-device model. No placeholder tiles for features that don't exist yet.
-type Tool = { glyph: string; title: string; sub: string; seed: string; tint: "amber" | "cyan" };
-const TOOLS: Tool[] = [
-  { glyph: "▤", title: "Paste & Ask", sub: "Drop in text and ask about it", seed: "Here's some text I'd like help with:\n\n", tint: "amber" },
-  { glyph: "✓", title: "Fact-check a claim", sub: "Reason through whether it holds up", seed: "Help me reason through whether this claim holds up: ", tint: "cyan" },
-  { glyph: "≡", title: "Summarise", sub: "Shorten a note or message", seed: "Summarise this clearly:\n\n", tint: "amber" },
-  { glyph: "☼", title: "Explain simply", sub: "Plain-language explanation", seed: "Explain this simply, like I'm five: ", tint: "cyan" },
-  { glyph: "✎", title: "Rephrase / draft", sub: "Reword or draft some text", seed: "Rephrase this more clearly: ", tint: "amber" },
-  { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
+export type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals";
+
+type Feat = { route: FeatureRoute; glyph: string; title: string };
+type Section = { label: string; accent: "amber" | "cyan"; items: Feat[] };
+
+// Features grouped so a 16-tool screen reads as a tidy launcher, not a flat wall.
+const SECTIONS: Section[] = [
+  { label: "Assistant", accent: "cyan", items: [
+    { route: "notes", glyph: "🎙", title: "Dictaphone & Notes" },
+    { route: "memory", glyph: "🧠", title: "Memory" },
+    { route: "experts", glyph: "📚", title: "Experts" },
+  ] },
+  { label: "Health & body", accent: "amber", items: [
+    { route: "diet", glyph: "🥗", title: "Diet" },
+    { route: "fitness", glyph: "🏋", title: "Fitness" },
+    { route: "water", glyph: "💧", title: "Water" },
+    { route: "sleep", glyph: "😴", title: "Sleep" },
+    { route: "measure", glyph: "📏", title: "Measurements" },
+  ] },
+  { label: "Money & home", accent: "cyan", items: [
+    { route: "budget", glyph: "💶", title: "Budget" },
+    { route: "grocery", glyph: "🛒", title: "Grocery" },
+    { route: "meals", glyph: "🍽", title: "Meal planner" },
+    { route: "recipes", glyph: "👩‍🍳", title: "Recipes" },
+    { route: "calendar", glyph: "📅", title: "Calendar" },
+  ] },
+  { label: "Utilities", accent: "amber", items: [
+    { route: "habits", glyph: "🔥", title: "Habits" },
+    { route: "timer", glyph: "⏱", title: "Timer" },
+    { route: "convert", glyph: "🔁", title: "Converter" },
+  ] },
 ];
 
-type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals";
+// "Quick chat" tiles seed the composer (a head-start into the on-device model).
+const CHAT: { glyph: string; title: string; seed: string }[] = [
+  { glyph: "▤", title: "Paste & Ask", seed: "Here's some text I'd like help with:\n\n" },
+  { glyph: "✓", title: "Fact-check", seed: "Help me reason through whether this claim holds up: " },
+  { glyph: "≡", title: "Summarise", seed: "Summarise this clearly:\n\n" },
+  { glyph: "☼", title: "Explain simply", seed: "Explain this simply, like I'm five: " },
+  { glyph: "✎", title: "Rephrase / draft", seed: "Rephrase this more clearly: " },
+  { glyph: "✦", title: "Brainstorm", seed: "Give me a few ideas for: " },
+];
+
+function SectionHeader({ label, accent }: { label: string; accent: string }) {
+  return (
+    <View style={st.secRow}>
+      <View style={[st.secTick, { backgroundColor: accent }]} />
+      <PixelText size="label" style={{ color: accent, letterSpacing: 1 }}>{L(label)}</PixelText>
+      <View style={st.secRule} />
+    </View>
+  );
+}
+
+function Tile({ glyph, title, accent, bg, onPress }: { glyph: string; title: string; accent: string; bg: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
+      style={({ pressed }) => [st.tile, pressed && { borderColor: accent, backgroundColor: color.surface2 }]}>
+      <View style={[st.iconBox, { backgroundColor: bg, borderColor: accent }]}>
+        <Text style={[st.glyph, { color: accent }]}>{glyph}</Text>
+      </View>
+      <Text style={st.title} numberOfLines={2}>{L(title)}</Text>
+    </Pressable>
+  );
+}
+
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
-  useLang(); // re-render on language change
+  useLang();
   return (
-    <ScrollView
-      contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]} showsVerticalScrollIndicator={false}>
       <View style={st.head}>
         <PixelText size="title" style={{ color: color.amber }}>{L("TOOLS")}</PixelText>
-        <Body muted style={{ marginTop: space.xs }}>
-          {L("Shortcuts into your on-device buddy. Each opens Chat with a head start — your text never leaves the phone.")}
-        </Body>
+        <Body muted style={{ marginTop: space.xs }}>{L("Your on-device toolkit — everything here runs offline, nothing leaves the phone.")}</Body>
       </View>
 
-      {/* Feature apps (not chat shortcuts) */}
-      <Pressable
-        onPress={() => onOpen("notes")}
-        accessibilityRole="button"
-        accessibilityLabel="Dictaphone and notes"
-        style={({ pressed }) => [st.card, pressed && { borderColor: color.amber, backgroundColor: color.surface2 }]}
-      >
-        <View style={[st.tile, { backgroundColor: color.amberGlowBg, borderColor: color.amber }]}>
-          <Text style={[st.glyph, { color: color.amber }]}>🎙</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={st.title}>{L("Dictaphone & Notes")}</Text>
-          <Text style={st.sub}>{L("Record voice notes (transcribed) or jot text — saved on-device")}</Text>
-        </View>
-        <Text style={st.chev}>›</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={() => onOpen("memory")}
-        accessibilityRole="button"
-        accessibilityLabel="Buddy memory"
-        style={({ pressed }) => [st.card, pressed && { borderColor: color.cyan, backgroundColor: color.surface2 }]}
-      >
-        <View style={[st.tile, { backgroundColor: color.cyanGlowBg, borderColor: color.cyan }]}>
-          <Text style={[st.glyph, { color: color.cyan }]}>🧠</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={st.title}>{L("Memory")}</Text>
-          <Text style={st.sub}>{L("What your buddy remembers about you — on-device, you control it")}</Text>
-        </View>
-        <Text style={st.chev}>›</Text>
-      </Pressable>
-
-      {([
-        { route: "experts" as const, glyph: "📚", tint: color.cyan, bg: color.cyanGlowBg, title: "Experts", sub: "Ask across 13 curated knowledge packs — answers cite their source" },
-        { route: "grocery" as const, glyph: "🛒", tint: color.amber, bg: color.amberGlowBg, title: "Grocery", sub: "Shopping list by category — check it off as you shop" },
-        { route: "diet" as const, glyph: "🥗", tint: color.cyan, bg: color.cyanGlowBg, title: "Diet", sub: "Log food, track calories & macros vs a daily goal" },
-        { route: "fitness" as const, glyph: "🏋", tint: color.amber, bg: color.amberGlowBg, title: "Fitness", sub: "Log workouts, track training volume & progress" },
-        { route: "budget" as const, glyph: "💶", tint: color.cyan, bg: color.cyanGlowBg, title: "Budget", sub: "Track income & expenses, monthly balance by category" },
-        { route: "habits" as const, glyph: "🔥", tint: color.amber, bg: color.amberGlowBg, title: "Habits", sub: "Build streaks — check in daily, keep the chain going" },
-        { route: "water" as const, glyph: "💧", tint: color.cyan, bg: color.cyanGlowBg, title: "Water", sub: "Track cups vs your daily hydration goal" },
-        { route: "sleep" as const, glyph: "😴", tint: color.cyan, bg: color.cyanGlowBg, title: "Sleep", sub: "Log nightly hours, see your 7-night average" },
-        { route: "measure" as const, glyph: "📏", tint: color.amber, bg: color.amberGlowBg, title: "Measurements", sub: "Weight & body metrics with change over time" },
-        { route: "timer" as const, glyph: "⏱", tint: color.amber, bg: color.amberGlowBg, title: "Timer", sub: "Countdown with presets — buzzes when done" },
-        { route: "convert" as const, glyph: "🔁", tint: color.cyan, bg: color.cyanGlowBg, title: "Converter", sub: "Length, weight, volume & temperature — exact, offline" },
-        { route: "calendar" as const, glyph: "📅", tint: color.amber, bg: color.amberGlowBg, title: "Calendar", sub: "Agenda of upcoming events (reminders coming later)" },
-        { route: "meals" as const, glyph: "🍽", tint: color.cyan, bg: color.cyanGlowBg, title: "Meal planner", sub: "Plan breakfast, lunch & dinner across the week" },
-        { route: "recipes" as const, glyph: "👩‍🍳", tint: color.amber, bg: color.amberGlowBg, title: "Recipes", sub: "Save recipes; push ingredients to your grocery list" },
-      ]).map((f) => (
-        <Pressable key={f.route} onPress={() => onOpen(f.route)} accessibilityRole="button" accessibilityLabel={f.title}
-          style={({ pressed }) => [st.card, pressed && { borderColor: f.tint, backgroundColor: color.surface2 }]}>
-          <View style={[st.tile, { backgroundColor: f.bg, borderColor: f.tint }]}>
-            <Text style={[st.glyph, { color: f.tint }]}>{f.glyph}</Text>
+      {SECTIONS.map((sec) => {
+        const accent = sec.accent === "amber" ? color.amber : color.cyan;
+        const bg = sec.accent === "amber" ? color.amberGlowBg : color.cyanGlowBg;
+        return (
+          <View key={sec.label} style={st.section}>
+            <SectionHeader label={sec.label} accent={accent} />
+            <View style={st.grid}>
+              {sec.items.map((f) => (
+                <Tile key={f.route} glyph={f.glyph} title={f.title} accent={accent} bg={bg} onPress={() => onOpen(f.route)} />
+              ))}
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={st.title}>{L(f.title)}</Text>
-            <Text style={st.sub}>{L(f.sub)}</Text>
-          </View>
-          <Text style={st.chev}>›</Text>
-        </Pressable>
-      ))}
+        );
+      })}
 
-      <View style={st.grid}>
-        {TOOLS.map((t) => {
-          const c = t.tint === "amber" ? color.amber : color.cyan;
-          const bg = t.tint === "amber" ? color.amberGlowBg : color.cyanGlowBg;
-          return (
-            <Pressable
-              key={t.title}
-              onPress={() => onPick(t.seed)}
-              accessibilityRole="button"
-              accessibilityLabel={t.title}
-              style={({ pressed }) => [st.card, pressed && { borderColor: c, backgroundColor: color.surface2 }]}
-            >
-              <View style={[st.tile, { backgroundColor: bg, borderColor: c }]}>
-                <Text style={[st.glyph, { color: c }]}>{t.glyph}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.title}>{L(t.title)}</Text>
-                <Text style={st.sub}>{L(t.sub)}</Text>
-              </View>
-              <Text style={st.chev}>›</Text>
-            </Pressable>
-          );
-        })}
+      <View style={st.section}>
+        <SectionHeader label="Quick chat" accent={color.amber} />
+        <View style={st.grid}>
+          {CHAT.map((c) => (
+            <Tile key={c.title} glyph={c.glyph} title={c.title} accent={color.amber} bg={color.amberGlowBg} onPress={() => onPick(c.seed)} />
+          ))}
+        </View>
       </View>
-
-      <Body muted style={st.note}>
-        {L("More tools (reminders, recipes, training) are on the roadmap — these are the ones that genuinely work today.")}
-      </Body>
     </ScrollView>
   );
 }
 
 const st = StyleSheet.create({
-  pad: { padding: space.lg, paddingBottom: space.xxl, gap: space.md },
-  head: { marginBottom: space.sm },
-  grid: { gap: space.md },
-  card: {
-    flexDirection: "row", alignItems: "center", gap: space.md,
+  pad: { padding: space.lg, paddingBottom: space.xxl },
+  head: { marginBottom: space.md },
+  section: { marginTop: space.lg },
+  secRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: space.sm },
+  secTick: { width: 14, height: 4, borderRadius: 2 },
+  secRule: { flex: 1, height: 1, backgroundColor: color.surfaceLine },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  tile: {
+    flexGrow: 1, flexBasis: "45%", minWidth: 150,
+    flexDirection: "row", alignItems: "center", gap: space.sm,
     backgroundColor: color.surface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: color.surfaceLine, padding: space.md,
+    borderWidth: 1, borderColor: color.surfaceLine, padding: space.sm,
   },
-  tile: { width: 48, height: 48, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  glyph: { fontSize: 22, fontWeight: "900" },
-  title: { ...T.h2, fontSize: 16 },
-  sub: { ...T.small, color: color.textMuted, marginTop: 2 },
-  chev: { color: color.textFaint, fontSize: 24, fontWeight: "800" },
-  note: { textAlign: "center", marginTop: space.md, fontSize: 12 },
+  iconBox: { width: 42, height: 42, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  glyph: { fontSize: 20, fontWeight: "900" },
+  title: { flex: 1, color: color.text, fontSize: 14, fontWeight: "700" },
 });
