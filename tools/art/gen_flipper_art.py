@@ -59,12 +59,57 @@ def ball() -> Image.Image:
     return img
 
 
+def playfield() -> Image.Image:
+    """Decorative portrait pinball backdrop (stretched behind the live table).
+    Does not affect physics — pure art: space gradient, arched top, centre guide
+    rings (echoing the bumper cluster), lane chevrons, side rails, stars."""
+    import math
+    import random
+    w, h = 360, 720
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # vertical gradient top -> bottom
+    top = (18, 34, 62); bot = (10, 14, 26)
+    for y in range(h):
+        t = y / h
+        d.line([(0, y), (w, y)], fill=(
+            int(top[0] + (bot[0] - top[0]) * t),
+            int(top[1] + (bot[1] - top[1]) * t),
+            int(top[2] + (bot[2] - top[2]) * t), 255))
+    # arched dome at the top
+    d.arc([-30, -120, w + 30, 260], 20, 160, fill=(70, 110, 170, 255), width=6)
+    d.arc([-10, -90, w + 10, 240], 25, 155, fill=(40, 70, 120, 255), width=10)
+    # side rails
+    d.rectangle([0, 0, 16, h], fill=(26, 40, 66, 255))
+    d.rectangle([w - 16, 0, w, h], fill=(26, 40, 66, 255))
+    # centre guide rings (where the bumper cluster sits)
+    cx, cy = w // 2, int(h * 0.36)
+    for rr, col in [(120, (36, 60, 100, 120)), (92, (0, 140, 170, 90)), (64, (255, 160, 60, 70))]:
+        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=col, width=3)
+    # lane chevrons pointing up toward the cluster (lower half)
+    random.seed(9)
+    for i, ly in enumerate(range(int(h * 0.60), int(h * 0.9), 46)):
+        a = 14 + i * 2
+        col = (0, 170, 200, 110) if i % 2 == 0 else (255, 150, 60, 100)
+        d.line([(cx - a, ly + 14), (cx, ly), (cx + a, ly + 14)], fill=col, width=3)
+    # funnel guides toward the flippers at the bottom
+    d.line([(40, int(h * 0.82)), (cx - 28, h - 70)], fill=(44, 60, 90, 255), width=4)
+    d.line([(w - 40, int(h * 0.82)), (cx + 28, h - 70)], fill=(44, 60, 90, 255), width=4)
+    # stars
+    for _ in range(60):
+        x = random.randrange(20, w - 20); y = random.randrange(0, h)
+        s = random.choice([1, 1, 2])
+        d.ellipse([x - s, y - s, x + s, y + s], fill=(210, 224, 245, random.randint(90, 210)))
+    return img.filter(ImageFilter.GaussianBlur(0.3))
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     bumper(False).save(os.path.join(OUT, "bumper_idle.png"))
     bumper(True).save(os.path.join(OUT, "bumper_lit.png"))
     ball().save(os.path.join(OUT, "ball.png"))
-    print("wrote bumper_idle/lit + ball to", os.path.normpath(OUT))
+    playfield().save(os.path.join(OUT, "playfield.png"))
+    print("wrote bumper_idle/lit + ball + playfield to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":

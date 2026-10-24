@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Dimensions, Pressable } from "react-native";
+import { View, Image, StyleSheet, Dimensions, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
@@ -13,6 +13,7 @@ import { useSettings } from "../settings";
 const BUMPER_IDLE = require("../../assets/arcade/flipper/bumper_idle.png");
 const BUMPER_LIT = require("../../assets/arcade/flipper/bumper_lit.png");
 const BALL_IMG = require("../../assets/arcade/flipper/ball.png");
+const PLAYFIELD = require("../../assets/arcade/flipper/playfield.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -239,6 +240,10 @@ function GameScreen({ onExit }: GameContext) {
 
   return (
     <View style={st.fill}>
+      {/* decorative playfield backdrop (behind the live table; no physics effect) */}
+      <Image source={PLAYFIELD} resizeMode="stretch" fadeDuration={0}
+        style={{ position: "absolute", left: 0, top: TOP, width: W, height: H - TOP }} />
+
       {/* flipper control halves (press-and-hold) */}
       <Pressable style={[st.half, { left: 0 }]} onPressIn={() => { leftDown.current = true; }} onPressOut={() => { leftDown.current = false; }} />
       <Pressable style={[st.half, { right: 0 }]} onPressIn={() => { rightDown.current = true; }} onPressOut={() => { rightDown.current = false; }} />

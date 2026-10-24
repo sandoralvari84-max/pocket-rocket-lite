@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { color, space, radius, type as T, HIT } from "./tokens";
+import { L, useLang } from "../i18n";
 
 /* ---------- Screen shell ---------- */
 export function Screen({ children, scroll, pad = true, style }: {
@@ -128,17 +129,18 @@ export function GameOverlay({ visible, kind, title, score, children, onPrimary, 
   visible: boolean; kind?: "pause" | "over" | "win"; title: string; score?: string;
   children?: React.ReactNode; onPrimary: () => void; primaryLabel: string; onExit?: () => void;
 }) {
+  useLang(); // re-render on language change
   if (!visible) return null;
   const accent = kind === "win" ? color.success : kind === "over" ? color.danger : color.amber;
   return (
     <View style={os.gameScrim} pointerEvents="auto">
       <View style={[os.gamePanel, { borderColor: accent }]}>
-        <PixelText size="h2" style={{ color: accent, textAlign: "center" }}>{title}</PixelText>
+        <PixelText size="h2" style={{ color: accent, textAlign: "center" }}>{L(title)}</PixelText>
         {!!score && <PixelText size="score" style={{ textAlign: "center", marginTop: space.md }}>{score}</PixelText>}
         {children}
         <View style={{ gap: space.sm, marginTop: space.xl }}>
-          <Button title={primaryLabel} onPress={onPrimary} full />
-          {!!onExit && <Button title="Exit to menu" variant="tertiary" onPress={onExit} full />}
+          <Button title={L(primaryLabel)} onPress={onPrimary} full />
+          {!!onExit && <Button title={L("Exit to menu")} variant="tertiary" onPress={onExit} full />}
         </View>
       </View>
     </View>

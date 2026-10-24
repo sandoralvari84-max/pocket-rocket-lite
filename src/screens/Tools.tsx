@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius, type as T } from "../design/tokens";
 import { PixelText, Body } from "../design/ui";
+import { L, useLang } from "../i18n";
 
 // Real shortcuts only — each opens Chat with a head-start prompt and routes to the
 // on-device model. No placeholder tiles for features that don't exist yet.
@@ -18,16 +19,16 @@ const TOOLS: Tool[] = [
 
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: "notes") => void }) {
   const insets = useSafeAreaInsets();
+  useLang(); // re-render on language change
   return (
     <ScrollView
       contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]}
       showsVerticalScrollIndicator={false}
     >
       <View style={st.head}>
-        <PixelText size="title" style={{ color: color.amber }}>TOOLS</PixelText>
+        <PixelText size="title" style={{ color: color.amber }}>{L("TOOLS")}</PixelText>
         <Body muted style={{ marginTop: space.xs }}>
-          Shortcuts into your on-device buddy. Each opens Chat with a head start —
-          your text never leaves the phone.
+          {L("Shortcuts into your on-device buddy. Each opens Chat with a head start — your text never leaves the phone.")}
         </Body>
       </View>
 
@@ -42,8 +43,8 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
           <Text style={[st.glyph, { color: color.amber }]}>🎙</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={st.title}>Dictaphone & Notes</Text>
-          <Text style={st.sub}>Record voice notes (transcribed) or jot text — saved on-device</Text>
+          <Text style={st.title}>{L("Dictaphone & Notes")}</Text>
+          <Text style={st.sub}>{L("Record voice notes (transcribed) or jot text — saved on-device")}</Text>
         </View>
         <Text style={st.chev}>›</Text>
       </Pressable>
@@ -64,8 +65,8 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
                 <Text style={[st.glyph, { color: c }]}>{t.glyph}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={st.title}>{t.title}</Text>
-                <Text style={st.sub}>{t.sub}</Text>
+                <Text style={st.title}>{L(t.title)}</Text>
+                <Text style={st.sub}>{L(t.sub)}</Text>
               </View>
               <Text style={st.chev}>›</Text>
             </Pressable>
@@ -74,8 +75,7 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
       </View>
 
       <Body muted style={st.note}>
-        More tools (reminders, recipes, training) are on the roadmap — these are the
-        ones that genuinely work today.
+        {L("More tools (reminders, recipes, training) are on the roadmap — these are the ones that genuinely work today.")}
       </Body>
     </ScrollView>
   );

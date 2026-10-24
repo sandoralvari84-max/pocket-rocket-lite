@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
 import { color, space, radius } from "./tokens";
 import { PixelText, Button, Body } from "./ui";
+import { L, useLang } from "../i18n";
 import {
   type Ordering, type ScoreEntry, MAX_SCORES,
   topScores, qualifies, addScore, lastTag,
@@ -43,6 +44,7 @@ export function ScoreboardOverlay({
   const [board, setBoard] = useState<ScoreEntry[]>([]);
   const [isHigh, setIsHigh] = useState(false);
   const newAtRef = useRef<number | null>(null);
+  useLang(); // re-render on language change
 
   // Snapshot qualification the moment the overlay opens (before we mutate the board).
   const wasVisible = useRef(false);
@@ -80,7 +82,7 @@ export function ScoreboardOverlay({
   return (
     <View style={st.scrim} pointerEvents="auto">
       <View style={[st.panel, { borderColor: accent }]}>
-        <PixelText size="h2" style={{ color: accent, textAlign: "center" }}>{title}</PixelText>
+        <PixelText size="h2" style={{ color: accent, textAlign: "center" }}>{L(title)}</PixelText>
         {!!scoreLabel && (
           <PixelText size="score" style={{ textAlign: "center", marginTop: space.sm }}>{scoreLabel}</PixelText>
         )}
@@ -88,7 +90,7 @@ export function ScoreboardOverlay({
 
         {showEntry ? (
           <View style={{ marginTop: space.lg, alignItems: "center", gap: space.md }}>
-            <PixelText size="label" style={{ color: color.cyan }}>NEW HIGH SCORE — TAG IT</PixelText>
+            <PixelText size="label" style={{ color: color.cyan }}>{L("NEW HIGH SCORE — TAG IT")}</PixelText>
             <View style={{ flexDirection: "row", gap: space.md }}>
               {idx.map((ci, slot) => (
                 <View key={slot} style={st.slot}>
@@ -106,18 +108,18 @@ export function ScoreboardOverlay({
                 </View>
               ))}
             </View>
-            <Button title="Save score" onPress={submit} full />
+            <Button title={L("Save score")} onPress={submit} full />
           </View>
         ) : (
           <View style={{ marginTop: space.lg }}>
             <View style={st.headRow}>
               <PixelText size="label" style={st.cRank}>#</PixelText>
-              <PixelText size="label" style={st.cName}>NAME</PixelText>
-              <PixelText size="label" style={st.cScore}>SCORE</PixelText>
+              <PixelText size="label" style={st.cName}>{L("NAME")}</PixelText>
+              <PixelText size="label" style={st.cScore}>{L("SCORE")}</PixelText>
             </View>
             {board.length === 0 && (
               <Body muted style={{ textAlign: "center", paddingVertical: space.md }}>
-                No scores yet — be the first.
+                {L("No scores yet — be the first.")}
               </Body>
             )}
             {board.map((e, i) => {
@@ -135,8 +137,8 @@ export function ScoreboardOverlay({
 
         {!showEntry && (
           <View style={{ gap: space.sm, marginTop: space.xl }}>
-            <Button title="Play again" onPress={onPlayAgain} full />
-            {!!onExit && <Button title="Exit to menu" variant="tertiary" onPress={onExit} full />}
+            <Button title={L("Play again")} onPress={onPlayAgain} full />
+            {!!onExit && <Button title={L("Exit to menu")} variant="tertiary" onPress={onExit} full />}
           </View>
         )}
       </View>

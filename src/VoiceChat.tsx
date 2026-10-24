@@ -9,6 +9,7 @@ import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from 
 import { chat } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings } from "./settings";
+import { L, useLang } from "./i18n";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
 import { Body, PixelText, Input, Banner, Sprite } from "./design/ui";
 import VoiceBar, { VoiceBarState } from "./VoiceBar";
@@ -56,6 +57,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
   const [error, setError] = useState("");            // transient error flag for bar + status
   const [permDenied, setPermDenied] = useState(false); // persistent mic-permission notice
 
+  useLang(); // re-render on language change
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const radar = useAudioPlayer(require("../assets/radar.wav"));
   const scrollRef = useRef<ScrollView>(null);
@@ -273,9 +275,9 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
             keyboardShouldPersistTaps="handled"
           >
             <Sprite source={EMBLEM} size={96} />
-            <Text style={s.emptyTitle}>Ask me anything</Text>
+            <Text style={s.emptyTitle}>{L("Ask me anything")}</Text>
             <Body muted style={{ textAlign: "center", maxWidth: 300 }}>
-              Type below or tap the mic. Everything runs on your device — nothing leaves the phone.
+              {L("Type below or tap the mic. Everything runs on your device — nothing leaves the phone.")}
             </Body>
             <View style={s.starters}>
               {STARTERS.map((st) => (

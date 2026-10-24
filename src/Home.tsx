@@ -8,6 +8,7 @@ import type { GameModule } from "./games/contract";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
 import { PixelText, Chip, GameErrorBoundary, Sprite } from "./design/ui";
 import { appMeta } from "./appMeta";
+import { L, useLang } from "./i18n";
 import Settings from "./screens/Settings";
 import About from "./screens/About";
 import Tools from "./screens/Tools";
@@ -86,6 +87,7 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const [screen, setScreen] = useState<FeatureScreen | null>(null);
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
   const insets = useSafeAreaInsets();
+  useLang(); // re-render on language change
 
   // Android hardware back: game -> library, feature screen/About -> back, tab root -> default.
   useEffect(() => {
@@ -130,8 +132,8 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
         {tab === "games" && (
           <ScrollView contentContainerStyle={s.libPad} showsVerticalScrollIndicator={false}>
             <View style={s.marquee}>
-              <PixelText size="title" style={s.marqueeT}>ARCADE</PixelText>
-              <Text style={s.marqueeSub}>Select a cabinet</Text>
+              <PixelText size="title" style={s.marqueeT}>{L("ARCADE")}</PixelText>
+              <Text style={s.marqueeSub}>{L("Select a cabinet")}</Text>
             </View>
 
             <SectionHeader label="ARCADE" count={arcade.length} tone="amber" />
@@ -189,7 +191,7 @@ function NavKey({ icon, label, active, onPress }: {
       ]}
     >
       <Text style={[s.keyIcon, active && s.keyIconOn]}>{icon}</Text>
-      <Text style={[s.keyLabel, active && s.keyLabelOn]}>{label}</Text>
+      <Text style={[s.keyLabel, active && s.keyLabelOn]}>{L(label)}</Text>
     </Pressable>
   );
 }
@@ -199,7 +201,7 @@ function SectionHeader({ label, count, tone }: { label: string; count: number; t
   return (
     <View style={s.sectionRow}>
       <View style={[s.sectionTick, { backgroundColor: c }]} />
-      <PixelText size="label" style={{ letterSpacing: 1, color: c }}>{label}</PixelText>
+      <PixelText size="label" style={{ letterSpacing: 1, color: c }}>{L(label)}</PixelText>
       <View style={[s.sectionRule, { borderColor: color.surfaceLine }]} />
       <Text style={s.sectionCount}>{count}</Text>
     </View>

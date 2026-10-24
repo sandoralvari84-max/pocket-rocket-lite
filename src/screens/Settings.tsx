@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { color, space, radius, type as T, HIT } from "../design/tokens";
 import { PixelText, Body, Chip, Panel, Segmented } from "../design/ui";
 import { useSettings, setSetting } from "../settings";
-import { LANGS } from "../i18n";
+import { LANGS, L, useLang } from "../i18n";
 import type { VoiceId } from "../settings";
 
 const PERSONA_OPTS: { key: VoiceId; label: string }[] = [
@@ -17,6 +17,7 @@ const RATE_STEP = 0.05;
 
 export default function Settings({ onAbout, onModelSetup }: { onAbout: () => void; onModelSetup: () => void }) {
   const st = useSettings();
+  useLang(); // re-render on language change
 
   const setRate = (next: number) => {
     const clamped = Math.round(Math.min(RATE_MAX, Math.max(RATE_MIN, next)) * 100) / 100;
@@ -25,18 +26,18 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
 
   return (
     <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
-      <PixelText size="title" style={cs.screenTitle}>SETTINGS</PixelText>
+      <PixelText size="title" style={cs.screenTitle}>{L("SETTINGS")}</PixelText>
 
       {/* ---- LANGUAGE ---- */}
-      <Panel label="LANGUAGE" tone="cyan">
-        <Label>App language</Label>
+      <Panel label={L("LANGUAGE")} tone="cyan">
+        <Label>{L("App language")}</Label>
         <Segmented options={LANGS} value={st.language} onChange={(v) => setSetting("language", v)} />
         <Note>Interface language. Chat works best in English; German and Spanish are supported.</Note>
       </Panel>
 
       {/* ---- VOICE ---- */}
-      <Panel label="VOICE" tone="amber">
-        <Label>Assistant persona</Label>
+      <Panel label={L("VOICE")} tone="amber">
+        <Label>{L("Assistant persona")}</Label>
         <Segmented options={PERSONA_OPTS} value={st.voice} onChange={(v) => setSetting("voice", v)} />
         <Note>Your choice is saved now. Spoken voices arrive with the voice update.</Note>
 
@@ -44,8 +45,8 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
 
         <Row>
           <View style={{ flex: 1 }}>
-            <Label>Speech rate</Label>
-            <Body muted style={cs.rowHint}>How fast replies are spoken.</Body>
+            <Label>{L("Speech rate")}</Label>
+            <Body muted style={cs.rowHint}>{L("How fast replies are spoken.")}</Body>
           </View>
           <View style={cs.stepper}>
             <StepKey glyph="−" label="Slower" onPress={() => setRate(st.speechRate - RATE_STEP)} disabled={st.speechRate <= RATE_MIN + 0.001} />
@@ -56,24 +57,24 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
       </Panel>
 
       {/* ---- GAME & MOTION ---- */}
-      <Panel label="GAME & MOTION" tone="amber">
+      <Panel label={L("GAME & MOTION")} tone="amber">
         <Toggle
-          title="Reduced motion"
-          hint="Calms animations and screen shake across the app."
+          title={L("Reduced motion")}
+          hint={L("Calms animations and screen shake across the app.")}
           value={st.reducedMotion}
           onChange={(v) => setSetting("reducedMotion", v)}
         />
         <Divider />
         <Toggle
-          title="Game sound"
-          hint="Blips and effects during arcade games."
+          title={L("Game sound")}
+          hint={L("Blips and effects during arcade games.")}
           value={st.gameSound}
           onChange={(v) => setSetting("gameSound", v)}
         />
       </Panel>
 
       {/* ---- PRIVACY & OFFLINE ---- */}
-      <Panel label="PRIVACY & OFFLINE" tone="cyan">
+      <Panel label={L("PRIVACY & OFFLINE")} tone="cyan">
         <Body style={cs.para}>
           The language model runs entirely on this device. Once it is installed, the app needs no
           network connection to chat or to play — everything happens locally.
@@ -86,19 +87,19 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
       </Panel>
 
       {/* ---- MODEL ---- */}
-      <Panel label="MODEL" tone="cyan">
+      <Panel label={L("MODEL")} tone="cyan">
         <Row>
           <View style={{ flex: 1 }}>
-            <Label>On-device model</Label>
+            <Label>{L("On-device model")}</Label>
             <Body muted style={cs.rowHint}>Qwen2.5-1.5B Instruct, quantized, running locally via llama.rn. Model installation is optional.</Body>
           </View>
-          <Chip label="Optional" tone="cyan" />
+          <Chip label={L("Optional")} tone="cyan" />
         </Row>
       </Panel>
 
       <Pressable onPress={onModelSetup} accessibilityRole="button" style={({ pressed }) => [cs.aboutRow, pressed && cs.aboutPressed]}>
         <View style={{ flex: 1 }}>
-          <Label>Set up local AI</Label>
+          <Label>{L("Set up local AI")}</Label>
           <Body muted style={cs.rowHint}>Import the model or download it over Wi-Fi. Games remain available without it.</Body>
         </View>
         <Text style={cs.chevron}>›</Text>
@@ -112,7 +113,7 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
         style={({ pressed }) => [cs.aboutRow, pressed && cs.aboutPressed]}
       >
         <View style={{ flex: 1 }}>
-          <Label>About</Label>
+          <Label>{L("About")}</Label>
           <Body muted style={cs.rowHint}>Model details, credits and licenses.</Body>
         </View>
         <Text style={cs.chevron}>›</Text>

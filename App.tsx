@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { View, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { useFonts, PressStart2P_400Regular } from "@expo-google-fonts/press-start-2p";
 import { DISCLAIMER } from "./src/preset";
 import { modelExists, downloadModel, importModel, loadModel } from "./src/model";
 import Home from "./src/Home";
-import { color, space } from "./src/design/tokens";
+import { color, space, radius, type as T } from "./src/design/tokens";
 import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
 import { getSettings, loadSettings, setSetting } from "./src/settings";
@@ -90,21 +90,21 @@ function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImpo
           </>
         )}
         {phase === "need-model" && (
-          <View style={{ gap: space.lg, alignItems: "center" }}>
-            <Title>One-time setup</Title>
-            <Body muted style={{ textAlign: "center" }}>
-              The on-device model (~1 GB) needs to be installed once. After that the app runs fully offline forever.
-            </Body>
-            <View style={{ width: "100%", gap: space.md }}>
-              <Button title="Import model file" onPress={onImport} full />
-              <Body muted style={{ textAlign: "center", fontSize: 12 }}>
-                Pick the qwen…q4_k_m.gguf file that was shared to your phone alongside the app.
+          <View style={{ gap: space.lg }}>
+            <View style={{ alignItems: "center", gap: space.xs }}>
+              <Sprite source={EMBLEM} size={72} />
+              <PixelText size="h2" style={{ color: color.amber, textAlign: "center" }}>CHOOSE A START</PixelText>
+              <Body muted style={{ textAlign: "center" }}>
+                Add the on-device AI once (~1 GB) — or jump straight into the games and add it later.
               </Body>
-              <Button title="Download over Wi-Fi instead" variant="secondary" onPress={onGetModel} full />
-              <Button title="Continue without AI setup" variant="secondary" onPress={onContinueOffline} full />
-              <Body muted style={{ textAlign: "center", fontSize: 12 }}>
-                Games remain available. You can install the model later in Settings.
-              </Body>
+            </View>
+            <View style={{ gap: space.md }}>
+              <SetupOption glyph="📁" tint={color.amber} title="Import model file"
+                sub="Pick the qwen…q4_k_m.gguf shared to your phone." onPress={onImport} />
+              <SetupOption glyph="⬇" tint={color.cyan} title="Download over Wi-Fi"
+                sub="About 1 GB, once — then fully offline forever." onPress={onGetModel} />
+              <SetupOption glyph="▶" tint={color.textMuted} title="Continue without AI"
+                sub="Play games & tools now; add the AI later in Settings." onPress={onContinueOffline} />
             </View>
           </View>
         )}
@@ -140,3 +140,31 @@ function OnboardRow({ glyph, title, text, last }: { glyph: string; title: string
     </View>
   );
 }
+
+// A tappable setup choice, styled as a menu card (icon tile + title + sub + chevron).
+function SetupOption({ glyph, title, sub, tint, onPress }: {
+  glyph: string; title: string; sub: string; tint: string; onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
+      style={({ pressed }) => [og.card, pressed && { borderColor: tint, backgroundColor: color.surface2 }]}>
+      <View style={[og.tile, { borderColor: tint, backgroundColor: color.surface2 }]}>
+        <Text style={[og.glyph, { color: tint }]}>{glyph}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={og.title}>{title}</Text>
+        <Text style={og.sub}>{sub}</Text>
+      </View>
+      <Text style={og.chev}>›</Text>
+    </Pressable>
+  );
+}
+
+const og = StyleSheet.create({
+  card: { flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.md },
+  tile: { width: 48, height: 48, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  glyph: { fontSize: 22, fontWeight: "900" },
+  title: { ...T.h2, fontSize: 16, color: color.text },
+  sub: { ...T.small, color: color.textMuted, marginTop: 2 },
+  chev: { color: color.textFaint, fontSize: 24, fontWeight: "800" },
+});

@@ -10,6 +10,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { ensureWhisper, transcribe } from "../stt";
 import { color, space, radius, type as T } from "../design/tokens";
 import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { L, useLang } from "../i18n";
 import { createCollection, type Entity, uid, DATA_DIR } from "../data/store";
 
 type Note = Entity & { kind: "text" | "voice"; text: string; audioUri?: string };
@@ -24,6 +25,7 @@ function when(ts: number): string {
 
 export default function Notes({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
+  useLang(); // re-render on language change
   const items = notes.use();
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
@@ -46,24 +48,24 @@ export default function Notes({ onBack }: { onBack: () => void }) {
     try {
       if (!recording) {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
-        if (!perm.granted) { setStatus("Microphone permission denied."); return; }
+        if (!perm.granted) { setStatus(L("Microphone permission denied.")); return; }
         setStatus("");
         await recorder.prepareToRecordAsync();
         recorder.record();
         setRecording(true);
       } else {
-        setRecording(false); setBusy(true); setStatus("Saving…");
+        setRecording(false); setBusy(true); setStatus(L("Saving…"));
         await recorder.stop();
         const tmp = recorder.uri;
-        if (!tmp) { setStatus("No audio captured."); setBusy(false); return; }
+        if (!tmp) { setStatus(L("No audio captured.")); setBusy(false); return; }
         // Move the clip out of the cache into permanent app storage.
         try { const d = await FileSystem.getInfoAsync(AUDIO_DIR); if (!d.exists) await FileSystem.makeDirectoryAsync(AUDIO_DIR, { intermediates: true }); } catch {}
         const dest = AUDIO_DIR + uid() + ".m4a";
         try { await FileSystem.copyAsync({ from: tmp, to: dest }); } catch {}
         // Best-effort transcription — the note saves regardless.
         let text = "";
-        try { setStatus("Transcribing…"); await ensureWhisper(() => {}); text = (await transcribe(dest)).trim(); } catch {}
-        await notes.create({ kind: "voice", text: text || "(voice note — not transcribed)", audioUri: dest });
+        try { setStatus(L("Transcribing…")); await ensureWhisper(() => {}); text = (await transcribe(dest)).trim(); } catch {}
+        await notes.create({ kind: "voice", text: text || L("(voice note — not transcribed)"), audioUri: dest });
         setStatus(""); setBusy(false);
       }
     } catch (e: any) {
@@ -88,7 +90,7 @@ export default function Notes({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>DICTAPHONE</PixelText>
+        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("DICTAPHONE")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 
@@ -96,13 +98,13 @@ export default function Notes({ onBack }: { onBack: () => void }) {
         <Input
           value={input}
           onChangeText={setInput}
-          placeholder="Type a note…"
+          placeholder={L("Type a note…")}
           placeholderTextColor={color.textFaint}
           multiline
           style={st.input}
         />
         <View style={{ flexDirection: "row", gap: space.sm }}>
-          <Button title="Add note" onPress={addText} disabled={!input.trim()} style={{ flex: 1 }} />
+          <Button title={L("Add note")} onPress={addText} disabled={!input.trim()} style={{ flex: 1 }} />
           <Pressable
             onPress={toggleRecord}
             accessibilityRole="button"
@@ -118,8 +120,7 @@ export default function Notes({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={st.listPad} showsVerticalScrollIndicator={false}>
         {items.length === 0 && (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>
-            No notes yet. Type one above, or tap ● to record a voice note — it's saved and
-            transcribed on your device.
+            {L("No notes yet. Type one above, or tap ● to record a voice note — it's saved and transcribed on your device.")}
           </Body>
         )}
         {items.map((n) => (
