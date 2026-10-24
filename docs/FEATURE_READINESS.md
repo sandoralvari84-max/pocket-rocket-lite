@@ -7,13 +7,13 @@ layer, NOT new infrastructure. Legend: 🟢 pure on-device code (+ existing data
 
 | Feature | How | External software? | Readiness |
 |---|---|---|---|
-| **Owner memory / preferences** | preferences + user-approved "facts" store on the data layer; fed to the model as context (like the clock context already does). Deterministic recall, user edits/clears. | None | 🟢 Core infra — build first; everything else leans on it |
+| **Owner memory / preferences** | profile + user-approved "facts" on the data layer; `ownerContext()` fed into the model's system role (like the clock context). Deterministic recall, user edits/clears via the Memory screen. | None | ✅ **SHIPPED** (owner-memory) — `data/profile.ts`, `screens/Memory.tsx`; chat() also now carries conversation history |
 | **Calendar / reminders** | events on the data layer + local notifications | 🟡 `expo-notifications` (free Expo module) | 🟡 Small build |
 | **Budget** | accounts/transactions on the data layer + **tested deterministic math** (never AI for sums); multi-currency | 🟡 **Open ER-API** ✅ (keyless FX, validated) | 🟡 Straightforward |
 | **Food / pantry / recipes** | pantry + recipes + grocery list on the data layer; LLM suggests recipes from what's in | 🟡 **OpenFoodFacts** (free, no key — barcode→nutrition) optional | 🟡 Medium |
 | **Fitness / training** | routines + workout logs + progress on the data layer; deterministic calcs | 🟡 optional free exercise DB (wger API / bundled JSON) | 🟡 Medium |
 | **Drafting** | templates + the on-device model (chat already works); saved to Notes | None | 🟢 Quick |
-| **Chat history** | persist conversations on the data layer | None | 🟢 Quick |
+| **Chat history** | persist conversations on the data layer (in-session context ✅ already wired via chat() history; persistence across restarts + a history screen remain) | None | 🟢 Quick — partially done |
 | **Offline translator** | on-device translation | 🔴 **ML Kit Translation** (free) via `react-native-vision-camera-ocr-plus`, or Bergamot models | 🔴 Needs native lib (from the arsenal) |
 | **OCR** | on-device text recognition | 🔴 **`react-native-nitro-ocr`** (Apple Vision + ML Kit, ~3.5 MB) | 🔴 Needs native lib |
 | **Music / radio** | local playback + optional radio | 🔴 `expo-audio` (have it) + background-playback config; radio = online | 🔴 Flagged last |
