@@ -23,6 +23,15 @@ type FeatureScreen = "notes" | "memory";
 const CRT_SCANLINES = require("../assets/crt/scanlines.png");
 const CRT_VIGNETTE = require("../assets/crt/vignette.png");
 
+// Nav-bar icons (tools/art/gen_nav_icons.py) — same filled-gloss grammar as the
+// game icons, replacing the old Unicode glyph placeholders.
+const NAV_ICON = {
+  chat: require("../assets/ui/nav/chat.png"),
+  games: require("../assets/ui/nav/games.png"),
+  tools: require("../assets/ui/nav/tools.png"),
+  settings: require("../assets/ui/nav/settings.png"),
+};
+
 // Honest one-line descriptions, keyed by frozen game id.
 const BLURB: Record<string, string> = {
   "catch": "Fly the lower half, auto-fire, blast the enemy craft — grab orbs to power up.",
@@ -190,17 +199,17 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
       {/* Console control deck: tactile illuminated hardware keys on a housing rail. */}
       <View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }]}>
         <View style={s.deckRail} pointerEvents="none" />
-        <NavKey icon="▭" label="Chat" active={tab === "chat"} onPress={() => setTab("chat")} />
-        <NavKey icon="◉" label="Games" active={tab === "games"} onPress={() => setTab("games")} />
-        <NavKey icon="▤" label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
-        <NavKey icon="▦" label="Settings" active={tab === "settings"} onPress={() => setTab("settings")} />
+        <NavKey icon={NAV_ICON.chat} label="Chat" active={tab === "chat"} onPress={() => setTab("chat")} />
+        <NavKey icon={NAV_ICON.games} label="Games" active={tab === "games"} onPress={() => setTab("games")} />
+        <NavKey icon={NAV_ICON.tools} label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
+        <NavKey icon={NAV_ICON.settings} label="Settings" active={tab === "settings"} onPress={() => setTab("settings")} />
       </View>
     </View>
   );
 }
 
 function NavKey({ icon, label, active, onPress }: {
-  icon: string; label: string; active: boolean; onPress: () => void;
+  icon: ReturnType<typeof require>; label: string; active: boolean; onPress: () => void;
 }) {
   return (
     <Pressable
@@ -215,7 +224,7 @@ function NavKey({ icon, label, active, onPress }: {
       ]}
     >
       <View style={[s.led, active && s.ledOn]} />
-      <Text style={[s.keyIcon, active && s.keyIconOn]}>{icon}</Text>
+      <Image source={icon} style={[s.navImg, !active && { opacity: 0.5 }]} resizeMode="contain" />
       <Text style={[s.keyLabel, active && s.keyLabelOn]}>{L(label)}</Text>
     </Pressable>
   );
@@ -357,6 +366,7 @@ const s = StyleSheet.create({
   ledOn: { backgroundColor: color.amber, shadowColor: color.amber, shadowOpacity: 0.9, shadowRadius: 5, elevation: 3 },
   keyIcon: { fontSize: 18, color: color.textMuted, lineHeight: 22 },
   keyIconOn: { color: color.amber },
+  navImg: { width: 26, height: 26 },
   keyLabel: { ...T.small, color: color.textMuted, fontSize: 11 },
   keyLabelOn: { color: color.amber, fontWeight: "700" },
 });

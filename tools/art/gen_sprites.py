@@ -16,7 +16,7 @@ PAL = {
     "h": (202, 214, 226, 255),    # hull light
     "s": (124, 138, 154, 255),    # hull shadow
     "c": (0, 229, 255, 255),      # cockpit cyan
-    "a": (255, 152, 16, 255),     # amber
+    "a": (255, 152, 0, 255),     # amber
     "r": (184, 107, 7, 255),      # amber dark
     "w": (243, 239, 230, 255),    # highlight white
 }

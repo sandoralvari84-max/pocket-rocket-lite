@@ -17,16 +17,18 @@ S = 96
 
 
 def field(dark: bool) -> Image.Image:
-    base = (10, 24, 16, 255) if dark else (13, 29, 20, 255)
-    lat = (20, 40, 28, 255) if dark else (24, 46, 32, 255)
+    # Lightened so the arena reads as a designed field, not a near-black box.
+    base = (22, 44, 30, 255) if dark else (27, 51, 35, 255)
+    lat = (38, 70, 48, 255) if dark else (46, 80, 54, 255)
     img = Image.new("RGBA", (S, S), base)
     d = ImageDraw.Draw(img)
-    # diamond scale lattice
+    # diamond scale lattice (clearer, double-stroked for a soft embossed look)
     step = 24
     for i in range(-1, S // step + 2):
-        d.line([(i * step, 0), (i * step + S, S)], fill=lat, width=1)
-        d.line([(i * step, S), (i * step + S, 0)], fill=lat, width=1)
-    d.rectangle([0, 0, S - 1, S - 1], outline=(6, 16, 10, 255), width=1)
+        d.line([(i * step, 0), (i * step + S, S)], fill=lat, width=2)
+        d.line([(i * step, S), (i * step + S, 0)], fill=lat, width=2)
+    d.line([(0, 0), (S, 0)], fill=(60, 96, 68, 120), width=2)   # faint top highlight
+    d.rectangle([0, 0, S - 1, S - 1], outline=(10, 24, 16, 255), width=1)
     return img
 
 

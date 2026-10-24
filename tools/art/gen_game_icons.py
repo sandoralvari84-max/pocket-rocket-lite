@@ -5,8 +5,9 @@ nostalgia" style: an alternate-timeline 90s-FUTURE gadget — idealized chrome,
 warm glow, glass highlights, smooth anti-aliased forms (how the 90s *dreamed*
 the future, not literal pixel-arcade). Each keeps its game's own motif.
 
-Drawn at 4x (480px) with soft gradients / bevels / gloss / glow, then downscaled
-to 120px LANCZOS for smoothness. Transparent background — the card tile frames it.
+ONE icon grammar across all 13: filled + glossy + warm glow (no line-art). Drawn
+at 4x (480px) with soft gradients / bevels / gloss / glow, then downscaled to
+120px LANCZOS for smoothness. Transparent background — the card tile frames it.
 
 Regenerate: python tools/art/gen_game_icons.py
 """
@@ -77,6 +78,31 @@ def rr_grad(im, box, r, top, bot, outline=OUT_C, ow=6):
         ImageDraw.Draw(im).rounded_rectangle(box, r, outline=outline, width=ow)
 
 
+def poly_grad(im, pts, top, bot, outline=OUT_C, ow=6):
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    x0, y0, x1, y1 = int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))
+    w, h = max(1, x1 - x0), max(1, y1 - y0)
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).polygon([(px - x0, py - y0) for (px, py) in pts], fill=255)
+    im.paste(_grad(w, h, top, bot), (x0, y0), m)
+    if outline:
+        ImageDraw.Draw(im).polygon(pts, outline=outline, width=ow)
+
+
+def ring(im, box, top, bot, inner=0.55, outline=OUT_C):
+    x0, y0, x1, y1 = [int(v) for v in box]
+    w, h = x1 - x0, y1 - y0
+    if w <= 0 or h <= 0:
+        return
+    m = Image.new("L", (w, h), 0); md = ImageDraw.Draw(m)
+    md.ellipse([0, 0, w - 1, h - 1], fill=255)
+    iw, ih = int(w * inner), int(h * inner); ix, iy = (w - iw) // 2, (h - ih) // 2
+    md.ellipse([ix, iy, ix + iw, iy + ih], fill=0)
+    im.paste(_grad(w, h, top, bot), (x0, y0), m)
+    if outline:
+        ImageDraw.Draw(im).ellipse(box, outline=outline, width=6)
+
+
 def gloss(im, box):
     x0, y0, x1, y1 = box
     g = Image.new("RGBA", (WS, WS), (0, 0, 0, 0)); gd = ImageDraw.Draw(g)
@@ -135,14 +161,18 @@ def nibbler():
 
 
 def road():
+    # Clear glossy vehicle (matches the 6 in-game vehicles), not a car-on-a-bar.
     im, d = canvas(); glow(im, C, C, 150, RED, 40)
-    d.rounded_rectangle([C - 10, 70, C + 10, 410], 8, fill=(255, 221, 128, 150))
-    rr_grad(im, [136, 160, 344, 344], 36, RED_HI, RED_DK)
-    rr_grad(im, [168, 192, 312, 248], 14, CYAN_HI, CYAN_DK, outline=None)
-    gloss(im, [136, 160, 344, 344])
-    for cx in (184, 296):
-        for cy in (160, 344):
-            d.ellipse([cx - 26, cy - 26, cx + 26, cy + 26], fill=(26, 30, 40, 255))
+    glow(im, 392, 300, 46, AMBER, 120)                      # headlight glow
+    for wx in (176, 304):                                   # chrome wheels
+        sphere(im, [wx - 48, 300, wx + 48, 396], STEEL_DK, (28, 32, 42))
+        d.ellipse([wx - 16, 332, wx + 16, 364], fill=(176, 186, 198, 255))  # hubcap
+    rr_grad(im, [84, 244, 396, 336], 40, RED_HI, RED_DK)    # body
+    rr_grad(im, [168, 150, 300, 252], 30, RED_HI, RED_DK)   # cabin
+    rr_grad(im, [188, 170, 286, 232], 16, CYAN_HI, CYAN_DK, outline=None)   # glass
+    gloss(im, [84, 244, 396, 336])
+    d.ellipse([374, 280, 404, 310], fill=(255, 236, 150, 255))  # headlight
+    d.ellipse([84, 280, 108, 308], fill=RED_DK + (255,))        # taillight
     return finish(im)
 
 
@@ -176,26 +206,38 @@ def putt():
 
 
 def ttt():
-    im, d = canvas(); glow(im, C, C, 150, CYAN, 30)
-    for x in (208, 288):
-        d.line([(x, 112), (x, 368)], fill=(120, 150, 200, 255), width=12)
-    for y in (208, 288):
-        d.line([(112, y), (368, y)], fill=(120, 150, 200, 255), width=12)
-    for off in (0, 4):
-        d.line([(128, 128 + off), (184, 184 + off)], fill=AMBER + (255,), width=18)
-        d.line([(184, 128 + off), (128, 184 + off)], fill=AMBER + (255,), width=18)
-    d.ellipse([312, 312, 368, 368], outline=CYAN + (255,), width=18)
+    # Filled-gloss: chunky amber X + glossy cyan O on a glass panel (was line-art).
+    im, d = canvas(); glow(im, C, C, 150, CYAN, 36)
+    rr_grad(im, [88, 88, 392, 392], 40, (44, 58, 92), (22, 30, 50)); gloss(im, [88, 88, 392, 392])
+    for x in (205, 275):                                    # subtle inset grid
+        d.line([(x, 120), (x, 360)], fill=(150, 170, 210, 170), width=8)
+        d.line([(120, x), (360, x)], fill=(150, 170, 210, 170), width=8)
+    cx, cy, sarm = 162, 162, 40                             # chunky X, top-left cell
+    for (ax, ay, bx, by) in [(-sarm, -sarm, sarm, sarm), (sarm, -sarm, -sarm, sarm)]:
+        d.line([(cx + ax, cy + ay), (cx + bx, cy + by)], fill=AMBER_DK + (255,), width=44)
+    for (ax, ay, bx, by) in [(-sarm, -sarm, sarm, sarm), (sarm, -sarm, -sarm, sarm)]:
+        d.line([(cx + ax, cy + ay), (cx + bx, cy + by)], fill=AMBER + (255,), width=26)
+    for (ex, ey) in [(cx - sarm, cy - sarm), (cx + sarm, cy - sarm), (cx - sarm, cy + sarm), (cx + sarm, cy + sarm)]:
+        d.ellipse([ex - 13, ey - 13, ex + 13, ey + 13], fill=AMBER + (255,))
+    ring(im, [268, 268, 360, 360], CYAN_HI, CYAN_DK, inner=0.5)  # glossy O, bottom-right
+    spec(im, 292, 292, 14, 10)
     return finish(im)
 
 
 def rps():
-    im, d = canvas(); glow(im, C, C, 150, STEEL, 34)
-    d.line([(C, 256), (384, 96)], fill=STEEL_DK + (255,), width=34)
-    d.line([(C, 256), (96, 96)], fill=STEEL_DK + (255,), width=34)
-    d.line([(C, 256), (384, 96)], fill=STEEL_HI + (255,), width=12)
-    d.line([(C, 256), (96, 96)], fill=STEEL_HI + (255,), width=12)
-    d.ellipse([176, 280, 264, 368], outline=AMBER + (255,), width=22)
-    d.ellipse([232, 280, 320, 368], outline=CYAN + (255,), width=22)
+    # Filled-gloss trio: chrome scissors (top), shaded rock, cream paper — all read.
+    im, d = canvas(); glow(im, C, C, 140, STEEL, 28)
+    d.line([(C, 210), (312, 96)], fill=STEEL_DK + (255,), width=34)   # scissor blades
+    d.line([(C, 210), (168, 96)], fill=STEEL_DK + (255,), width=34)
+    d.line([(C, 210), (312, 96)], fill=STEEL_HI + (255,), width=13)
+    d.line([(C, 210), (168, 96)], fill=STEEL_HI + (255,), width=13)
+    sphere(im, [C - 22, 186, C + 22, 230], STEEL_HI, STEEL_DK)        # pivot
+    ring(im, [196, 196, 252, 252], AMBER_HI, AMBER_DK, inner=0.5)     # finger loops
+    ring(im, [228, 196, 284, 252], CYAN_HI, CYAN_DK, inner=0.5)
+    sphere(im, [92, 262, 216, 386], STEEL, STEEL_DK)                  # rock
+    rr_grad(im, [264, 262, 392, 390], 16, (246, 244, 234), (200, 198, 186))  # paper
+    d.polygon([(360, 262), (392, 294), (360, 294)], fill=(206, 204, 192, 255))  # fold
+    gloss(im, [264, 262, 392, 330])
     return finish(im)
 
 
@@ -228,26 +270,28 @@ def draughts():
 
 
 def fleet():
+    # Filled-gloss battleship on water (was line arcs + flat ship).
     im, d = canvas(); glow(im, C, 300, 150, CYAN, 36)
-    for bx in (40, 240):
-        d.arc([bx, 344, bx + 200, 424], 200, 340, fill=CYAN + (255,), width=12)
-    g = Image.new("RGBA", (WS, WS), (0, 0, 0, 0))
-    ImageDraw.Draw(g).polygon([(96, 232), (344, 232), (400, 296), (80, 296)], fill=STEEL)
-    im.alpha_composite(g)
-    d.polygon([(96, 232), (344, 232), (400, 296), (80, 296)], outline=OUT_C, width=6)
-    d.polygon([(96, 234), (344, 234), (360, 250), (110, 250)], fill=STEEL_HI + (255,))
-    rr_grad(im, [192, 168, 288, 232], 8, STEEL_HI, STEEL_DK)
-    d.ellipse([216, 240, 264, 288], fill=(30, 36, 48, 255))
+    rr_grad(im, [64, 300, 416, 400], 24, (40, 120, 180), (12, 48, 92)); gloss(im, [64, 300, 416, 360])  # water
+    poly_grad(im, [(104, 236), (360, 236), (404, 300), (76, 300)], STEEL_HI, STEEL_DK)    # hull
+    d.line([(112, 244), (352, 244)], fill=(236, 242, 248, 255), width=10)                 # deck shine
+    rr_grad(im, [196, 162, 272, 236], 10, STEEL_HI, STEEL_DK)                             # bridge
+    rr_grad(im, [164, 194, 196, 236], 6, STEEL, STEEL_DK)                                 # funnel
+    ell_grad(im, [214, 146, 264, 196], STEEL, STEEL_DK)                                   # turret
+    d.rectangle([236, 118, 252, 158], fill=(60, 70, 86, 255))                             # gun barrel
+    glow(im, 332, 330, 26, AMBER, 150); d.ellipse([320, 318, 344, 342], fill=AMBER + (255,))  # hit marker
     return finish(im)
 
 
 def gallows():
-    im, d = canvas(); glow(im, 230, C, 140, WOOD, 32)
-    rr_grad(im, [120, 368, 312, 400], 8, WOOD_HI, WOOD_DK)
-    rr_grad(im, [152, 96, 192, 384], 8, WOOD_HI, WOOD_DK)
-    rr_grad(im, [152, 96, 344, 128], 8, WOOD_HI, WOOD_DK)
-    d.line([(324, 128), (324, 208)], fill=(216, 186, 136, 255), width=14)
-    d.ellipse([280, 208, 368, 296], outline=(216, 186, 136, 255), width=14)
+    # Filled-gloss timber + solid rope loop (was thin line-art).
+    im, d = canvas(); glow(im, 240, C, 150, WOOD, 32)
+    rr_grad(im, [104, 360, 328, 402], 10, WOOD_HI, WOOD_DK); gloss(im, [104, 360, 328, 402])  # base
+    rr_grad(im, [150, 96, 198, 384], 10, WOOD_HI, WOOD_DK)      # upright (thicker)
+    rr_grad(im, [150, 96, 352, 140], 10, WOOD_HI, WOOD_DK)      # top beam
+    rr_grad(im, [318, 140, 334, 216], 6, (210, 180, 130), (150, 120, 70))  # rope (filled)
+    ring(im, [286, 212, 366, 302], (224, 196, 146), (150, 116, 66), inner=0.5)  # noose loop
+    spec(im, 306, 236, 10, 7)
     return finish(im)
 
 
