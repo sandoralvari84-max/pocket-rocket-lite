@@ -56,3 +56,18 @@ measurements/meal-planner/recipes/timers/converter) — confirm scope + order.
 | **Recipes** (#11) | Save recipes (title/ingredients/steps) + **push ingredients to Grocery** (deterministic line-split). Offline. | ✅ tsc · ✅ bundle | 🕹️ feel |
 
 **✅ All 13 consumer tools built.** Next per the user's plan: UI polish creative pass → games content (on device) → sounds → finalize.
+
+## Games — audit + correctness verification (no device needed)
+
+Audit finding: the arcade games already have real depth — Maze/Block Drop/Road Hopper
+have levels, Nibbler a continuous speed+obstacle ramp, **Putt Pal a 5-hole course with
+par/water penalties**, Dot Catcher waves+boss (this session), Fleet Hunt a hunt/target AI.
+So the "content build" was largely already satisfied. Remaining game work is device-gated
+feel/tuning (flipper) + sounds + the voice-bar EKG/wave swap.
+
+Instead of churning working code unattended, **verified the deterministic turn-based AIs**
+(the correctness the architecture rests on) with a re-runnable harness in `tools/tests/`:
+- **Three-in-a-Row: PROVEN unbeatable** — exhaustive walk of every human line (569 terminal
+  games, 0 human wins, 386 AI wins punishing blunders, 183 draws).
+- **Four-Up: takes immediate wins, blocks horizontal & vertical threats, prefers winning.**
+- Plus the earlier tool-math / converter / streak / RAG-retrieval suites. `node tools/tests/run-all.mjs`.

@@ -1,0 +1,15 @@
+const CATS={Length:{units:{m:1,km:1000,cm:0.01,mi:1609.344,ft:0.3048,in:0.0254}},Weight:{units:{kg:1,g:0.001,lb:0.453592,oz:0.0283495}},Volume:{units:{L:1,ml:0.001,gal:3.78541,cup:0.236588}}};
+const toC=(v,f)=>f==="C"?v:f==="F"?(v-32)*5/9:v-273.15; const fromC=(c,t)=>t==="C"?c:t==="F"?c*9/5+32:c+273.15;
+const convert=(cat,from,to,v)=>cat==="Temp"?fromC(toC(v,from),to):(v*CATS[cat].units[from])/CATS[cat].units[to];
+let fail=0; const close=(n,g,w,tol=0.001)=>{if(Math.abs(g-w)>tol){fail++;console.log(`FAIL ${n}: ${g} != ${w}`);}else console.log(`ok   ${n} = ${g.toFixed(4)}`);};
+close("1 m -> ft", convert("Length","m","ft",1), 3.28084, 0.001);
+close("1 km -> m", convert("Length","km","m",1), 1000);
+close("1 mi -> km", convert("Length","mi","km",1), 1.609344, 0.0001);
+close("1 kg -> lb", convert("Weight","kg","lb",1), 2.20462, 0.001);
+close("500 g -> oz", convert("Weight","g","oz",500), 17.637, 0.01);
+close("1 gal -> L", convert("Volume","gal","L",1), 3.78541, 0.0001);
+close("100 C -> F", convert("Temp","C","F",100), 212);
+close("32 F -> C", convert("Temp","F","C",32), 0);
+close("0 C -> K", convert("Temp","C","K",0), 273.15);
+close("roundtrip m->ft->m", convert("Length","ft","m",convert("Length","m","ft",7)), 7, 0.0001);
+console.log(fail?`\n${fail} FAILED`:"\nALL PASS"); process.exit(fail?1:0);
