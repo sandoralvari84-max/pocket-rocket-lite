@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet, BackHandler } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, BackHandler, Image, ImageBackground } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import VoiceChat from "./VoiceChat";
 import { ask } from "./model";
@@ -16,6 +16,11 @@ import Notes from "./screens/Notes";
 
 type Tab = "chat" | "games" | "tools" | "settings";
 type FeatureScreen = "notes";
+
+// Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
+// over the content "screen". The control deck below stays bare (it's the hardware).
+const CRT_SCANLINES = require("../assets/crt/scanlines.png");
+const CRT_VIGNETTE = require("../assets/crt/vignette.png");
 
 // Honest one-line descriptions, keyed by frozen game id.
 const BLURB: Record<string, string> = {
@@ -167,6 +172,13 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
         )}
 
         {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} onModelSetup={onModelSetup} />}
+
+        {/* CRT display overlay (decorative; never intercepts touch) */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <ImageBackground source={CRT_SCANLINES} resizeMode="repeat"
+            style={StyleSheet.absoluteFill} imageStyle={{ opacity: 0.6 }} />
+          <Image source={CRT_VIGNETTE} resizeMode="stretch" style={StyleSheet.absoluteFill} />
+        </View>
       </View>
 
       <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>
