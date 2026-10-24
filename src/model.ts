@@ -107,9 +107,23 @@ export async function chat(question: string, persona?: "sentinel" | "nova"): Pro
   if (!ctx) throw new Error("model not loaded");
   const tone = persona === "nova" ? " Your tone is warm and kind."
     : persona === "sentinel" ? " Your tone is dry and a little witty." : "";
+  // The model's training data cannot answer current-date questions. Supply the device
+  // clock and timezone on every turn; scheduling and date arithmetic must still be done
+  // by deterministic application code, never inferred from this prompt context.
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat();
+  const locale = formatter.resolvedOptions().locale || "en";
+  const timeZone = formatter.resolvedOptions().timeZone || "device local time";
+  const localNow = new Intl.DateTimeFormat(locale, {
+    dateStyle: "full",
+    timeStyle: "long",
+  }).format(now);
+  const clockContext = `Authoritative device date/time: ${localNow} (${timeZone}). ` +
+    `UTC instant: ${now.toISOString()}. Use this context for questions about the current date or time. ` +
+    "Do not guess dates for reminders or perform date arithmetic; the app must resolve those deterministically.";
   const res = await ctx.completion({
     messages: [
-      { role: "system", content: BUDDY_SYSTEM + tone },
+      { role: "system", content: `${BUDDY_SYSTEM}${tone}\n\n${clockContext}` },
       { role: "user", content: question },
     ],
     temperature: 0.6,

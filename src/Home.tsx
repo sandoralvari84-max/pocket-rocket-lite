@@ -77,7 +77,7 @@ function monogram(title: string): string {
   return (w[0][0] + w[1][0]).toUpperCase();
 }
 
-export default function Home() {
+export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [game, setGame] = useState<GameModule | null>(null);
   const [showAbout, setShowAbout] = useState(false);
@@ -143,7 +143,7 @@ export default function Home() {
 
         {tab === "tools" && <Tools onPick={(text) => { setSeed({ text, n: Date.now() }); setTab("chat"); }} />}
 
-        {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} />}
+        {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} onModelSetup={onModelSetup} />}
       </View>
 
       <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>

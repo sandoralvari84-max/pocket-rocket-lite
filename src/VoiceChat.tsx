@@ -60,6 +60,9 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
   const radar = useAudioPlayer(require("../assets/radar.wav"));
   const scrollRef = useRef<ScrollView>(null);
   const errTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendLock = useRef(false);
+  const micTransitionLock = useRef(false);
+  const speechGeneration = useRef(0);
 
   // Speech options sourced from settings: speechRate drives rate; the persona biases pitch
   // (sentinel = low KITT-like, nova = natural). The device voice itself comes from the voice list.
@@ -83,6 +86,23 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
   }
   useEffect(() => () => { if (errTimer.current) clearTimeout(errTimer.current); }, []);
 
+  // One controlled utterance at a time; stale completion callbacks cannot clear a newer state.
+  function speakText(text: string) {
+    const generation = ++speechGeneration.current;
+    Speech.stop();
+    setSpeaking(true);
+    try {
+      Speech.speak(speakable(text), {
+        ...speakOpts(),
+        onDone: () => { if (speechGeneration.current === generation) setSpeaking(false); },
+        onStopped: () => { if (speechGeneration.current === generation) setSpeaking(false); },
+        onError: () => { if (speechGeneration.current === generation) setSpeaking(false); },
+      });
+    } catch {
+      if (speechGeneration.current === generation) setSpeaking(false);
+    }
+  }
+
   // A Tools shortcut seeds the composer with a starter prompt (the nonce makes a
   // repeated tap re-apply). Prefilled locally only — nothing sends until you do.
   useEffect(() => {
@@ -93,7 +113,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
   // Onboard-computer startup greeting, once. Reads live settings at speak time.
   useEffect(() => {
     const id = setTimeout(() => {
-      try { Speech.speak("I am online and ready.", speakOpts()); } catch {}
+      speakText("I am online and ready.");
     }, 900);
     return () => clearTimeout(id);
   }, []);
@@ -120,32 +140,37 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
     speaking ? "speaking" : "idle";
 
   async function send(text?: string) {
-    const q = (text ?? input).trim(); if (!q || busy) return;
+    const q = (text ?? input).trim(); if (!q || busy || sendLock.current) return;
+    sendLock.current = true;
     clearError();
     setInput(""); setMsgs((m) => [...m, { role: "user", text: q }]); setBusy(true);
     try {
       const a = await chat(q, settings.voice);
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setBusy(false);
-      setSpeaking(true);
-      Speech.speak(speakable(a), {
-        ...speakOpts(),
-        onDone: () => setSpeaking(false),
-        onStopped: () => setSpeaking(false),
-        onError: () => setSpeaking(false),
-      });
+      speakText(a);
+      sendLock.current = false;
     } catch (e: any) {
       setBusy(false);
-      setMsgs((m) => [...m, { role: "assistant", text: "[error] " + String(e?.message ?? e) }]);
-      flagError("Something went wrong answering that. Try again.");
+      const detail = String(e?.message ?? e);
+      const modelMissing = detail.toLowerCase().includes("model not loaded");
+      setMsgs((m) => [...m, {
+        role: "assistant",
+        text: modelMissing
+          ? "The local AI model is not installed yet. Open Settings and choose Set up local AI to import or download it. The games are still available."
+          : "[error] " + detail,
+      }]);
+      if (!modelMissing) flagError("Something went wrong answering that. Try again.");
+      sendLock.current = false;
     }
   }
 
-  function stopSpeak() { Speech.stop(); setSpeaking(false); }
+  function stopSpeak() { speechGeneration.current += 1; Speech.stop(); setSpeaking(false); }
 
   async function micPress() {
-    if (busy) return;
+    if (busy || micTransitionLock.current) return;
     clearError();
     if (!recording) {
+      micTransitionLock.current = true;
       try {
         const perm = await AudioModule.requestRecordingPermissionsAsync();
         if (!perm.granted) { setPermDenied(true); flagError("Microphone permission denied. Enable it in system settings to use voice."); return; }
@@ -159,8 +184,11 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
       } catch (e: any) {
         setSttBusy(false); setSttStatus("");
         flagError("Mic error: " + String(e?.message ?? e));
+      } finally {
+        micTransitionLock.current = false;
       }
     } else {
+      micTransitionLock.current = true;
       try {
         setRecording(false); setSttBusy(true); setSttStatus("Transcribing…");
         await recorder.stop();
@@ -172,6 +200,8 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
       } catch (e: any) {
         setSttBusy(false); setSttStatus("");
         flagError("Transcription error: " + String(e?.message ?? e));
+      } finally {
+        micTransitionLock.current = false;
       }
     }
   }
@@ -254,11 +284,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
                   onPress={() => {
                     if (st.reply) {
                       setMsgs((m) => [...m, { role: "user", text: st.label }, { role: "assistant", text: st.reply! }]);
-                      setSpeaking(true);
-                      Speech.speak(speakable(st.reply!), {
-                        ...speakOpts(),
-                        onDone: () => setSpeaking(false), onStopped: () => setSpeaking(false), onError: () => setSpeaking(false),
-                      });
+                      speakText(st.reply!);
                     } else if (st.prompt && st.prompt.trim().endsWith(":")) {
                       setInput(st.prompt);
                     } else if (st.prompt) {

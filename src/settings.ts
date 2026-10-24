@@ -11,9 +11,10 @@ export type Settings = {
   reducedMotion: boolean;
   gameSound: boolean;
   language: AppLang;     // interface language (en/de/es)
+  modelSetupSkipped: boolean; // core app opened without installing the optional local model
 };
 
-const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true, language: "en" };
+const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true, language: "en", modelSetupSkipped: false };
 const FILE = FileSystem.documentDirectory + "settings.json";
 
 let cache: Settings = { ...DEFAULTS };

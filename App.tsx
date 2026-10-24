@@ -9,10 +9,11 @@ import Home from "./src/Home";
 import { color, space } from "./src/design/tokens";
 import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
+import { getSettings, loadSettings, setSetting } from "./src/settings";
 
 const EMBLEM = require("./assets/brand/emblem.png");
 
-type Phase = "onboard" | "need-model" | "downloading" | "loading" | "ready" | "error";
+type Phase = "onboard" | "need-model" | "downloading" | "loading" | "ready" | "ready-no-model" | "error";
 
 export default function App() {
   const [fontsLoaded] = useFonts({ PressStart2P_400Regular });
@@ -22,10 +23,17 @@ export default function App() {
 
   async function begin() {
     try {
-      // If the model is already in app storage, load it; otherwise ask how to get it.
-      if (await modelExists()) { setPhase("loading"); await loadModel(); setPhase("ready"); }
+      await loadSettings();
+      // If the model is already in app storage, load it; otherwise honor the optional setup choice.
+      if (await modelExists()) { setPhase("loading"); await loadModel(); setSetting("modelSetupSkipped", false); setPhase("ready"); }
+      else if (getSettings().modelSetupSkipped) { setPhase("ready-no-model"); }
       else { setPhase("need-model"); }
     } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
+  }
+  // Let the user into the core app (games, tools) without installing the ~1 GB model.
+  function continueOffline() {
+    setSetting("modelSetupSkipped", true);
+    setPhase("ready-no-model");
   }
   // Import the model from the .gguf shared alongside the app (QuickShare folder).
   async function importFromFile() {
@@ -33,31 +41,31 @@ export default function App() {
       setPhase("loading"); // system picker is modal; show the spinner behind it
       const ok = await importModel();
       if (!ok) { setPhase("need-model"); return; } // user cancelled the picker
-      await loadModel(); setPhase("ready");
+      await loadModel(); setSetting("modelSetupSkipped", false); setPhase("ready");
     } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
   }
   async function getModel() {
     try {
       setPhase("downloading"); setProgress(0);
       await downloadModel(setProgress);
-      setPhase("loading"); await loadModel(); setPhase("ready");
+      setPhase("loading"); await loadModel(); setSetting("modelSetupSkipped", false); setPhase("ready");
     } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
   }
 
-  const ready = phase === "ready" && fontsLoaded;
+  const ready = (phase === "ready" || phase === "ready-no-model") && fontsLoaded;
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="light" />
-      {ready ? <Home /> : <SetupGate
+      {ready ? <Home onModelSetup={() => setPhase("need-model")} /> : <SetupGate
         phase={phase} progress={progress} err={err}
-        onContinue={begin} onImport={importFromFile} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
+        onContinue={begin} onContinueOffline={continueOffline} onImport={importFromFile} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
     </SafeAreaProvider>
   );
 }
 
-function SetupGate({ phase, progress, err, onContinue, onImport, onGetModel, fontsLoaded }: {
-  phase: Phase; progress: number; err: string; onContinue: () => void; onImport: () => void; onGetModel: () => void; fontsLoaded: boolean;
+function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImport, onGetModel, fontsLoaded }: {
+  phase: Phase; progress: number; err: string; onContinue: () => void; onContinueOffline: () => void; onImport: () => void; onGetModel: () => void; fontsLoaded: boolean;
 }) {
   // Hold on the splash until fonts are ready so the pixel title never flashes unstyled.
   if (!fontsLoaded) return <Screen><View style={{ flex: 1, justifyContent: "center" }}><Spinner /></View></Screen>;
@@ -93,6 +101,10 @@ function SetupGate({ phase, progress, err, onContinue, onImport, onGetModel, fon
                 Pick the qwen…q4_k_m.gguf file that was shared to your phone alongside the app.
               </Body>
               <Button title="Download over Wi-Fi instead" variant="secondary" onPress={onGetModel} full />
+              <Button title="Continue without AI setup" variant="secondary" onPress={onContinueOffline} full />
+              <Body muted style={{ textAlign: "center", fontSize: 12 }}>
+                Games remain available. You can install the model later in Settings.
+              </Body>
             </View>
           </View>
         )}

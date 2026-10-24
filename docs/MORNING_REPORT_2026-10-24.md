@@ -57,3 +57,13 @@
 ## Still open (awaiting you)
 - **13 vs 14 games:** Twenty Questions is still de‑registered ("drop it for now"). Restore it, or keep 13?
 - Scope for the next big chunk (features) + how to reconcile the Codex copy.
+
+---
+
+## Update — Codex's foundation work merged (same morning)
+Codex had started on its copy and did useful **non‑game foundation** work. You said "games are as is," so I took only the parts that don't touch game mechanics/visuals and merged them onto the current main repo (tsc + release build green):
+- **Model is now optional** — "Continue without AI setup" on the setup screen; the choice persists; games/tools work without the ~1 GB model; a "Set up local AI" row added in Settings to install it later.
+- **Live clock context in chat** — each chat turn now gets the device's real date/time + timezone (model can answer "what's today?"), with date arithmetic explicitly reserved for app code.
+- **Chat robustness** — mic start/stop and send are guarded against double‑taps; one controlled TTS utterance at a time (no stale callbacks); a missing model now shows a friendly "install it in Settings" message instead of a raw error.
+
+**Not ported (honoring "games as is"):** Codex's game‑file tweaks, overlay entrance animation, and per‑control accessibility labels stay only in the Codex copy. Build tag is now `2026-10-24 · arcade-2+foundation`.

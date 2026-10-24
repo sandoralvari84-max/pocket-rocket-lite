@@ -15,7 +15,7 @@ const RATE_MIN = 0.5;
 const RATE_MAX = 1.3;
 const RATE_STEP = 0.05;
 
-export default function Settings({ onAbout }: { onAbout: () => void }) {
+export default function Settings({ onAbout, onModelSetup }: { onAbout: () => void; onModelSetup: () => void }) {
   const st = useSettings();
 
   const setRate = (next: number) => {
@@ -90,11 +90,19 @@ export default function Settings({ onAbout }: { onAbout: () => void }) {
         <Row>
           <View style={{ flex: 1 }}>
             <Label>On-device model</Label>
-            <Body muted style={cs.rowHint}>Qwen2.5-1.5B Instruct, quantized, running locally via llama.rn.</Body>
+            <Body muted style={cs.rowHint}>Qwen2.5-1.5B Instruct, quantized, running locally via llama.rn. Model installation is optional.</Body>
           </View>
-          <Chip label="On-device" tone="cyan" />
+          <Chip label="Optional" tone="cyan" />
         </Row>
       </Panel>
+
+      <Pressable onPress={onModelSetup} accessibilityRole="button" style={({ pressed }) => [cs.aboutRow, pressed && cs.aboutPressed]}>
+        <View style={{ flex: 1 }}>
+          <Label>Set up local AI</Label>
+          <Body muted style={cs.rowHint}>Import the model or download it over Wi-Fi. Games remain available without it.</Body>
+        </View>
+        <Text style={cs.chevron}>›</Text>
+      </Pressable>
 
       {/* ---- ABOUT ---- */}
       <Pressable
