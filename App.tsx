@@ -10,7 +10,7 @@ import { color, space, radius, type as T } from "./src/design/tokens";
 import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
 import { getSettings, loadSettings, setSetting } from "./src/settings";
-import { L, useLang } from "./src/i18n";
+import { L, useLang, LANGS } from "./src/i18n";
 
 const EMBLEM = require("./assets/brand/emblem.png");
 
@@ -88,6 +88,7 @@ function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImpo
               <OnboardRow glyph="🧪" title={L("It pushes back on bad info")} text={L("On a specific false-fact test it followed a planted lie far less often — down from 97% to 23% (and it held when the lie was reworded). That's one test, not a general accuracy promise.")} last />
             </Card>
             <Body muted style={{ fontSize: 12, textAlign: "center" }}>{DISCLAIMER}</Body>
+            <LangSelect />
             <Button title={L("I understand — continue")} onPress={onContinue} full />
           </>
         )}
@@ -142,6 +143,34 @@ function OnboardRow({ glyph, title, text, last }: { glyph: string; title: string
     </View>
   );
 }
+
+// Pre-launch language selector on the onboarding screen (English / Español / Deutsch).
+function LangSelect() {
+  useLang(); // re-render + re-localize the onboarding on change
+  const cur = getSettings().language ?? "en";
+  return (
+    <View style={ls.row}>
+      {LANGS.map((l) => {
+        const on = cur === l.key;
+        return (
+          <Pressable key={l.key} onPress={() => setSetting("language", l.key)}
+            accessibilityRole="button" accessibilityLabel={l.label}
+            style={({ pressed }) => [ls.pill, on && ls.pillOn, pressed && !on && { backgroundColor: color.surface2 }]}>
+            <Text style={[ls.pillT, on && ls.pillTOn]}>{l.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const ls = StyleSheet.create({
+  row: { flexDirection: "row", gap: space.sm, justifyContent: "center" },
+  pill: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: color.surfaceLine, backgroundColor: color.surface, alignItems: "center", justifyContent: "center" },
+  pillOn: { borderColor: color.amber, backgroundColor: color.amberGlowBg },
+  pillT: { ...T.small, color: color.textMuted, fontWeight: "700" },
+  pillTOn: { color: color.amber },
+});
 
 // A tappable setup choice, styled as a menu card (icon tile + title + sub + chevron).
 function SetupOption({ glyph, title, sub, tint, onPress }: {
