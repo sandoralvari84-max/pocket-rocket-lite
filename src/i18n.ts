@@ -62,6 +62,38 @@ const TR: Record<string, Pair> = {
     { de: "Eine kleine KI, die komplett auf deinem Telefon läuft. Optional — einmal hinzufügen, dann für immer offline nutzbar.",
       es: "Una IA pequeña que funciona por completo en tu teléfono. Opcional — añádela una vez y funciona sin conexión para siempre." },
 
+  // ---- Experts (RAG over knowledge packs) ----
+  "EXPERTS": { de: "EXPERTEN", es: "EXPERTOS" },
+  "Experts": { de: "Experten", es: "Expertos" },
+  "Ask across 13 curated knowledge packs — answers cite their source":
+    { de: "Frage über 13 kuratierte Wissenspakete — Antworten nennen die Quelle", es: "Pregunta en 13 paquetes de conocimiento — las respuestas citan su fuente" },
+  "Ask across curated knowledge packs. Answers come from the packs, not made up — sources are shown.":
+    { de: "Frage über kuratierte Wissenspakete. Antworten stammen aus den Paketen, nicht erfunden — Quellen werden gezeigt.", es: "Pregunta en paquetes de conocimiento curados. Las respuestas vienen de los paquetes, no inventadas — se muestran las fuentes." },
+  "All": { de: "Alle", es: "Todos" },
+  "Ask a question…": { de: "Stelle eine Frage…", es: "Haz una pregunta…" },
+  "Ask": { de: "Fragen", es: "Preguntar" },
+  "Searching the packs…": { de: "Pakete durchsuchen…", es: "Buscando en los paquetes…" },
+  "ANSWER": { de: "ANTWORT", es: "RESPUESTA" },
+  "SOURCES": { de: "QUELLEN", es: "FUENTES" },
+  "PASSAGES": { de: "AUSZÜGE", es: "PASAJES" },
+  "No model installed — here are the matching passages from the packs:":
+    { de: "Kein Modell installiert — hier die passenden Auszüge aus den Paketen:", es: "No hay modelo instalado — aquí están los pasajes que coinciden:" },
+  "Pick a pack or search all. Examples: “how to judge a health claim”, “what is a marketing funnel”.":
+    { de: "Wähle ein Paket oder suche in allen. Beispiele: „Gesundheitsaussage bewerten“, „Was ist ein Marketing-Funnel“.", es: "Elige un paquete o busca en todos. Ejemplos: «cómo evaluar una afirmación de salud», «qué es un embudo de marketing»." },
+  "Business": { de: "Wirtschaft", es: "Negocios" },
+  "Coding": { de: "Programmierung", es: "Programación" },
+  "Cybersecurity": { de: "Cybersicherheit", es: "Ciberseguridad" },
+  "Datascience": { de: "Data Science", es: "Ciencia de datos" },
+  "Design": { de: "Design", es: "Diseño" },
+  "Finance": { de: "Finanzen", es: "Finanzas" },
+  "Health": { de: "Gesundheit", es: "Salud" },
+  "Legal": { de: "Recht", es: "Legal" },
+  "Marketing": { de: "Marketing", es: "Marketing" },
+  "Philosophy": { de: "Philosophie", es: "Filosofía" },
+  "Product": { de: "Produkt", es: "Producto" },
+  "Software": { de: "Software", es: "Software" },
+  "Webdesign": { de: "Webdesign", es: "Diseño web" },
+
   // ---- Tools niches: Grocery / Diet / Fitness ----
   "GROCERY": { de: "EINKAUF", es: "COMPRA" },
   "DIET": { de: "ERNÄHRUNG", es: "DIETA" },

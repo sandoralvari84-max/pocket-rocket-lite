@@ -27,3 +27,9 @@ All three: correctness is deterministic code; no model involvement. Wired into T
 Home routes; de/es for headline strings (data-term labels fall back to English this pass).
 **Held for confirmation:** consumer tools #4–13 (budget/calendar/habits/water/sleep/
 measurements/meal-planner/recipes/timers/converter) — confirm scope + order.
+
+## RAG — Experts tool over the 13 GitHub knowledge packs
+
+| Feature | What was built | Verified | Needs real-device |
+|---|---|---|---|
+| **Experts** (RAG) | 13 KB niches bundled (`kb_packs.json`, 374 chunks, 166 KB) + deterministic keyword retrieval (`data/kb.ts`). New Experts screen: niche filter (All + 13) → ask → **grounded** answer (model phrases ONLY retrieved passages, cites source) OR, with no model installed, the matching passages shown directly. `askExpert()` in model.ts (temp 0.3, answer-only-from-notes system prompt). Wired into Tools + Home. | ✅ tsc · ✅ bundle (785) · ✅ retrieval logic test (niche targeting, cross-niche, empty/nonsense) | 🕹️ grounded-answer QUALITY with the model on device (retrieval is deterministic & tested; model phrasing needs the ~1 GB model loaded) |
