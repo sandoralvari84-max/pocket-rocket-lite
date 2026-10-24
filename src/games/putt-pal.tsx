@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, ImageBackground, StyleSheet, Dimensions, type GestureResponderEvent } from "react-native";
+import { View, Image, ImageBackground, StyleSheet, Dimensions, type GestureResponderEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
@@ -11,6 +11,9 @@ const GRASS = require("../../assets/arcade/putt/grass.png");
 const WATER = require("../../assets/arcade/putt/water.png");
 const SAND = require("../../assets/arcade/putt/sand.png");
 const WOOD = require("../../assets/arcade/putt/wood.png");
+const HEDGE = require("../../assets/arcade/putt/hedge.png");
+const CUP = require("../../assets/arcade/putt/cup.png");
+const FLAG = require("../../assets/arcade/putt/flag.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -289,7 +292,11 @@ function GameScreen({ onExit }: GameContext) {
       onResponderRelease={onRelease}
       onResponderTerminate={onRelease}
     >
-      {/* fairway (tiled grass texture) */}
+      {/* hedge border behind the course (peeks out as a clipped-hedge frame) */}
+      <ImageBackground source={HEDGE} resizeMode="repeat"
+        style={{ position: "absolute", left: PLx - 8, top: PT - 8, width: PW + 16, height: PH + 16, borderRadius: radius.md + 4, overflow: "hidden", pointerEvents: "none" }}
+        imageStyle={{ borderRadius: radius.md + 4 }} />
+      {/* fairway (tiled grass texture) with red rails */}
       <ImageBackground source={GRASS} resizeMode="repeat" style={st.fairway} imageStyle={{ borderRadius: radius.md }} />
 
       {/* water hazards (textured — resets the stroke) */}
@@ -314,10 +321,13 @@ function GameScreen({ onExit }: GameContext) {
         <ImageBackground key={`wl${i}`} source={WOOD} resizeMode="repeat" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, borderWidth: 2, borderColor: "#6E4A28", borderRadius: 4, overflow: "hidden", pointerEvents: "none" }} imageStyle={{ borderRadius: 3 }} />
       ))}
 
-      {/* hole + flag */}
-      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - HOLE_R, top: hole.hole.y - HOLE_R, width: HOLE_R * 2, height: HOLE_R * 2, borderRadius: HOLE_R, backgroundColor: "#0A2A12", borderWidth: 3, borderColor: "#06160A" }} />
-      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - 1.5, top: hole.hole.y - HOLE_R - 32, width: 3, height: 32, borderRadius: 2, backgroundColor: "#D9D3C4" }} />
-      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x + 1.5, top: hole.hole.y - HOLE_R - 31, width: 0, height: 0, borderTopWidth: 8, borderBottomWidth: 8, borderLeftWidth: 22, borderTopColor: "transparent", borderBottomColor: "transparent", borderLeftColor: color.danger }} />
+      {/* hole cup + flag (sprites) */}
+      <View pointerEvents="none">
+        <Image source={CUP} fadeDuration={0}
+          style={{ position: "absolute", left: hole.hole.x - HOLE_R, top: hole.hole.y - HOLE_R, width: HOLE_R * 2, height: HOLE_R * 2 }} />
+        <Image source={FLAG} fadeDuration={0}
+          style={{ position: "absolute", left: hole.hole.x - 9, top: hole.hole.y - 52, width: 40, height: 60 }} />
+      </View>
 
       {/* grab-zone hint while the ball is at rest */}
       {idle ? (
@@ -405,7 +415,7 @@ function GameScreen({ onExit }: GameContext) {
 
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
-  fairway: { position: "absolute", left: PLx, top: PT, width: PW, height: PH, borderRadius: radius.md, borderWidth: 3, borderColor: "#1B5E20", backgroundColor: "#2E7D32", overflow: "hidden", pointerEvents: "none" },
+  fairway: { position: "absolute", left: PLx, top: PT, width: PW, height: PH, borderRadius: radius.md, borderWidth: 4, borderColor: "#C0392B", backgroundColor: "#2E7D32", overflow: "hidden", pointerEvents: "none" },
   hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
   hint: { position: "absolute", left: 0, right: 0, alignItems: "center", paddingHorizontal: space.lg },
