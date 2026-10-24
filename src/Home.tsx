@@ -20,9 +20,15 @@ import Fitness from "./screens/Fitness";
 import Experts from "./screens/Experts";
 import Budget from "./screens/Budget";
 import Habits from "./screens/Habits";
+import Water from "./screens/Water";
+import Sleep from "./screens/Sleep";
+import Measurements from "./screens/Measurements";
+import Timers from "./screens/Timers";
+import Converter from "./screens/Converter";
 
 type Tab = "chat" | "games" | "tools" | "settings";
-type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits";
+type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
+  | "water" | "sleep" | "measure" | "timer" | "convert";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -156,6 +162,21 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   }
   if (screen === "habits") {
     return <Habits onBack={() => setScreen(null)} />;
+  }
+  if (screen === "water") {
+    return <Water onBack={() => setScreen(null)} />;
+  }
+  if (screen === "sleep") {
+    return <Sleep onBack={() => setScreen(null)} />;
+  }
+  if (screen === "measure") {
+    return <Measurements onBack={() => setScreen(null)} />;
+  }
+  if (screen === "timer") {
+    return <Timers onBack={() => setScreen(null)} />;
+  }
+  if (screen === "convert") {
+    return <Converter onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.

@@ -17,7 +17,8 @@ const TOOLS: Tool[] = [
   { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
 ];
 
-type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits";
+type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
+  | "water" | "sleep" | "measure" | "timer" | "convert";
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
@@ -73,6 +74,11 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
         { route: "fitness" as const, glyph: "🏋", tint: color.amber, bg: color.amberGlowBg, title: "Fitness", sub: "Log workouts, track training volume & progress" },
         { route: "budget" as const, glyph: "💶", tint: color.cyan, bg: color.cyanGlowBg, title: "Budget", sub: "Track income & expenses, monthly balance by category" },
         { route: "habits" as const, glyph: "🔥", tint: color.amber, bg: color.amberGlowBg, title: "Habits", sub: "Build streaks — check in daily, keep the chain going" },
+        { route: "water" as const, glyph: "💧", tint: color.cyan, bg: color.cyanGlowBg, title: "Water", sub: "Track cups vs your daily hydration goal" },
+        { route: "sleep" as const, glyph: "😴", tint: color.cyan, bg: color.cyanGlowBg, title: "Sleep", sub: "Log nightly hours, see your 7-night average" },
+        { route: "measure" as const, glyph: "📏", tint: color.amber, bg: color.amberGlowBg, title: "Measurements", sub: "Weight & body metrics with change over time" },
+        { route: "timer" as const, glyph: "⏱", tint: color.amber, bg: color.amberGlowBg, title: "Timer", sub: "Countdown with presets — buzzes when done" },
+        { route: "convert" as const, glyph: "🔁", tint: color.cyan, bg: color.cyanGlowBg, title: "Converter", sub: "Length, weight, volume & temperature — exact, offline" },
       ]).map((f) => (
         <Pressable key={f.route} onPress={() => onOpen(f.route)} accessibilityRole="button" accessibilityLabel={f.title}
           style={({ pressed }) => [st.card, pressed && { borderColor: f.tint, backgroundColor: color.surface2 }]}>

@@ -35,3 +35,16 @@ measurements/meal-planner/recipes/timers/converter) — confirm scope + order.
 | Feature | What was built | Verified | Needs real-device |
 |---|---|---|---|
 | **Experts** (RAG) | 13 KB niches bundled (`kb_packs.json`, 374 chunks, 166 KB) + deterministic keyword retrieval (`data/kb.ts`). New Experts screen: niche filter (All + 13) → ask → **grounded** answer (model phrases ONLY retrieved passages, cites source) OR, with no model installed, the matching passages shown directly. `askExpert()` in model.ts (temp 0.3, answer-only-from-notes system prompt). Wired into Tools + Home. | ✅ tsc · ✅ bundle (785) · ✅ retrieval logic test (niche targeting, cross-niche, empty/nonsense) | 🕹️ grounded-answer QUALITY with the model on device (retrieval is deterministic & tested; model phrasing needs the ~1 GB model loaded) |
+
+| **Water** (#7) | Daily cup tally vs goal; deterministic count; +/− + goal steppers, dot grid. | ✅ tsc · ✅ bundle (792) | 🕹️ feel |
+| **Sleep** (#8) | Nightly hours; deterministic 7-night mean; one entry/night. | ✅ tsc · ✅ bundle | 🕹️ feel |
+| **Measurements** (#9) | Weight/waist/body-fat; deterministic delta vs previous reading; per-metric history. | ✅ tsc · ✅ bundle | 🕹️ feel |
+| **Timer** (#12) | Countdown off a target timestamp (drift-free); presets + adjust; haptic buzz at 0 (sound later). | ✅ tsc · ✅ bundle | 🕹️ haptics/feel on device |
+| **Converter** (#13) | Length/weight/volume/temperature, exact factors, offline. | ✅ tsc · ✅ bundle · ✅ logic test (m↔ft, kg↔lb, C↔F↔K, gal→L, roundtrip) | 🕹️ feel; live currency FX = later add |
+
+**Consumer tools: 10 of 13 built.** Remaining: Calendar (#5 — agenda is pure JS; reminder *notifications* need expo-notifications, a native rebuild), Meal-planner (#10), Recipes (#11).
+
+### Flagged native tier (needs a native rebuild + on-device verification — NOT "lite")
+- **Calendar reminders** — `expo-notifications` (config plugin + prebuild) to fire local notifications.
+- **Notification reader** — a quiet background service woken from a button that reads incoming message/notification content aloud (on-device TTS). Needs a native **NotificationListenerService** + the user granting "Notification access". Fine for a sideloaded app.
+- **"Lives with the phone" deep integration** (Tier‑2/3, user's vision 2026-10-24) — answer/read messages, calls, reach Android surfaces. Needs telephony/ConnectionService + Accessibility/quick-reply (RemoteInput). Heavy + Play-policy-sensitive; sideload makes it viable. Build after lite ships; see memory offline-voice-buddy-plan.
