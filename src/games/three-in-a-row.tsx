@@ -1,9 +1,16 @@
 import React, { useRef, useState } from "react";
-import { View, StyleSheet, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, Dimensions, ImageBackground, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+
+// Notebook-paper theme (tools/art/gen_paper.py) — a pen-and-paper game on a ripped page.
+const PAPER = require("../../assets/arcade/paper/paper.png");
+const TORN = require("../../assets/arcade/paper/torn.png");
+const INK = "#27407E";   // blue biro (grid + X)
+const RED = "#B23B3B";   // red pen (O)
+const PENCIL = "#3A3730"; // graphite text
 
 type Cell = "X" | "O" | null; // X = player (amber), O = machine (cyan)
 type Board = Cell[];
@@ -82,8 +89,8 @@ function MarkX() {
   const len = CELL * 0.52;
   return (
     <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
-      <View style={[mk.bar, { width: len, backgroundColor: color.amber, transform: [{ rotate: "45deg" }] }]} />
-      <View style={[mk.bar, { width: len, backgroundColor: color.amber, transform: [{ rotate: "-45deg" }], position: "absolute" }]} />
+      <View style={[mk.bar, { width: len, backgroundColor: INK, transform: [{ rotate: "45deg" }] }]} />
+      <View style={[mk.bar, { width: len, backgroundColor: INK, transform: [{ rotate: "-45deg" }], position: "absolute" }]} />
     </View>
   );
 }
@@ -91,7 +98,7 @@ function MarkO() {
   const d = CELL * 0.58;
   return (
     <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 6, borderColor: color.cyan }} />
+      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 6, borderColor: RED }} />
     </View>
   );
 }
@@ -166,9 +173,10 @@ function Screen({ ask, onExit }: GameContext) {
   };
 
   return (
-    <View style={st.fill}>
+    <ImageBackground source={PAPER} resizeMode="repeat" style={st.fill}>
+      <Image source={TORN} resizeMode="stretch" fadeDuration={0} style={st.torn} />
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
-        <PixelText size="h2" style={{ color: color.amber }}>THREE IN A ROW</PixelText>
+        <PixelText size="h2" style={{ color: INK }}>THREE IN A ROW</PixelText>
         <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
@@ -211,7 +219,7 @@ function Screen({ ask, onExit }: GameContext) {
         onPrimary={reset}
         onExit={onExit}
       />
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -220,21 +228,21 @@ const mk = StyleSheet.create({
 });
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
+  fill: { flex: 1, backgroundColor: "#F4EEDE" },
+  torn: { position: "absolute", left: 0, top: 0, width: "100%", height: 22 },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
-  status: { color: color.text, fontWeight: "700", textAlign: "center" },
+  status: { color: PENCIL, fontWeight: "700", textAlign: "center" },
   grid: {
     position: "relative",
-    backgroundColor: "#1C2536", borderRadius: radius.lg,
-    borderWidth: 2, borderColor: "#30406A",
+    backgroundColor: "transparent", borderRadius: radius.lg,
   },
   cell: { position: "absolute", alignItems: "center", justifyContent: "center" },
-  cellWin: { backgroundColor: "rgba(80,230,140,0.18)", borderRadius: radius.md },
-  vline: { position: "absolute", width: 3, borderRadius: 2, backgroundColor: "#3A4E78" },
-  hline: { position: "absolute", height: 3, borderRadius: 2, backgroundColor: "#3A4E78" },
-  lastDot: { position: "absolute", left: 10, right: 10, bottom: 6, height: 3, borderRadius: 2, backgroundColor: color.amber },
-  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
+  cellWin: { backgroundColor: "rgba(80,180,110,0.22)", borderRadius: radius.md },
+  vline: { position: "absolute", width: 4, borderRadius: 2, backgroundColor: INK },
+  hline: { position: "absolute", height: 4, borderRadius: 2, backgroundColor: INK },
+  lastDot: { position: "absolute", left: 10, right: 10, bottom: 6, height: 3, borderRadius: 2, backgroundColor: RED },
+  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24, color: PENCIL },
 });
 
 export const threeInARowGame: GameModule = {

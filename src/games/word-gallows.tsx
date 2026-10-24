@@ -1,10 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Animated, Easing, Image, Dimensions } from "react-native";
+import { View, Text, Pressable, StyleSheet, Animated, Easing, Image, ImageBackground, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext, AskModel } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 import { useSettings } from "../settings";
+
+// Notebook-paper theme (tools/art/gen_paper.py + gen_gallows_notebook.py) — a
+// pen-and-paper word game doodled on a ripped page.
+const PAPER = require("../../assets/arcade/paper/paper.png");
+const TORN = require("../../assets/arcade/paper/torn.png");
+const INK = "#27407E";     // blue biro
+const RED = "#B23B3B";     // red pen
+const PENCIL = "#3A3730";  // graphite text
 
 const MAX_WRONG = 6;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -137,12 +145,13 @@ function Screen({ onExit }: GameContext) {
   };
 
   return (
-    <View style={st.fill}>
+    <ImageBackground source={PAPER} resizeMode="repeat" style={st.fill}>
+      <Image source={TORN} resizeMode="stretch" fadeDuration={0} style={st.torn} />
       <View style={[st.bar, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
         <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
         <View style={{ alignItems: "center" }}>
-          <PixelText size="h2" style={{ color: color.cyan }}>WORD GALLOWS</PixelText>
-          <PixelText size="label" style={{ marginTop: 4 }}>SOLVED {solved}</PixelText>
+          <PixelText size="h2" style={{ color: INK }}>WORD GALLOWS</PixelText>
+          <PixelText size="label" style={{ marginTop: 4, color: PENCIL }}>SOLVED {solved}</PixelText>
         </View>
         <Pressable style={st.newBtn} onPress={() => void newGame()} accessibilityRole="button" accessibilityLabel="New word">
           <Body style={st.newT}>New</Body>
@@ -158,7 +167,7 @@ function Screen({ onExit }: GameContext) {
           <Hangman wrong={wrongCount} won={won} lost={lost} />
 
           <View style={st.catPill}>
-            <PixelText size="label" style={{ color: color.cyan }}>CATEGORY</PixelText>
+            <PixelText size="label" style={{ color: INK }}>CATEGORY</PixelText>
             <Body style={st.catTxt}>{secret ? secret.category.toUpperCase() : "—"}</Body>
           </View>
 
@@ -168,7 +177,7 @@ function Screen({ onExit }: GameContext) {
               const miss = lost && !guessed.includes(l);
               return (
                 <View key={i} style={[st.tile, shown && (miss ? st.tileMiss : st.tileShown)]}>
-                  <Text style={[st.tileT, miss && { color: color.danger }]}>{shown ? l : ""}</Text>
+                  <Text style={[st.tileT, miss && { color: RED }]}>{shown ? l : ""}</Text>
                 </View>
               );
             })}
@@ -197,7 +206,7 @@ function Screen({ onExit }: GameContext) {
                   accessibilityLabel={`Guess ${ch}`}
                   style={[st.key, used ? (good ? st.keyGood : st.keyBad) : st.keyIdle, over ? st.keyDim : null]}
                 >
-                  <Text style={[st.keyT, used && !good && st.keyTBad]}>{ch}</Text>
+                  <Text style={[st.keyT, used && good && { color: "#1F6B2E" }, used && !good && st.keyTBad]}>{ch}</Text>
                 </Pressable>
               );
             })}
@@ -214,7 +223,7 @@ function Screen({ onExit }: GameContext) {
         onPrimary={() => void newGame()}
         onExit={onExit}
       />
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -270,7 +279,8 @@ function Hangman({ wrong, won, lost }: { wrong: number; won: boolean; lost: bool
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
+  fill: { flex: 1, backgroundColor: "#F4EEDE" },
+  torn: { position: "absolute", left: 0, top: 0, width: "100%", height: 22 },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -283,11 +293,11 @@ const st = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: color.cyan,
+    borderColor: INK,
     alignItems: "center",
     justifyContent: "center",
   },
-  newT: { color: color.cyan, fontWeight: "800", fontSize: 14 },
+  newT: { color: INK, fontWeight: "800", fontSize: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   body: { flex: 1, alignItems: "center", paddingHorizontal: space.lg },
 
@@ -295,15 +305,15 @@ const st = StyleSheet.create({
   hangWrap: { alignItems: "center", justifyContent: "center", marginTop: space.sm },
   sprite: { width: SPRITE_W, height: SPRITE_H },
 
-  catPill: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.md, backgroundColor: color.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: color.surfaceLine, paddingHorizontal: space.md, paddingVertical: space.xs },
-  catTxt: { color: color.text, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
+  catPill: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.md, backgroundColor: "rgba(39,64,126,0.07)", borderRadius: radius.md, borderWidth: 1, borderColor: INK, paddingHorizontal: space.md, paddingVertical: space.xs },
+  catTxt: { color: PENCIL, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
   wordRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginTop: space.md },
-  tile: { width: 36, height: 46, borderRadius: radius.sm, backgroundColor: color.surface, borderBottomWidth: 3, borderColor: color.surfaceLine, alignItems: "center", justifyContent: "center" },
-  tileShown: { backgroundColor: color.surface2, borderColor: color.cyan },
-  tileMiss: { backgroundColor: "rgba(255,82,71,0.14)", borderColor: color.danger },
-  tileT: { color: color.text, fontSize: 24, fontWeight: "900" },
-  wrongLine: { color: color.textMuted, fontSize: 14, marginTop: space.md },
-  instructions: { marginTop: space.md, textAlign: "center", paddingHorizontal: space.lg },
+  tile: { width: 36, height: 46, borderRadius: radius.sm, backgroundColor: "transparent", borderBottomWidth: 3, borderColor: INK, alignItems: "center", justifyContent: "center" },
+  tileShown: { backgroundColor: "rgba(39,64,126,0.08)", borderColor: INK },
+  tileMiss: { backgroundColor: "rgba(178,59,59,0.12)", borderColor: RED },
+  tileT: { color: INK, fontSize: 24, fontWeight: "900" },
+  wrongLine: { color: PENCIL, fontSize: 14, marginTop: space.md },
+  instructions: { marginTop: space.md, textAlign: "center", paddingHorizontal: space.lg, color: PENCIL },
   keys: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginTop: space.lg },
   key: {
     width: 34,
@@ -313,14 +323,14 @@ const st = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: color.surfaceLine,
+    borderColor: INK,
   },
-  keyIdle: { backgroundColor: color.surface2 },
-  keyGood: { backgroundColor: color.success, borderColor: color.success },
-  keyBad: { backgroundColor: "rgba(255,82,71,0.18)", borderColor: color.danger },
+  keyIdle: { backgroundColor: "rgba(39,64,126,0.05)" },
+  keyGood: { backgroundColor: "rgba(31,107,46,0.18)", borderColor: "#1F6B2E" },
+  keyBad: { backgroundColor: "rgba(178,59,59,0.14)", borderColor: RED },
   keyDim: { opacity: 0.55 },
-  keyT: { color: color.text, fontSize: 16, fontWeight: "800" },
-  keyTBad: { color: color.danger },
+  keyT: { color: INK, fontSize: 16, fontWeight: "800" },
+  keyTBad: { color: RED },
 });
 
 export const wordGallowsGame: GameModule = {
