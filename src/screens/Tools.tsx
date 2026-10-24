@@ -18,7 +18,7 @@ const TOOLS: Tool[] = [
 ];
 
 type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert";
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals";
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
@@ -79,6 +79,9 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
         { route: "measure" as const, glyph: "📏", tint: color.amber, bg: color.amberGlowBg, title: "Measurements", sub: "Weight & body metrics with change over time" },
         { route: "timer" as const, glyph: "⏱", tint: color.amber, bg: color.amberGlowBg, title: "Timer", sub: "Countdown with presets — buzzes when done" },
         { route: "convert" as const, glyph: "🔁", tint: color.cyan, bg: color.cyanGlowBg, title: "Converter", sub: "Length, weight, volume & temperature — exact, offline" },
+        { route: "calendar" as const, glyph: "📅", tint: color.amber, bg: color.amberGlowBg, title: "Calendar", sub: "Agenda of upcoming events (reminders coming later)" },
+        { route: "meals" as const, glyph: "🍽", tint: color.cyan, bg: color.cyanGlowBg, title: "Meal planner", sub: "Plan breakfast, lunch & dinner across the week" },
+        { route: "recipes" as const, glyph: "👩‍🍳", tint: color.amber, bg: color.amberGlowBg, title: "Recipes", sub: "Save recipes; push ingredients to your grocery list" },
       ]).map((f) => (
         <Pressable key={f.route} onPress={() => onOpen(f.route)} accessibilityRole="button" accessibilityLabel={f.title}
           style={({ pressed }) => [st.card, pressed && { borderColor: f.tint, backgroundColor: color.surface2 }]}>

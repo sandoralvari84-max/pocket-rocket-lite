@@ -48,3 +48,11 @@ measurements/meal-planner/recipes/timers/converter) — confirm scope + order.
 - **Calendar reminders** — `expo-notifications` (config plugin + prebuild) to fire local notifications.
 - **Notification reader** — a quiet background service woken from a button that reads incoming message/notification content aloud (on-device TTS). Needs a native **NotificationListenerService** + the user granting "Notification access". Fine for a sideloaded app.
 - **"Lives with the phone" deep integration** (Tier‑2/3, user's vision 2026-10-24) — answer/read messages, calls, reach Android surfaces. Needs telephony/ConnectionService + Accessibility/quick-reply (RemoteInput). Heavy + Play-policy-sensitive; sideload makes it viable. Build after lite ships; see memory offline-voice-buddy-plan.
+- **Privacy broker (Tier‑2):** route AI queries to another on-device AI via the phone integration so the app never makes its own network call ("exposes nothing"). Flagged.
+- **Hardened memory vault:** encrypted second box (Keystore/SecureStore + crypto, biometric unlock) for sensitive data (memory/health/budget), safe even if the phone is compromised. Flagged.
+
+| **Calendar** (#5) | Event agenda with deterministic date grouping (Today/Tomorrow/This week/Later); add w/ day stepper + quick picks. Reminder notifications flagged (native). | ✅ tsc · ✅ bundle (795) | 🕹️ feel; notifications later |
+| **Meal planner** (#10) | Breakfast/lunch/dinner across a 7-day week strip; per-day slots, planned-count dots. Offline. | ✅ tsc · ✅ bundle | 🕹️ feel |
+| **Recipes** (#11) | Save recipes (title/ingredients/steps) + **push ingredients to Grocery** (deterministic line-split). Offline. | ✅ tsc · ✅ bundle | 🕹️ feel |
+
+**✅ All 13 consumer tools built.** Next per the user's plan: UI polish creative pass → games content (on device) → sounds → finalize.

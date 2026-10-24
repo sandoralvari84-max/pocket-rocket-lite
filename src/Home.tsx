@@ -25,10 +25,13 @@ import Sleep from "./screens/Sleep";
 import Measurements from "./screens/Measurements";
 import Timers from "./screens/Timers";
 import Converter from "./screens/Converter";
+import Calendar from "./screens/Calendar";
+import Recipes from "./screens/Recipes";
+import MealPlanner from "./screens/MealPlanner";
 
 type Tab = "chat" | "games" | "tools" | "settings";
 type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert";
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -177,6 +180,15 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   }
   if (screen === "convert") {
     return <Converter onBack={() => setScreen(null)} />;
+  }
+  if (screen === "calendar") {
+    return <Calendar onBack={() => setScreen(null)} />;
+  }
+  if (screen === "recipes") {
+    return <Recipes onBack={() => setScreen(null)} />;
+  }
+  if (screen === "meals") {
+    return <MealPlanner onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.
