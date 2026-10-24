@@ -8,7 +8,7 @@ import * as Speech from "expo-speech";
 import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from "expo-audio";
 import { chat } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
-import { useSettings, getSettings } from "./settings";
+import { useSettings, getSettings, setSetting } from "./settings";
 import { L, useLang } from "./i18n";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
 import { Body, PixelText, Input, Banner, Sprite } from "./design/ui";
@@ -16,6 +16,11 @@ import VoiceBar, { VoiceBarState } from "./VoiceBar";
 import { appMeta } from "./appMeta";
 
 const EMBLEM = require("../assets/brand/emblem.png");
+
+// Restrained starfield for the home hero depth (static; a handful of dots).
+const HERO_STARS = Array.from({ length: 16 }, () => ({
+  x: Math.random(), y: Math.random(), sz: 1 + Math.random() * 1.6, op: 0.18 + Math.random() * 0.4,
+}));
 
 type Msg = { role: "user" | "assistant"; text: string };
 
@@ -45,7 +50,10 @@ function speakable(t: string): string {
     .slice(0, 600);
 }
 
-export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonce?: number } = {}) {
+export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, onOpenNotes }: {
+  seed?: string; seedNonce?: number;
+  onOpenGames?: () => void; onOpenTools?: () => void; onOpenNotes?: () => void;
+} = {}) {
   const settings = useSettings();
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -230,75 +238,82 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {/* Console header */}
+        {/* Masthead: brand + persona swap */}
         <View style={s.header}>
-          <View style={{ flex: 1 }}>
-            <PixelText size="h2" style={{ color: color.amber }}>{appMeta.name.toUpperCase()}</PixelText>
+          <Sprite source={EMBLEM} size={34} />
+          <View style={{ flex: 1, marginLeft: space.sm }}>
+            <PixelText size="label" style={{ color: color.amber, fontSize: 11 }}>{appMeta.name.toUpperCase()}</PixelText>
             <Text style={s.sub}>{L("On-device assistant · offline")}</Text>
           </View>
-          {msgs.length > 0 && (
-            <Pressable
-              onPress={() => { Speech.stop(); setSpeaking(false); clearError(); setMsgs([]); }}
-              accessibilityRole="button" accessibilityLabel="Clear conversation"
-              style={({ pressed }) => [s.clearBtn, pressed && { backgroundColor: color.surface2 }]}
-            >
-              <Text style={s.clearT}>Clear</Text>
-            </Pressable>
-          )}
+          <View style={s.personaWrap}>
+            {(["sentinel", "nova"] as const).map((p) => {
+              const on = settings.voice === p;
+              const c = p === "nova" ? color.cyan : color.amber;
+              return (
+                <Pressable key={p} onPress={() => setSetting("voice", p)}
+                  accessibilityRole="button" accessibilityLabel={`${p} persona`}
+                  style={[s.personaBtn, on && { backgroundColor: c + "22", borderColor: c }]}>
+                  <Text style={[s.personaT, { color: on ? c : color.textFaint }]}>{p === "nova" ? "NOVA" : "SENTINEL"}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        {/* Voice HUD panel */}
-        <View style={s.hud}>
-          <VoiceBar state={voiceState} reducedMotion={settings.reducedMotion} />
+        {/* KITT / HAL voice meter — the AI's face (compact, persona-aware) */}
+        <View style={s.meterWrap}>
+          <VoiceBar state={voiceState} persona={settings.voice} reducedMotion={settings.reducedMotion} height={82} />
           <View style={s.statusRow}>
             <View style={[s.dot, { backgroundColor: statusColor }]} />
             <Text style={[s.status, { color: statusColor }]}>{statusText}</Text>
-          </View>
-          <View style={s.hudControls}>
             {speaking && (
-              <Pressable
-                onPress={stopSpeak}
-                accessibilityRole="button" accessibilityLabel="Stop speaking"
-                style={({ pressed }) => [s.stopBtn, pressed && { backgroundColor: "rgba(255,82,71,0.15)" }]}
-              >
+              <Pressable onPress={stopSpeak} accessibilityRole="button" accessibilityLabel="Stop speaking"
+                style={({ pressed }) => [s.stopBtn, pressed && { backgroundColor: "rgba(255,82,71,0.15)" }]}>
                 <Text style={s.stopT}>■ Stop</Text>
+              </Pressable>
+            )}
+            {msgs.length > 0 && (
+              <Pressable onPress={() => { Speech.stop(); setSpeaking(false); clearError(); setMsgs([]); }}
+                accessibilityRole="button" accessibilityLabel="Clear conversation"
+                style={({ pressed }) => [s.clearBtn, pressed && { backgroundColor: color.surface2 }]}>
+                <Text style={s.clearT}>Clear</Text>
               </Pressable>
             )}
           </View>
         </View>
 
-        {/* Transcript */}
+        {/* Home hero (empty) vs transcript (conversation) */}
         {msgs.length === 0 ? (
           <ScrollView
-            style={s.transcript}
-            contentContainerStyle={s.emptyWrap}
+            style={s.fill}
+            contentContainerStyle={s.heroWrap}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Sprite source={EMBLEM} size={96} />
-            <Text style={s.emptyTitle}>{L("Ask me anything")}</Text>
-            <Body muted style={{ textAlign: "center", maxWidth: 300 }}>
-              {L("Type below or tap the mic. Everything runs on your device — nothing leaves the phone.")}
-            </Body>
-            <View style={s.starters}>
-              {STARTERS.map((st) => (
-                <Pressable
-                  key={st.label}
-                  onPress={() => {
-                    if (st.reply) {
-                      setMsgs((m) => [...m, { role: "user", text: L(st.label) }, { role: "assistant", text: st.reply! }]);
-                      speakText(st.reply!);
-                    } else if (st.prompt && st.prompt.trim().endsWith(":")) {
-                      setInput(st.prompt);
-                    } else if (st.prompt) {
-                      send(st.prompt);
-                    }
-                  }}
-                  accessibilityRole="button" accessibilityLabel={st.label}
-                  style={({ pressed }) => [s.starter, pressed && { borderColor: color.amber, backgroundColor: color.amberGlowBg }]}
-                >
-                  <Text style={s.starterT}>{L(st.label)}</Text>
-                </Pressable>
-              ))}
+            {HERO_STARS.map((st, i) => (
+              <View key={i} pointerEvents="none" style={[s.star, { left: `${st.x * 100}%`, top: st.y * 220, width: st.sz, height: st.sz, borderRadius: st.sz, opacity: st.op }]} />
+            ))}
+            <Text style={s.greeting}>{L("Ready when you are.")}</Text>
+            <Text style={s.heroSub}>{L("On-device · private · fully offline")}</Text>
+
+            <View style={s.composerHero}>
+              <Pressable onPress={micPress} disabled={busy} accessibilityRole="button"
+                accessibilityLabel={recording ? "Stop recording" : "Record voice"}
+                style={({ pressed }) => [s.mic, recording && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg }, pressed && { backgroundColor: color.surface2 }, busy && { opacity: 0.4 }]}>
+                <Text style={{ fontSize: 20, color: recording ? color.cyan : color.text }}>{recording ? "■" : "🎤"}</Text>
+              </Pressable>
+              <Input style={s.input} value={input} onChangeText={setInput} placeholder={L("Ask or tap the mic…")}
+                editable={!busy} onSubmitEditing={() => send()} returnKeyType="send" multiline={false} />
+              <Pressable onPress={() => send()} disabled={!canSend} accessibilityRole="button" accessibilityLabel="Send message"
+                style={({ pressed }) => [s.send, !canSend && { opacity: 0.4 }, pressed && canSend && { backgroundColor: color.amberDim }]}>
+                <Text style={s.sendT}>{L("Send")}</Text>
+              </Pressable>
+            </View>
+
+            <View style={s.keyRow}>
+              <ConsoleKey glyph="◉" label={L("ARCADE")} tint={color.amber} onPress={onOpenGames} />
+              <ConsoleKey glyph="▤" label={L("Tools")} tint={color.cyan} onPress={onOpenTools} />
+              <ConsoleKey glyph="✎" label={L("NOTES")} tint={color.textMuted} onPress={onOpenNotes} />
             </View>
           </ScrollView>
         ) : (
@@ -349,58 +364,88 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
           </View>
         )}
 
-        {/* Composer */}
-        <View style={s.composer}>
-          <Pressable
-            onPress={micPress}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel={recording ? "Stop recording" : "Record voice"}
-            style={({ pressed }) => [
-              s.mic,
-              recording && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg },
-              pressed && { backgroundColor: color.surface2 },
-              busy && { opacity: 0.4 },
-            ]}
-          >
-            <Text style={{ fontSize: 20, color: recording ? color.cyan : color.text }}>
-              {recording ? "■" : "🎤"}
-            </Text>
-          </Pressable>
+        {/* Composer (conversation view — the empty home has its own in the hero) */}
+        {msgs.length > 0 && (
+          <View style={s.composer}>
+            <Pressable
+              onPress={micPress}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={recording ? "Stop recording" : "Record voice"}
+              style={({ pressed }) => [
+                s.mic,
+                recording && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg },
+                pressed && { backgroundColor: color.surface2 },
+                busy && { opacity: 0.4 },
+              ]}
+            >
+              <Text style={{ fontSize: 20, color: recording ? color.cyan : color.text }}>
+                {recording ? "■" : "🎤"}
+              </Text>
+            </Pressable>
 
-          <Input
-            style={s.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder={L("Ask or tap the mic…")}
-            editable={!busy}
-            onSubmitEditing={() => send()}
-            returnKeyType="send"
-            multiline={false}
-          />
+            <Input
+              style={s.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder={L("Ask or tap the mic…")}
+              editable={!busy}
+              onSubmitEditing={() => send()}
+              returnKeyType="send"
+              multiline={false}
+            />
 
-          <Pressable
-            onPress={() => send()}
-            disabled={!canSend}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            style={({ pressed }) => [
-              s.send,
-              !canSend && { opacity: 0.4 },
-              pressed && canSend && { backgroundColor: color.amberDim },
-            ]}
-          >
-            <Text style={s.sendT}>{L("Send")}</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              onPress={() => send()}
+              disabled={!canSend}
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              style={({ pressed }) => [
+                s.send,
+                !canSend && { opacity: 0.4 },
+                pressed && canSend && { backgroundColor: color.amberDim },
+              ]}
+            >
+              <Text style={s.sendT}>{L("Send")}</Text>
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+// A tactile console key (Arcade / Tools / Notes) for the home hero.
+function ConsoleKey({ glyph, label, tint, onPress }: { glyph: string; label: string; tint: string; onPress?: () => void }) {
+  return (
+    <Pressable onPress={() => onPress?.()} accessibilityRole="button" accessibilityLabel={label}
+      style={({ pressed }) => [s.key, pressed && { borderColor: tint, backgroundColor: color.surface2 }]}>
+      <View style={[s.keyTile, { borderColor: tint }]}>
+        <Text style={[s.keyGlyph, { color: tint }]}>{glyph}</Text>
+      </View>
+      <PixelText size="label" style={{ color: color.text, marginTop: 6 }}>{label}</PixelText>
+    </Pressable>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: color.bg },
   fill: { flex: 1, backgroundColor: color.bg },
+
+  // Mission Bay home
+  personaWrap: { flexDirection: "row", gap: 6 },
+  personaBtn: { borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.pill, paddingHorizontal: 10, height: 30, justifyContent: "center" },
+  personaT: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  meterWrap: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs, alignItems: "center" },
+  heroWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
+  star: { position: "absolute", backgroundColor: "#E8F0FF" },
+  greeting: { fontSize: 30, fontWeight: "800", color: color.text, textAlign: "center", letterSpacing: 0.2 },
+  heroSub: { ...T.small, color: color.textMuted, textAlign: "center", marginBottom: space.md },
+  composerHero: { flexDirection: "row", gap: space.sm, alignItems: "center", alignSelf: "stretch", maxWidth: 440, width: "100%", backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.lg, padding: space.sm },
+  keyRow: { flexDirection: "row", gap: space.md, marginTop: space.lg, alignSelf: "stretch", maxWidth: 440, width: "100%" },
+  key: { flex: 1, backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.lg, paddingVertical: space.md, alignItems: "center" },
+  keyTile: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.03)" },
+  keyGlyph: { fontSize: 22, fontWeight: "900" },
 
   header: {
     flexDirection: "row", alignItems: "center",

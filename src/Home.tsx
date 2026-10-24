@@ -127,7 +127,14 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   return (
     <View style={s.fill}>
       <View style={[s.body, { paddingTop: Math.max(insets.top, 24) }]}>
-        {tab === "chat" && <VoiceChat seed={seed?.text} seedNonce={seed?.n} />}
+        {tab === "chat" && (
+          <VoiceChat
+            seed={seed?.text} seedNonce={seed?.n}
+            onOpenGames={() => setTab("games")}
+            onOpenTools={() => setTab("tools")}
+            onOpenNotes={() => setScreen("notes")}
+          />
+        )}
 
         {tab === "games" && (
           <ScrollView contentContainerStyle={s.libPad} showsVerticalScrollIndicator={false}>

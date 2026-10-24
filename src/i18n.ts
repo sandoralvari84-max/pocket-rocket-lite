@@ -155,6 +155,11 @@ const TR: Record<string, Pair> = {
   "Loading model…": { de: "Modell wird geladen…", es: "Cargando el modelo…" },
   "Something went wrong": { de: "Etwas ist schiefgelaufen", es: "Algo salió mal" },
   "Retry": { de: "Erneut versuchen", es: "Reintentar" },
+
+  // ---- home hero ----
+  "Ready when you are.": { de: "Bereit, wenn du es bist.", es: "Listo cuando quieras." },
+  "On-device · private · fully offline": { de: "Auf dem Gerät · privat · komplett offline", es: "En el dispositivo · privado · sin conexión" },
+  "NOTES": { de: "NOTIZEN", es: "NOTAS" },
 };
 
 // Translate an English source string to the current language (English fallback).

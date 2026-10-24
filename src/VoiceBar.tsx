@@ -2,90 +2,81 @@ import React, { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, Easing } from "react-native";
 import { color, radius, space } from "./design/tokens";
 
-// KITT-style scanner HUD: a horizontal strip of segments on the dark app bg.
-// AMBER is the primary voice color; CYAN marks the technical "listening" (mic capture) state.
-// Animates ONLY while an active state runs; idle is calm/static. Honors reducedMotion with a
-// static, non-animated indicator. Restrained glow is the only heavy visual, and only when active.
+// KITT / HAL-style voice meter — the AI's "face" (no avatar). A horizontal strip of
+// segments that scans/breathes. It is PERSONA-AWARE: Sentinel reads amber and idly
+// scans (cold, watchful); Nova reads cyan and idly breathes (warm). It reacts during
+// voice (listening = cyan sweep, thinking = scan, speaking = VU breathe) and goes
+// fully static under reduced motion. Compact by default — not a half-screen element.
 export type VoiceBarState = "idle" | "listening" | "thinking" | "speaking" | "error";
+export type Persona = "sentinel" | "nova";
 
-const N = 14;
+const N = 16;
 
-function stateColor(state: VoiceBarState): string {
-  switch (state) {
-    case "listening": return color.cyan;   // secondary / technical: capturing input
-    case "thinking":  return color.amber;
-    case "speaking":  return color.amber;
-    case "error":     return color.danger;
-    default:          return color.amber;  // idle (dimmed)
-  }
-}
-
-export default function VoiceBar({ state, reducedMotion = false }: {
+export default function VoiceBar({ state, persona = "sentinel", reducedMotion = false, height = 84 }: {
   state: VoiceBarState;
+  persona?: Persona;
   reducedMotion?: boolean;
+  height?: number;
 }) {
   const anim = useRef(new Animated.Value(0.5)).current;
 
-  const sweep = state === "listening" || state === "thinking";
-  const pulse = state === "speaking";
-  const active = sweep || pulse;
-  const col = stateColor(state);
+  const col = state === "error" ? color.danger
+    : state === "listening" ? color.cyan
+    : persona === "nova" ? color.cyan : color.amber;
+
+  const idle = state === "idle";
+  const sweep = state === "listening" || state === "thinking" || (idle && persona === "sentinel");
+  const breathe = state === "speaking" || (idle && persona === "nova");
+  const voiceActive = state === "listening" || state === "thinking" || state === "speaking";
+  const animated = !reducedMotion && (sweep || breathe);
 
   useEffect(() => {
     anim.stopAnimation();
-    if (reducedMotion || !active) {
-      // Settle to a steady mid value; nothing loops.
-      Animated.timing(anim, { toValue: 0.5, duration: 200, useNativeDriver: false }).start();
-      return;
-    }
-    const dur = sweep ? 850 : 620;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-        Animated.timing(anim, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-      ])
-    );
+    if (!animated) { Animated.timing(anim, { toValue: 0.5, duration: 200, useNativeDriver: false }).start(); return; }
+    const dur = voiceActive ? (sweep ? 780 : 560) : 1700; // idle = slow + calm
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(anim, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+      Animated.timing(anim, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+    ]));
     loop.start();
     return () => loop.stop();
-  }, [state, reducedMotion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, persona, reducedMotion]);
 
-  // Static opacity per state when not animating.
-  const staticOpacity = state === "idle" ? 0.16 : state === "error" ? 0.55 : 0.5;
-  const glow = active && !reducedMotion;
+  const glow = voiceActive && !reducedMotion;
+  const segMax = height - 38;
 
   return (
-    <View style={s.wrap}>
-      <View style={[s.strip, { borderColor: col + "55" }]}>
+    <View style={[s.wrap, { height }]}>
+      <View style={[s.strip, { borderColor: col + "44" }]}>
         {[...Array(N)].map((_, i) => {
           const x = i / (N - 1);
-          let opacity: any;
-          if (reducedMotion || !active) {
-            opacity = staticOpacity;
+          let opacity: Animated.Value | Animated.AnimatedInterpolation<number> | number;
+          if (!animated) {
+            opacity = idle ? 0.22 : 0.5;
           } else if (sweep) {
-            // A bright band tracks `anim` across the strip.
             opacity = anim.interpolate({
-              inputRange: [x - 0.22, x, x + 0.22],
-              outputRange: [0.12, 1, 0.12],
+              inputRange: [x - 0.2, x, x + 0.2],
+              outputRange: [idle ? 0.1 : 0.12, idle ? 0.55 : 1, idle ? 0.1 : 0.12],
               extrapolate: "clamp",
             });
           } else {
-            // Speaking: all segments breathe together (VU-like), distinct from the sweep.
-            opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
+            opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [idle ? 0.18 : 0.3, idle ? 0.5 : 1] });
           }
+          // a gentle symmetric height curve gives the strip a voice-meter silhouette
+          const hMul = 0.55 + 0.45 * Math.sin((i / (N - 1)) * Math.PI);
           return (
             <Animated.View
               key={i}
-              style={[
-                s.seg,
-                {
-                  backgroundColor: col,
-                  opacity,
-                  shadowColor: col,
-                  shadowOpacity: glow ? 0.8 : 0,
-                  shadowRadius: glow ? 7 : 0,
-                  elevation: glow ? 5 : 0,
-                },
-              ]}
+              style={[s.seg, {
+                height: segMax * hMul,
+                backgroundColor: col,
+                opacity,
+                shadowColor: col,
+                shadowOpacity: glow ? 0.7 : 0,
+                shadowRadius: glow ? 6 : 0,
+                elevation: glow ? 4 : 0,
+              }]}
             />
           );
         })}
@@ -95,14 +86,11 @@ export default function VoiceBar({ state, reducedMotion = false }: {
 }
 
 const s = StyleSheet.create({
-  wrap: { height: 108, alignItems: "center", justifyContent: "center", width: "100%" },
+  wrap: { alignItems: "center", justifyContent: "center", width: "100%" },
   strip: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: space.lg, paddingHorizontal: space.lg, borderRadius: radius.lg,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+    paddingVertical: space.md, paddingHorizontal: space.lg, borderRadius: radius.lg,
     backgroundColor: "#0A0E13", borderWidth: 1,
   },
-  seg: {
-    width: 9, height: 52, borderRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
-  },
+  seg: { width: 7, borderRadius: 3, shadowOffset: { width: 0, height: 0 } },
 });
