@@ -18,10 +18,9 @@ export const MODEL = {
 } as const;
 
 export const DISCLAIMER =
-  "Fun / lite tier - NOT promised reliable. Measured on a 30-item factual trust test, this model " +
-  "still follows a planted false 'reference note' about 25% of the time (7/30 even with skepticism " +
-  "prompting; holds at ~25% when the false note is reworded). It resists most planted errors but not " +
-  "all. Verify anything that matters. This is an entertainment/utility aid, not a source of truth.";
+  "A small AI that lives on your phone — great for everyday help, not a source of truth. It resists " +
+  "most bad info but not all, and it can be wrong about facts, maths, or anything recent. Verify " +
+  "anything that matters.";
 
 // Folded-user-turn delivery (matches how the tested numbers were produced: single user turn, no system role)
 export function foldPrompt(question: string, note?: string): string {

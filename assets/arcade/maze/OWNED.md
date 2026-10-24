@@ -3,7 +3,7 @@
 **Source:** generated in-repo by `tools/art/gen_maze_art.py` (Python + Pillow).
 **Licence:** original work created for Pocket Rocket. Full rights, no attribution
 required, no third-party assets used. Safe to ship in a paid/closed app.
-**Style:** cartridge-era arcade, on the app palette (amber #FF9810 / cyan #00E5FF /
+**Style:** cartridge-era arcade, on the app palette (amber #FF9800 / cyan #00E5FF /
 navy). Drawn at 16px, exported ×6 (96px) nearest-neighbour for pixel-crisp scaling.
 
 | File | Use |

@@ -54,6 +54,14 @@ const TR: Record<string, Pair> = {
     { de: "Sprachnotizen (transkribiert) oder Text — lokal gespeichert",
       es: "Graba notas de voz (transcritas) o escribe texto — guardado en el dispositivo" },
 
+  // ---- Disclaimer + model copy (de-jargoned) ----
+  "A small AI that lives on your phone — great for everyday help, not a source of truth. It resists most bad info but not all, and it can be wrong about facts, maths, or anything recent. Verify anything that matters.":
+    { de: "Eine kleine KI, die auf deinem Telefon lebt — super für den Alltag, aber keine Quelle der Wahrheit. Sie wehrt die meisten Falschinfos ab, aber nicht alle, und kann sich bei Fakten, Mathe oder Aktuellem irren. Prüfe alles, was wichtig ist.",
+      es: "Una IA pequeña que vive en tu teléfono — ideal para el día a día, no una fuente de verdad. Resiste la mayoría de la información falsa, pero no toda, y puede equivocarse con datos, matemáticas o cosas recientes. Verifica lo que importe." },
+  "A small AI that runs entirely on your phone. Optional — add it once, then it works offline forever.":
+    { de: "Eine kleine KI, die komplett auf deinem Telefon läuft. Optional — einmal hinzufügen, dann für immer offline nutzbar.",
+      es: "Una IA pequeña que funciona por completo en tu teléfono. Opcional — añádela una vez y funciona sin conexión para siempre." },
+
   // ---- Memory (owner profile + facts) ----
   "MEMORY": { de: "SPEICHER", es: "MEMORIA" },
   "Memory": { de: "Speicher", es: "Memoria" },

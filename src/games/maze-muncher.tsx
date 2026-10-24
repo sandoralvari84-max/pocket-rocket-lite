@@ -321,8 +321,8 @@ function Screen({ onExit }: GameContext) {
       if (powersRef.current.has(pk)) {
         powersRef.current.delete(pk);
         setScore((s) => s + 50);
-        fx.current?.burst(px(p.c), py(p.r), { count: 16, color: "#FF9810", speed: 150, size: 6 });
-        fx.current?.popScore(px(p.c), py(p.r), "+50", "#FF9810");
+        fx.current?.burst(px(p.c), py(p.r), { count: 16, color: "#FF9800", speed: 150, size: 6 });
+        fx.current?.popScore(px(p.c), py(p.r), "+50", "#FF9800");
         frightRef.current = frightTicks(levelRef.current);
         enemiesRef.current.forEach((e) => {
           if (!e.eaten) { e.frightened = true; e.dx = -e.dx; e.dy = -e.dy; }
@@ -415,7 +415,7 @@ function Screen({ onExit }: GameContext) {
     function onDeath() {
       const pp = playerRef.current;
       fx.current?.burst(px(pp.c), py(pp.r), { count: 22, color: "#F4F7FB", speed: 180, size: 6, rise: 10 });
-      fx.current?.burst(px(pp.c), py(pp.r), { count: 12, color: "#FF9810", speed: 110, size: 5 });
+      fx.current?.burst(px(pp.c), py(pp.r), { count: 12, color: "#FF9800", speed: 110, size: 5 });
       setLives((v) => {
         const nv = v - 1;
         if (nv <= 0) { phaseRef.current = "over"; setPhase("over"); }

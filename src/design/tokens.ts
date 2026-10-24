@@ -10,9 +10,9 @@ export const color = {
   surfaceLine: "#2A343F", // hairline borders / dividers
 
   // accents
-  amber: "#FF9810",       // PRIMARY — primary actions, selected nav, scores, key feedback
+  amber: "#FF9800",       // PRIMARY — primary actions, selected nav, scores, key feedback
   amberDim: "#B86B07",    // pressed/disabled amber
-  amberGlowBg: "rgba(255,152,16,0.14)", // restrained glow fill
+  amberGlowBg: "rgba(255,152,0,0.14)", // restrained glow fill
   cyan: "#00E5FF",        // SECONDARY — secondary actions, info, technical detail
   cyanDim: "#0597A8",
   cyanGlowBg: "rgba(0,229,255,0.12)",

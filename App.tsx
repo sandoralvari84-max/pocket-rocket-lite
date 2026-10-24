@@ -87,7 +87,7 @@ function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImpo
               <OnboardRow glyph="💬" title={L("Chat, tools & arcade")} text={L("Ask it things, fact-check a note, or play the built-in retro games.")} />
               <OnboardRow glyph="🧪" title={L("It pushes back on bad info")} text={L("On a specific false-fact test it followed a planted lie far less often — down from 97% to 23% (and it held when the lie was reworded). That's one test, not a general accuracy promise.")} last />
             </Card>
-            <Body muted style={{ fontSize: 12, textAlign: "center" }}>{DISCLAIMER}</Body>
+            <Body muted style={{ fontSize: 12, textAlign: "center" }}>{L(DISCLAIMER)}</Body>
             <LangSelect />
             <Button title={L("I understand — continue")} onPress={onContinue} full />
           </>

@@ -94,7 +94,7 @@ export const EffectsLayer = forwardRef<EffectsHandle, { reduced?: boolean }>(
         if (reduced) return;                       // decoration only — suppressed when reduced
         const count = Math.min(Math.max(1, opts?.count ?? 10), 24);
         const speed = opts?.speed ?? 130;
-        const col = opts?.color ?? "#FF9810";
+        const col = opts?.color ?? "#FF9800";
         const size = opts?.size ?? 5;
         const rise = opts?.rise ?? 40;
         const ps = particles.current;

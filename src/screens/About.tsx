@@ -34,16 +34,16 @@ export default function About({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
         <PixelText size="title" style={cs.appName}>{appMeta.name.toUpperCase()}</PixelText>
         <Body muted style={cs.version}>Version {appMeta.version} · build {appMeta.build}</Body>
-        <Body muted style={cs.tagline}>A self-contained voice assistant and arcade that runs on your device.</Body>
+        <Body muted style={cs.tagline}>Yours to keep — a voice assistant and arcade that runs entirely on your phone.</Body>
 
-        <Panel label="MODEL" tone="cyan">
+        <Panel label="HOW IT WORKS" tone="cyan">
           <Body style={cs.para}>
-            Conversations are handled by Qwen2.5-1.5B Instruct, a compact instruction-tuned language
-            model. It is quantized and runs on-device through llama.rn — no cloud service answers for it.
+            Chat runs on a compact AI model that lives entirely on your phone. No account, no cloud —
+            nothing you say leaves the device.
           </Body>
           <Body muted style={cs.para}>
-            Speech recognition runs on-device through whisper.rn. Game art is rendered from bundled
-            pixel sprites.
+            Speech recognition runs on your device too, and every game's art is original, drawn for
+            Pocket Rocket. The open-source components that make this possible are credited below.
           </Body>
         </Panel>
 

@@ -225,7 +225,7 @@ function Screen({ ask, onExit }: GameContext) {
   const start = () => setPhase("playing");
   const togglePause = () => setPhase((p) => (p === "playing" ? "paused" : p === "paused" ? "playing" : p));
   const burstCaps = (caps: Pos[]) => {
-    for (const cap of caps) fx.current?.burst((cap.c + 0.5) * SZ, (cap.r + 0.5) * SZ, { count: 14, color: "#FF9810", speed: 150, size: 6 });
+    for (const cap of caps) fx.current?.burst((cap.c + 0.5) * SZ, (cap.r + 0.5) * SZ, { count: 14, color: "#FF9800", speed: 150, size: 6 });
   };
 
   // Machine turn — deterministic minimax, never the LLM.
@@ -373,7 +373,7 @@ const st = StyleSheet.create({
   board: { position: "relative", borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: color.surfaceLine },
   sq: { position: "absolute", alignItems: "center", justifyContent: "center" },
   sqImg: { position: "absolute", left: 0, top: 0 },
-  lit: { position: "absolute", left: 0, top: 0, backgroundColor: "rgba(255,152,16,0.30)" },
+  lit: { position: "absolute", left: 0, top: 0, backgroundColor: "rgba(255,152,0,0.30)" },
   ring: { position: "absolute", borderWidth: 3 },
   dot: { position: "absolute", backgroundColor: color.success, opacity: 0.9 },
 });

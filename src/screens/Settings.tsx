@@ -91,7 +91,7 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
         <Row>
           <View style={{ flex: 1 }}>
             <Label>{L("On-device model")}</Label>
-            <Body muted style={cs.rowHint}>Qwen2.5-1.5B Instruct, quantized, running locally via llama.rn. Model installation is optional.</Body>
+            <Body muted style={cs.rowHint}>{L("A small AI that runs entirely on your phone. Optional — add it once, then it works offline forever.")}</Body>
           </View>
           <Chip label={L("Optional")} tone="cyan" />
         </Row>
