@@ -211,12 +211,12 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
   const canSend = input.trim().length > 0 && !busy;
   const statusText =
     error ? error :
-    recording ? "Listening…" :
-    busy ? "Thinking…" :
-    sttBusy ? (sttStatus || "Working…") :
-    speaking ? "Speaking…" :
+    recording ? L("Listening…") :
+    busy ? L("Thinking…") :
+    sttBusy ? (sttStatus || L("Working…")) :
+    speaking ? L("Speaking…") :
     sttStatus ? sttStatus :
-    "Ready";
+    L("Ready");
   const statusColor =
     error ? color.danger :
     recording ? color.cyan :
@@ -234,7 +234,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
         <View style={s.header}>
           <View style={{ flex: 1 }}>
             <PixelText size="h2" style={{ color: color.amber }}>{appMeta.name.toUpperCase()}</PixelText>
-            <Text style={s.sub}>On-device assistant · offline</Text>
+            <Text style={s.sub}>{L("On-device assistant · offline")}</Text>
           </View>
           {msgs.length > 0 && (
             <Pressable
@@ -285,7 +285,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
                   key={st.label}
                   onPress={() => {
                     if (st.reply) {
-                      setMsgs((m) => [...m, { role: "user", text: st.label }, { role: "assistant", text: st.reply! }]);
+                      setMsgs((m) => [...m, { role: "user", text: L(st.label) }, { role: "assistant", text: st.reply! }]);
                       speakText(st.reply!);
                     } else if (st.prompt && st.prompt.trim().endsWith(":")) {
                       setInput(st.prompt);
@@ -296,7 +296,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
                   accessibilityRole="button" accessibilityLabel={st.label}
                   style={({ pressed }) => [s.starter, pressed && { borderColor: color.amber, backgroundColor: color.amberGlowBg }]}
                 >
-                  <Text style={s.starterT}>{st.label}</Text>
+                  <Text style={s.starterT}>{L(st.label)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -372,7 +372,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask or tap the mic…"
+            placeholder={L("Ask or tap the mic…")}
             editable={!busy}
             onSubmitEditing={() => send()}
             returnKeyType="send"
@@ -390,7 +390,7 @@ export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonc
               pressed && canSend && { backgroundColor: color.amberDim },
             ]}
           >
-            <Text style={s.sendT}>Send</Text>
+            <Text style={s.sendT}>{L("Send")}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

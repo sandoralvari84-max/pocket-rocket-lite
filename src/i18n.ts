@@ -109,6 +109,52 @@ const TR: Record<string, Pair> = {
   "How fast replies are spoken.": { de: "Wie schnell Antworten gesprochen werden.", es: "Qué tan rápido se leen las respuestas." },
   "Calms animations and screen shake across the app.": { de: "Beruhigt Animationen und Bildschirmzittern in der ganzen App.", es: "Calma las animaciones y el temblor de pantalla en toda la app." },
   "Blips and effects during arcade games.": { de: "Töne und Effekte in den Arcade-Spielen.", es: "Pitidos y efectos en los juegos arcade." },
+
+  // ---- Chat (composer / status / starters / header) ----
+  "On-device assistant · offline": { de: "Assistent auf dem Gerät · offline", es: "Asistente en el dispositivo · sin conexión" },
+  "Listening…": { de: "Höre zu…", es: "Escuchando…" },
+  "Thinking…": { de: "Denke nach…", es: "Pensando…" },
+  "Working…": { de: "Arbeite…", es: "Trabajando…" },
+  "Speaking…": { de: "Spreche…", es: "Hablando…" },
+  "Ready": { de: "Bereit", es: "Listo" },
+  "Ask or tap the mic…": { de: "Fragen oder aufs Mikro tippen…", es: "Pregunta o toca el micro…" },
+  "Send": { de: "Senden", es: "Enviar" },
+  "What can you do?": { de: "Was kannst du?", es: "¿Qué sabes hacer?" },
+  "Sanity-check a note": { de: "Notiz gegenprüfen", es: "Revisar una nota" },
+  "Double-check a claim": { de: "Behauptung prüfen", es: "Comprobar una afirmación" },
+  "The local AI model is not installed yet. Open Settings and choose Set up local AI to import or download it. The games are still available.":
+    { de: "Das lokale KI-Modell ist noch nicht installiert. Öffne die Einstellungen und wähle „Lokale KI einrichten“, um es zu importieren oder zu laden. Die Spiele sind trotzdem verfügbar.",
+      es: "El modelo de IA local aún no está instalado. Abre Ajustes y elige «Configurar IA local» para importarlo o descargarlo. Los juegos siguen disponibles." },
+
+  // ---- Onboarding / setup ----
+  "A pocket AI buddy that runs entirely on your phone.":
+    { de: "Ein KI-Kumpel für die Tasche, der komplett auf deinem Telefon läuft.", es: "Un colega de IA de bolsillo que funciona enteramente en tu teléfono." },
+  "Works fully offline": { de: "Komplett offline", es: "Funciona sin conexión" },
+  "No account, no internet needed at runtime. The model lives on your device.":
+    { de: "Kein Konto, kein Internet im Betrieb. Das Modell liegt auf deinem Gerät.", es: "Sin cuenta ni internet en uso. El modelo vive en tu dispositivo." },
+  "Chat, tools & arcade": { de: "Chat, Werkzeuge & Arcade", es: "Chat, herramientas y arcade" },
+  "Ask it things, fact-check a note, or play the built-in retro games.":
+    { de: "Stell Fragen, prüfe eine Notiz oder spiele die Retro-Spiele.", es: "Pregúntale cosas, verifica una nota o juega a los retro." },
+  "It pushes back on bad info": { de: "Es widerspricht falschen Infos", es: "Cuestiona la info falsa" },
+  "On a specific false-fact test it followed a planted lie far less often — down from 97% to 23% (and it held when the lie was reworded). That's one test, not a general accuracy promise.":
+    { de: "In einem bestimmten Falschfakten-Test folgte es einer untergeschobenen Lüge viel seltener — von 97 % auf 23 % (und es hielt, als die Lüge umformuliert wurde). Das ist ein Test, kein allgemeines Genauigkeitsversprechen.",
+      es: "En una prueba concreta de hechos falsos siguió una mentira plantada mucho menos — del 97 % al 23 % (y se mantuvo al reformular la mentira). Es una prueba, no una promesa general de exactitud." },
+  "I understand — continue": { de: "Verstanden — weiter", es: "Entendido — continuar" },
+  "CHOOSE A START": { de: "WÄHLE EINEN START", es: "ELIGE UN INICIO" },
+  "Add the on-device AI once (~1 GB) — or jump straight into the games and add it later.":
+    { de: "Füge die KI einmal hinzu (~1 GB) — oder spring direkt in die Spiele und hol sie später.", es: "Añade la IA una vez (~1 GB) — o entra directo a los juegos y añádela luego." },
+  "Import model file": { de: "Modelldatei importieren", es: "Importar archivo del modelo" },
+  "Pick the qwen…q4_k_m.gguf shared to your phone.": { de: "Wähle die geteilte qwen…q4_k_m.gguf auf deinem Telefon.", es: "Elige el qwen…q4_k_m.gguf compartido en tu teléfono." },
+  "Download over Wi-Fi": { de: "Über WLAN laden", es: "Descargar por Wi-Fi" },
+  "About 1 GB, once — then fully offline forever.": { de: "Etwa 1 GB, einmal — danach für immer offline.", es: "Unos 1 GB, una vez — luego siempre sin conexión." },
+  "Continue without AI": { de: "Ohne KI fortfahren", es: "Continuar sin IA" },
+  "Play games & tools now; add the AI later in Settings.": { de: "Spiele & Werkzeuge jetzt; KI später in den Einstellungen.", es: "Juegos y herramientas ya; añade la IA luego en Ajustes." },
+  "Getting ready": { de: "Wird vorbereitet", es: "Preparando" },
+  "Downloading the on-device model…": { de: "Modell wird heruntergeladen…", es: "Descargando el modelo…" },
+  "Over Wi-Fi, once. Keep the app open.": { de: "Über WLAN, einmal. App geöffnet lassen.", es: "Por Wi-Fi, una vez. Mantén la app abierta." },
+  "Loading model…": { de: "Modell wird geladen…", es: "Cargando el modelo…" },
+  "Something went wrong": { de: "Etwas ist schiefgelaufen", es: "Algo salió mal" },
+  "Retry": { de: "Erneut versuchen", es: "Reintentar" },
 };
 
 // Translate an English source string to the current language (English fallback).

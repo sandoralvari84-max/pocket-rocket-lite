@@ -10,6 +10,7 @@ import { color, space, radius, type as T } from "./src/design/tokens";
 import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
 import { getSettings, loadSettings, setSetting } from "./src/settings";
+import { L, useLang } from "./src/i18n";
 
 const EMBLEM = require("./assets/brand/emblem.png");
 
@@ -67,6 +68,7 @@ export default function App() {
 function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImport, onGetModel, fontsLoaded }: {
   phase: Phase; progress: number; err: string; onContinue: () => void; onContinueOffline: () => void; onImport: () => void; onGetModel: () => void; fontsLoaded: boolean;
 }) {
+  useLang(); // re-render on language change
   // Hold on the splash until fonts are ready so the pixel title never flashes unstyled.
   if (!fontsLoaded) return <Screen><View style={{ flex: 1, justifyContent: "center" }}><Spinner /></View></Screen>;
 
@@ -78,49 +80,49 @@ function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImpo
             <View style={{ alignItems: "center", gap: space.sm }}>
               <Sprite source={EMBLEM} size={120} />
               <PixelText size="title" style={{ color: color.amber, textAlign: "center" }}>{appMeta.name.toUpperCase().split(" ").join("\n")}</PixelText>
-              <Body muted style={{ textAlign: "center" }}>A pocket AI buddy that runs entirely on your phone.</Body>
+              <Body muted style={{ textAlign: "center" }}>{L("A pocket AI buddy that runs entirely on your phone.")}</Body>
             </View>
             <Card>
-              <OnboardRow glyph="📶" title="Works fully offline" text="No account, no internet needed at runtime. The model lives on your device." />
-              <OnboardRow glyph="💬" title="Chat, tools & arcade" text="Ask it things, fact-check a note, or play the built-in retro games." />
-              <OnboardRow glyph="🧪" title="It pushes back on bad info" text="On a specific false-fact test it followed a planted lie far less often — down from 97% to 23% (and it held when the lie was reworded). That's one test, not a general accuracy promise." last />
+              <OnboardRow glyph="📶" title={L("Works fully offline")} text={L("No account, no internet needed at runtime. The model lives on your device.")} />
+              <OnboardRow glyph="💬" title={L("Chat, tools & arcade")} text={L("Ask it things, fact-check a note, or play the built-in retro games.")} />
+              <OnboardRow glyph="🧪" title={L("It pushes back on bad info")} text={L("On a specific false-fact test it followed a planted lie far less often — down from 97% to 23% (and it held when the lie was reworded). That's one test, not a general accuracy promise.")} last />
             </Card>
             <Body muted style={{ fontSize: 12, textAlign: "center" }}>{DISCLAIMER}</Body>
-            <Button title="I understand — continue" onPress={onContinue} full />
+            <Button title={L("I understand — continue")} onPress={onContinue} full />
           </>
         )}
         {phase === "need-model" && (
           <View style={{ gap: space.lg }}>
             <View style={{ alignItems: "center", gap: space.xs }}>
               <Sprite source={EMBLEM} size={72} />
-              <PixelText size="h2" style={{ color: color.amber, textAlign: "center" }}>CHOOSE A START</PixelText>
+              <PixelText size="h2" style={{ color: color.amber, textAlign: "center" }}>{L("CHOOSE A START")}</PixelText>
               <Body muted style={{ textAlign: "center" }}>
-                Add the on-device AI once (~1 GB) — or jump straight into the games and add it later.
+                {L("Add the on-device AI once (~1 GB) — or jump straight into the games and add it later.")}
               </Body>
             </View>
             <View style={{ gap: space.md }}>
-              <SetupOption glyph="📁" tint={color.amber} title="Import model file"
-                sub="Pick the qwen…q4_k_m.gguf shared to your phone." onPress={onImport} />
-              <SetupOption glyph="⬇" tint={color.cyan} title="Download over Wi-Fi"
-                sub="About 1 GB, once — then fully offline forever." onPress={onGetModel} />
-              <SetupOption glyph="▶" tint={color.textMuted} title="Continue without AI"
-                sub="Play games & tools now; add the AI later in Settings." onPress={onContinueOffline} />
+              <SetupOption glyph="📁" tint={color.amber} title={L("Import model file")}
+                sub={L("Pick the qwen…q4_k_m.gguf shared to your phone.")} onPress={onImport} />
+              <SetupOption glyph="⬇" tint={color.cyan} title={L("Download over Wi-Fi")}
+                sub={L("About 1 GB, once — then fully offline forever.")} onPress={onGetModel} />
+              <SetupOption glyph="▶" tint={color.textMuted} title={L("Continue without AI")}
+                sub={L("Play games & tools now; add the AI later in Settings.")} onPress={onContinueOffline} />
             </View>
           </View>
         )}
         {phase === "downloading" && (
           <View style={{ gap: space.lg, alignItems: "center", paddingHorizontal: space.lg }}>
-            <Title>Getting ready</Title>
-            <ProgressBar progress={progress} label="Downloading the on-device model…" />
-            <Body muted style={{ textAlign: "center", fontSize: 12 }}>Over Wi-Fi, once. Keep the app open.</Body>
+            <Title>{L("Getting ready")}</Title>
+            <ProgressBar progress={progress} label={L("Downloading the on-device model…")} />
+            <Body muted style={{ textAlign: "center", fontSize: 12 }}>{L("Over Wi-Fi, once. Keep the app open.")}</Body>
           </View>
         )}
-        {phase === "loading" && <Spinner label="Loading model…" />}
+        {phase === "loading" && <Spinner label={L("Loading model…")} />}
         {phase === "error" && (
           <View style={{ gap: space.lg, alignItems: "center" }}>
-            <H2 style={{ color: color.warn }}>Something went wrong</H2>
+            <H2 style={{ color: color.warn }}>{L("Something went wrong")}</H2>
             <Body muted style={{ textAlign: "center" }}>{err}</Body>
-            <Button title="Retry" variant="secondary" onPress={onContinue} />
+            <Button title={L("Retry")} variant="secondary" onPress={onContinue} />
           </View>
         )}
       </View>
