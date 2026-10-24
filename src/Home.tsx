@@ -16,7 +16,7 @@ type Tab = "chat" | "games" | "tools" | "settings";
 
 // Honest one-line descriptions, keyed by frozen game id.
 const BLURB: Record<string, string> = {
-  "catch": "Catch the falling dots before they hit the floor.",
+  "catch": "Fly the lower half, auto-fire, blast the enemy craft — grab orbs to power up.",
   "maze-muncher": "Clear the maze of pellets while the chasers close in.",
   "nibbler": "Grow your tail and try not to bite yourself.",
   "road-hopper": "Cross the busy lanes without getting clipped.",
@@ -55,7 +55,7 @@ const ICON: Record<string, ReturnType<typeof require>> = {
 
 // Punchy one-line taglines (brand board). Shown on the cabinet card.
 const TAGLINE: Record<string, string> = {
-  "catch": "Catch the falling dots.",
+  "catch": "Space shooter — fly & fire.",
   "maze-muncher": "Eat. Explore. Survive.",
   "nibbler": "Grow. Avoid. Get bigger.",
   "road-hopper": "Cross. Dodge. Keep going.",

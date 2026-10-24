@@ -6,6 +6,7 @@ import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
 import { ArcadeJoystick } from "../design/Joystick";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { ScoreboardOverlay } from "../design/Scoreboard";
 import { useSettings } from "../settings";
 
 /* ----------------------------------------------------------------------------
@@ -60,9 +61,14 @@ const LANES: LaneDef[] = [
 type Vehicle = { x: number };
 type LaneState = { def: LaneDef; speed: number; count: number; vehicles: Vehicle[] };
 
-function speedMul(level: number) { return 1 + (level - 1) * 0.18; }
+// Difficulty "intelligence": level 1 is deliberately gentle and gets busier/faster in
+// small, readable steps. BASE_SPEED tames the first level (the base table was too frantic
+// to start on); speedMul ramps slowly and caps so late levels stay humanly playable;
+// countFor starts one car sparser per lane and fills in every couple of levels.
+const BASE_SPEED = 0.62;
+function speedMul(level: number) { return Math.min(1 + (level - 1) * 0.14, 2.3); }
 function countFor(def: LaneDef, level: number) {
-  return Math.min(def.count + Math.floor((level - 1) / 2), 4);
+  return Math.min(Math.max(1, def.count - 1) + Math.floor((level - 1) / 2), 4);
 }
 
 function buildLanes(level: number): LaneState[] {
@@ -72,7 +78,7 @@ function buildLanes(level: number): LaneState[] {
     const spacing = span / count;
     const vehicles: Vehicle[] = [];
     for (let i = 0; i < count; i++) vehicles.push({ x: -def.width + i * spacing });
-    return { def, speed: def.speed * speedMul(level), count, vehicles };
+    return { def, speed: def.speed * speedMul(level) * BASE_SPEED, count, vehicles };
   });
 }
 
@@ -298,9 +304,9 @@ function Screen({ onExit }: GameContext) {
         </Body>
       </GameOverlay>
 
-      <GameOverlay
-        visible={phase === "over"} kind="over" title="GAME OVER" score={`SCORE ${score}`}
-        primaryLabel="Play again" onPrimary={fullRestart} onExit={onExit}
+      <ScoreboardOverlay
+        visible={phase === "over"} gameId="road-hopper" score={score}
+        scoreLabel={`SCORE ${score}`} onPlayAgain={fullRestart} onExit={onExit}
       />
     </View>
   );
