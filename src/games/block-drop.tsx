@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay } from "../design/ui";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
 
 const { width: W, height: H } = Dimensions.get("window");
 const COLS = 10;
@@ -78,8 +80,11 @@ function shuffledBag(): number[] {
 }
 
 function pieceFrom(id: number): Piece {
-  const s = SHAPES[id];
-  return { id, cells: s.cells.map((c) => [c[0], c[1]]), x: Math.floor(COLS / 2) - 2, y: 0, color: s.color };
+  // Guard against a bad/undefined index (e.g. an empty-queue shift) so a piece
+  // is never created with `cells: undefined` — the cause of the "hit a snag" crash.
+  const safe = Number.isInteger(id) && id >= 0 && id < SHAPES.length ? id : 0;
+  const s = SHAPES[safe];
+  return { id: safe, cells: s.cells.map((c) => [c[0], c[1]]), x: Math.floor(COLS / 2) - 2, y: 0, color: s.color };
 }
 
 // ---- cell renderers -------------------------------------------------------
@@ -105,6 +110,7 @@ function MiniPiece({ id }: { id: number | null }) {
   const box = PCELL * 4 + 8;
   if (id == null) return <View style={[st.miniBox, { width: box, height: box }]} />;
   const s = SHAPES[id];
+  if (!s) return <View style={[st.miniBox, { width: box, height: box }]} />;
   const xs = s.cells.map((c) => c[0]);
   const ys = s.cells.map((c) => c[1]);
   const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
@@ -121,6 +127,8 @@ function MiniPiece({ id }: { id: number | null }) {
 
 function GameScreen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fx = useRef<EffectsHandle>(null);
   const boardRef = useRef<Board>(emptyBoard());
   const queueRef = useRef<number[]>(shuffledBag());
   const pieceRef = useRef<Piece>(pieceFrom(queueRef.current.shift() as number));
@@ -146,9 +154,10 @@ function GameScreen({ onExit }: GameContext) {
 
   const nextFromQueue = (): Piece => {
     if (queueRef.current.length < 2) queueRef.current.push(...shuffledBag());
-    const id = queueRef.current.shift() as number;
+    let id = queueRef.current.shift();
+    if (id == null) { queueRef.current.push(...shuffledBag()); id = queueRef.current.shift(); }
     setNextTick((n) => n + 1);
-    return pieceFrom(id);
+    return pieceFrom(id as number);
   };
 
   const gameOver = () => {
@@ -178,6 +187,12 @@ function GameScreen({ onExit }: GameContext) {
     const n = full.length;
     const pts = ([0, 100, 300, 500, 800][n] ?? 800) * levelRef.current;
     setScore((s) => s + pts);
+    // line-clear feedback: a bounded sparkle along each cleared row + a score pop.
+    const popCol = n >= 4 ? color.amber : color.cyan;
+    for (const y of full)
+      for (let x = 0; x < COLS; x += 2)
+        fx.current?.burst(x * CELL + CELL / 2, y * CELL + CELL / 2, { count: 2, color: popCol, speed: 95, size: 4 });
+    fx.current?.popScore(BOARD_W / 2, full[0] * CELL + CELL / 2, `+${pts}`, popCol);
     const nl = linesRef.current + n;
     linesRef.current = nl; setLines(nl);
     const lvl = Math.floor(nl / 10) + 1;
@@ -258,6 +273,7 @@ function GameScreen({ onExit }: GameContext) {
     let d = 0;
     while (!collides(boardRef.current, p.cells, p.x, p.y + 1)) { p.y += 1; d += 1; }
     setScore((s) => s + d * 2);
+    fx.current?.burst((p.x + 1.5) * CELL, (p.y + 1.5) * CELL, { count: 7, color: p.color, speed: 85, size: 4, rise: 0 });
     lockAndNext();
     bump();
   };
@@ -347,6 +363,8 @@ function GameScreen({ onExit }: GameContext) {
                 return y >= 0 ? <BevelCell key={`a${i}`} left={(p.x + cx) * CELL} top={y * CELL} size={CELL} c={p.color} /> : null;
               })
             : null}
+
+          <EffectsLayer ref={fx} reduced={reducedMotion} />
         </View>
 
         {/* side panel */}

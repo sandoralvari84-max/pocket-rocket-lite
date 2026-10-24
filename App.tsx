@@ -4,11 +4,13 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { useFonts, PressStart2P_400Regular } from "@expo-google-fonts/press-start-2p";
 import { DISCLAIMER } from "./src/preset";
-import { modelExists, downloadModel, loadModel } from "./src/model";
+import { modelExists, downloadModel, importModel, loadModel } from "./src/model";
 import Home from "./src/Home";
 import { color, space } from "./src/design/tokens";
-import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar } from "./src/design/ui";
+import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
+
+const EMBLEM = require("./assets/brand/emblem.png");
 
 type Phase = "onboard" | "need-model" | "downloading" | "loading" | "ready" | "error";
 
@@ -20,8 +22,18 @@ export default function App() {
 
   async function begin() {
     try {
+      // If the model is already in app storage, load it; otherwise ask how to get it.
       if (await modelExists()) { setPhase("loading"); await loadModel(); setPhase("ready"); }
-      else setPhase("need-model");
+      else { setPhase("need-model"); }
+    } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
+  }
+  // Import the model from the .gguf shared alongside the app (QuickShare folder).
+  async function importFromFile() {
+    try {
+      setPhase("loading"); // system picker is modal; show the spinner behind it
+      const ok = await importModel();
+      if (!ok) { setPhase("need-model"); return; } // user cancelled the picker
+      await loadModel(); setPhase("ready");
     } catch (e: any) { setErr(String(e?.message ?? e)); setPhase("error"); }
   }
   async function getModel() {
@@ -39,13 +51,13 @@ export default function App() {
       <StatusBar style="light" />
       {ready ? <Home /> : <SetupGate
         phase={phase} progress={progress} err={err}
-        onContinue={begin} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
+        onContinue={begin} onImport={importFromFile} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
     </SafeAreaProvider>
   );
 }
 
-function SetupGate({ phase, progress, err, onContinue, onGetModel, fontsLoaded }: {
-  phase: Phase; progress: number; err: string; onContinue: () => void; onGetModel: () => void; fontsLoaded: boolean;
+function SetupGate({ phase, progress, err, onContinue, onImport, onGetModel, fontsLoaded }: {
+  phase: Phase; progress: number; err: string; onContinue: () => void; onImport: () => void; onGetModel: () => void; fontsLoaded: boolean;
 }) {
   // Hold on the splash until fonts are ready so the pixel title never flashes unstyled.
   if (!fontsLoaded) return <Screen><View style={{ flex: 1, justifyContent: "center" }}><Spinner /></View></Screen>;
@@ -56,6 +68,7 @@ function SetupGate({ phase, progress, err, onContinue, onGetModel, fontsLoaded }
         {phase === "onboard" && (
           <>
             <View style={{ alignItems: "center", gap: space.sm }}>
+              <Sprite source={EMBLEM} size={120} />
               <PixelText size="title" style={{ color: color.amber, textAlign: "center" }}>{appMeta.name.toUpperCase().split(" ").join("\n")}</PixelText>
               <Body muted style={{ textAlign: "center" }}>A pocket AI buddy that runs entirely on your phone.</Body>
             </View>
@@ -71,8 +84,16 @@ function SetupGate({ phase, progress, err, onContinue, onGetModel, fontsLoaded }
         {phase === "need-model" && (
           <View style={{ gap: space.lg, alignItems: "center" }}>
             <Title>One-time setup</Title>
-            <Body muted style={{ textAlign: "center" }}>The on-device model (~1 GB) downloads once over Wi-Fi, then runs fully offline forever.</Body>
-            <Button title="Download model" onPress={onGetModel} full />
+            <Body muted style={{ textAlign: "center" }}>
+              The on-device model (~1 GB) needs to be installed once. After that the app runs fully offline forever.
+            </Body>
+            <View style={{ width: "100%", gap: space.md }}>
+              <Button title="Import model file" onPress={onImport} full />
+              <Body muted style={{ textAlign: "center", fontSize: 12 }}>
+                Pick the qwen…q4_k_m.gguf file that was shared to your phone alongside the app.
+              </Body>
+              <Button title="Download over Wi-Fi instead" variant="secondary" onPress={onGetModel} full />
+            </View>
           </View>
         )}
         {phase === "downloading" && (

@@ -1,19 +1,55 @@
 import { initLlama, type LlamaContext } from "llama.rn";
 import * as FileSystem from "expo-file-system/legacy";
+import * as DocumentPicker from "expo-document-picker";
 import { MODEL, SAMPLER, foldPrompt } from "./preset";
 
-// Model delivery (test builds): download-on-first-run to app storage, then fully offline.
-// SHIP note: for the final offline product, bundle the sha-verified GGUF as an asset instead
-// (MODEL.sha256). URL below is the public Qwen GGUF of the same quant; VERIFY it loads before ship.
+// The ~1GB model canNOT be bundled inside the APK: Metro's asset transformer reads the
+// whole file into a JS string and V8 caps strings at ~512MB, so require()-ing the .gguf
+// always fails to bundle. Instead the model is delivered ALONGSIDE the app (QuickShare a
+// folder with the APK + the .gguf) and imported once via the system file picker, or
+// downloaded over Wi-Fi as a fallback. Either way it then runs fully offline forever.
 export const MODEL_URL =
   "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/" + MODEL.file;
 
 const MODEL_PATH = FileSystem.documentDirectory + MODEL.file;
+const EXPECTED_SIZE = 1117320736; // full q4_k_m .gguf; a partial download is smaller
 let ctx: LlamaContext | null = null;
 
+// COMPLETE, not just present: a download interrupted by screen-sleep leaves a
+// big-but-partial file that passes a ">100MB" check yet fails to load.
 export async function modelExists(): Promise<boolean> {
   const i = await FileSystem.getInfoAsync(MODEL_PATH);
-  return i.exists && (i.size ?? 0) > 100 * 1024 * 1024; // sanity: >100MB
+  return i.exists && (i.size ?? 0) >= EXPECTED_SIZE - 1024 * 1024;
+}
+
+// Discard a partial/corrupt model so the next attempt re-fetches a clean copy.
+export async function clearModel(): Promise<void> {
+  try { await FileSystem.deleteAsync(MODEL_PATH, { idempotent: true }); } catch {}
+}
+
+// Import the model from a file the user picks — the .gguf that was QuickShared in the
+// same folder as the APK. Copies it into app storage once; then fully offline forever.
+// Returns false if the user cancels the picker. Uses the system picker (access to the one
+// chosen file only), so it needs no broad storage permission. Screen-sleep-proof: a local
+// file copy, not a network download that Android can pause when the screen turns off.
+export async function importModel(): Promise<boolean> {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: "*/*",            // .gguf has no registered MIME type, so don't filter it out
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (res.canceled || !res.assets?.[0]) return false;
+  const picked = res.assets[0];
+  if ((picked.size ?? 0) < EXPECTED_SIZE - 1024 * 1024) {
+    throw new Error(
+      "That file looks too small to be the model (expected ~1 GB). " +
+      "Pick the qwen2.5-1.5b…q4_k_m.gguf file shared alongside the app."
+    );
+  }
+  await clearModel(); // remove any stale/partial copy first
+  await FileSystem.copyAsync({ from: picked.uri, to: MODEL_PATH });
+  if (!(await modelExists())) { await clearModel(); throw new Error("Model copy did not complete — please try again."); }
+  return true;
 }
 
 export async function downloadModel(onProgress: (frac: number) => void): Promise<void> {
@@ -27,7 +63,15 @@ export async function downloadModel(onProgress: (frac: number) => void): Promise
 
 export async function loadModel(): Promise<void> {
   if (ctx) return;
-  ctx = await initLlama({ model: MODEL_PATH, n_ctx: Math.min(MODEL.n_ctx, 2048), n_gpu_layers: 0 });
+  try {
+    ctx = await initLlama({ model: MODEL_PATH, n_ctx: Math.min(MODEL.n_ctx, 2048), n_gpu_layers: 0 });
+  } catch (e) {
+    // A corrupt/partial model won't load — delete it so Retry re-downloads cleanly
+    // instead of looping on the broken file.
+    await clearModel();
+    ctx = null;
+    throw e;
+  }
 }
 
 // SCR inference — folded single user turn + frozen sampler. `note` is an optional reference note.

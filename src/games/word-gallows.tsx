@@ -25,9 +25,9 @@ const GALLOWS_STAGES = [
 ];
 const WIN_SPRITE = require("../../assets/arcade/gallows/win.png");
 
-// Sprite fills the upper play area; keep the native ~40:48 (taller-than-wide) ratio.
-const SPRITE_H = Math.round(Dimensions.get("window").height * 0.44);
-const SPRITE_W = Math.round((SPRITE_H * 40) / 48);
+// Hi-res gallows art (600x720, 5:6). Shown at ~34% height so it stays crisp.
+const SPRITE_H = Math.round(Dimensions.get("window").height * 0.34);
+const SPRITE_W = Math.round((SPRITE_H * 5) / 6);
 
 interface Secret {
   word: string;
@@ -90,44 +90,7 @@ const FALLBACKS: Secret[] = [
 
 const randomFallback = (): Secret => FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)]!;
 
-// Parse "WORD | CATEGORY" defensively; fall back to a built-in word.
-function parseSecret(reply: string): Secret {
-  const cleaned = (reply || "").replace(/[\r\n]+/g, " ").trim();
-  const parts = cleaned.split("|");
-  if (parts.length >= 1 && parts[0]) {
-    const wordMatch = parts[0].match(/[A-Za-z]{3,12}/);
-    if (wordMatch) {
-      const word = wordMatch[0].toUpperCase();
-      let category = "Mystery";
-      if (parts.length >= 2 && parts[1]) {
-        const catMatch = parts[1].match(/[A-Za-z][A-Za-z \-]{1,20}/);
-        if (catMatch) category = catMatch[0].trim();
-      }
-      return { word, category };
-    }
-  }
-  return randomFallback();
-}
-
-async function askWithTimeout(ask: AskModel, prompt: string, note: string, ms = 8000): Promise<string> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<string>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("timeout")), ms);
-  });
-  try {
-    const res = await Promise.race([ask(prompt, note), timeout]);
-    return (res || "").trim();
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-const PROMPT =
-  "Pick ONE common English word (4 to 8 letters, a normal noun, no proper names) " +
-  "and a one-word category for a word-guessing game. " +
-  "Reply EXACTLY in this format: WORD | CATEGORY";
-
-function Screen({ ask, onExit }: GameContext) {
+function Screen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const [secret, setSecret] = useState<Secret | null>(null);
   const [guessed, setGuessed] = useState<string[]>([]);
@@ -141,24 +104,17 @@ function Screen({ ask, onExit }: GameContext) {
     return () => { mounted.current = false; };
   }, []);
 
-  const newGame = useCallback(async (): Promise<void> => {
-    setLoading(true);
+  // Puzzles come from the deterministic offline bank: instant, fully offline, and
+  // never garbled. The 1.5B model could not reliably produce the "WORD | CATEGORY"
+  // format, so its replies leaked prompt text into the category ("PICK ONE com…").
+  const newGame = useCallback((): void => {
     setGuessed([]);
-    setSecret(null);
     scored.current = false;
-    let next: Secret | null = null;
-    try {
-      const reply = await askWithTimeout(ask, PROMPT, "word-gallows-pick");
-      if (reply) next = parseSecret(reply);
-    } catch {
-      next = null;
-    }
-    if (!mounted.current) return;
-    setSecret(next ?? randomFallback()); // offline fallback — always succeeds
+    setSecret(randomFallback());
     setLoading(false);
-  }, [ask]);
+  }, []);
 
-  useEffect(() => { void newGame(); }, [newGame]);
+  useEffect(() => { newGame(); }, [newGame]);
 
   const letters = secret ? secret.word.split("") : [];
   const wrong = guessed.filter((g) => !letters.includes(g));
@@ -180,8 +136,6 @@ function Screen({ ask, onExit }: GameContext) {
     setGuessed((prev) => [...prev, ch]);
   };
 
-  const display = letters.map((l) => (guessed.includes(l) || lost ? l : "_")).join(" ");
-
   return (
     <View style={st.fill}>
       <View style={[st.bar, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
@@ -202,8 +156,24 @@ function Screen({ ask, onExit }: GameContext) {
       ) : (
         <View style={st.body}>
           <Hangman wrong={wrongCount} won={won} lost={lost} />
-          <Body style={st.cat}>Category: {secret ? secret.category : "—"}</Body>
-          <Text style={st.word}>{display}</Text>
+
+          <View style={st.catPill}>
+            <PixelText size="label" style={{ color: color.cyan }}>CATEGORY</PixelText>
+            <Body style={st.catTxt}>{secret ? secret.category.toUpperCase() : "—"}</Body>
+          </View>
+
+          <View style={st.wordRow}>
+            {letters.map((l, i) => {
+              const shown = guessed.includes(l) || lost;
+              const miss = lost && !guessed.includes(l);
+              return (
+                <View key={i} style={[st.tile, shown && (miss ? st.tileMiss : st.tileShown)]}>
+                  <Text style={[st.tileT, miss && { color: color.danger }]}>{shown ? l : ""}</Text>
+                </View>
+              );
+            })}
+          </View>
+
           <Body style={st.wrongLine}>
             Wrong: {wrong.length ? wrong.join(" ") : "none"} ({wrongCount}/{MAX_WRONG})
           </Body>
@@ -325,8 +295,13 @@ const st = StyleSheet.create({
   hangWrap: { alignItems: "center", justifyContent: "center", marginTop: space.sm },
   sprite: { width: SPRITE_W, height: SPRITE_H },
 
-  cat: { color: color.cyan, fontSize: 15, fontWeight: "700", marginTop: space.md },
-  word: { color: color.text, fontSize: 30, letterSpacing: 4, fontWeight: "800", marginTop: space.md, textAlign: "center" },
+  catPill: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.md, backgroundColor: color.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: color.surfaceLine, paddingHorizontal: space.md, paddingVertical: space.xs },
+  catTxt: { color: color.text, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
+  wordRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginTop: space.md },
+  tile: { width: 36, height: 46, borderRadius: radius.sm, backgroundColor: color.surface, borderBottomWidth: 3, borderColor: color.surfaceLine, alignItems: "center", justifyContent: "center" },
+  tileShown: { backgroundColor: color.surface2, borderColor: color.cyan },
+  tileMiss: { backgroundColor: "rgba(255,82,71,0.14)", borderColor: color.danger },
+  tileT: { color: color.text, fontSize: 24, fontWeight: "900" },
   wrongLine: { color: color.textMuted, fontSize: 14, marginTop: space.md },
   instructions: { marginTop: space.md, textAlign: "center", paddingHorizontal: space.lg },
   keys: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginTop: space.lg },

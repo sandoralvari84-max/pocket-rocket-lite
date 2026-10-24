@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Pressable, Dimensions, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
@@ -165,23 +165,31 @@ function Screen({ ask, onExit }: GameContext) {
   const [status, setStatus] = useState("Your turn — drop into a column");
   const [quip, setQuip] = useState("");
   const [last, setLast] = useState<number | null>(null);
-  const [dropCell, setDropCell] = useState<number | null>(null); // cell index currently falling
-  const drop = useRef(new Animated.Value(1)).current; // 0 = top of column, 1 = seated
+  const [dropCell, setDropCell] = useState<number | null>(null); // cell index currently settling
+  const drop = useRef(new Animated.Value(1)).current; // 0 = just dropped, 1 = seated
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropSafety = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Animate a disc falling from the top of its column into its seated slot.
+  // Settle a freshly placed disc with a bounded scale+fade "pop". A placed disc
+  // is ALWAYS rendered in its slot; the pop only scales it up from small, so an
+  // interrupted animation (e.g. the machine replying before the player's pop
+  // finishes) can never strand a disc off-screen — the old disappearing bug.
   // Honors reduced motion: when on, the disc simply appears seated.
   const runDrop = (cell: number) => {
     if (reducedMotion) { setDropCell(null); return; }
     const r = Math.floor(cell / COLS);
+    const ms = 150 + r * 42; // deeper rows fall a little longer
     setDropCell(cell);
     drop.setValue(0);
     Animated.timing(drop, {
       toValue: 1,
-      duration: 190 + (r + 1) * 45, // longer fall for lower rows
-      easing: Easing.bounce,        // satisfying settle at the bottom
+      duration: ms,
+      easing: Easing.bounce,   // a real falling disc that settles with a bounce
       useNativeDriver: true,
-    }).start(() => setDropCell(null));
+    }).start(({ finished }) => { if (finished) setDropCell(null); });
+    // Safety: the disc always ends fully seated even if the animation is pre-empted.
+    if (dropSafety.current) clearTimeout(dropSafety.current);
+    dropSafety.current = setTimeout(() => setDropCell(null), ms + 260);
   };
 
   const fetchTaunt = () => {
@@ -226,6 +234,7 @@ function Screen({ ask, onExit }: GameContext) {
 
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
+    if (dropSafety.current) clearTimeout(dropSafety.current);
     drop.setValue(1);
     setDropCell(null);
     setBoard(emptyBoard());
@@ -236,6 +245,11 @@ function Screen({ ask, onExit }: GameContext) {
     setLast(null);
     setStatus("Your turn — drop into a column");
   };
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+    if (dropSafety.current) clearTimeout(dropSafety.current);
+  }, []);
 
   return (
     <View style={st.fill}>
@@ -255,9 +269,10 @@ function Screen({ ask, onExit }: GameContext) {
                 const v = board[cell];
                 const isLast = last === cell;
                 const falling = dropCell === cell && !reducedMotion;
-                const startY = -((r + 1) * SLOT); // start above the top of the board
+                // Fall from the TOP of its own column (inside the board) down to
+                // the seat — always on-screen, so a placed disc can never vanish.
                 const translateY = falling
-                  ? drop.interpolate({ inputRange: [0, 1], outputRange: [startY, 0] })
+                  ? drop.interpolate({ inputRange: [0, 1], outputRange: [-r * SLOT, 0] })
                   : 0;
                 return (
                   <View key={r} style={[st.slot, { width: SLOT, height: SLOT }]}>
@@ -316,14 +331,14 @@ const st = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
   status: { color: color.text, fontWeight: "700", textAlign: "center", paddingHorizontal: space.lg },
   grid: {
-    flexDirection: "row", backgroundColor: color.surface, borderRadius: radius.lg,
-    borderWidth: 2, borderColor: color.surfaceLine,
+    flexDirection: "row", backgroundColor: "#1F2940", borderRadius: radius.lg,
+    borderWidth: 3, borderColor: "#30406A",
     overflow: "hidden", // clip the falling disc to the board frame
   },
   colTap: { flexDirection: "column" },
   slot: { alignItems: "center", justifyContent: "center" },
   // empty cell = a punched hole in the board surface
-  hole: { backgroundColor: color.bg, borderWidth: 2, borderColor: color.surfaceLine },
+  hole: { backgroundColor: "#0B0F1A", borderWidth: 2, borderColor: "rgba(0,0,0,0.5)" },
   // seated disc: chunky circle with a rim for dimensionality
   disc: { alignItems: "center", justifyContent: "flex-start", borderWidth: 3, overflow: "hidden" },
   gloss: { position: "absolute", backgroundColor: "rgba(255,255,255,0.28)" },

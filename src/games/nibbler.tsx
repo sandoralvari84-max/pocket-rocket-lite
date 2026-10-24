@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
 import { ArcadeJoystick } from "../design/Joystick";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
 
 /* ----------------------------------------------------------------------------
  * Nibbler — Snake. Grid logic is fully deterministic (visuals never touch it):
@@ -30,13 +32,26 @@ const CELL = Math.floor(Math.min(W - 24, H * 0.56) / COLS);
 const BOARD_W = CELL * COLS;
 const BOARD_H = CELL * ROWS;
 
-// Original owned sprites (v3) — tools/art/gen_nibbler_art.py.
+// Original owned sprites (tools/art/gen_nibbler_art.py + gen_nibbler_field.py).
 const FOOD_IMG = require("../../assets/arcade/nibbler/apple.png");
 const ROCK_IMG = require("../../assets/arcade/nibbler/rock.png");
+const FIELD_IMGS = [
+  require("../../assets/arcade/nibbler/field_0.png"),
+  require("../../assets/arcade/nibbler/field_1.png"),
+];
 
-// Nibbler's own period palette: a vivid arcade-green snake on dark.
-const SNAKE_BODY = "#2FA84A";
-const SNAKE_HEAD = "#6CE06B";
+// Nibbler's own period palette: a vivid arcade-green snake on a dark field.
+const SNAKE_HEAD = "#7BEE74";
+const SNAKE_NEAR = "#43C85E"; // body just behind the head
+const SNAKE_FAR = "#176B2E";  // body near the tail
+
+// Lerp between two "#rrggbb" colours (for the head→tail body gradient).
+function mixHex(a: string, b: string, t: number): string {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  const to = (n: number) => Math.round(n).toString(16).padStart(2, "0");
+  return `#${pa.map((v, i) => to(v + (pb[i] - v) * t)).join("")}`;
+}
 
 type Dir = { dx: number; dy: number };
 type Cell = { r: number; c: number };
@@ -79,6 +94,10 @@ function randFood(snake: Cell[], obstacles: Set<string>): Cell {
 
 function Screen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fxRef = useRef<EffectsHandle>(null);
+  const cpx = (c: number) => (c + 0.5) * CELL;
+  const cpy = (r: number) => (r + 0.5) * CELL;
 
   const snakeRef = useRef<Cell[]>(START.map((s) => ({ ...s })));
   const dirRef = useRef<Dir>({ dx: 1, dy: 0 });
@@ -134,6 +153,8 @@ function Screen({ onExit }: GameContext) {
       const ns = scoreRef.current + 1;
       scoreRef.current = ns;
       setScore(ns);
+      fxRef.current?.burst(cpx(nh.c), cpy(nh.r), { count: 10, color: color.success, speed: 120, size: 5 });
+      fxRef.current?.popScore(cpx(nh.c), cpy(nh.r), "+1", SNAKE_HEAD);
       snakeRef.current = next;
       foodRef.current = randFood(next, activeObstacles(ns));
     } else {
@@ -145,6 +166,8 @@ function Screen({ onExit }: GameContext) {
   }
 
   function die() {
+    const cc = crashRef.current;
+    if (cc) fxRef.current?.burst(cpx(cc.c), cpy(cc.r), { count: 16, color: color.danger, speed: 150, size: 6 });
     phaseRef.current = "over";
     setPhase("over");
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -200,6 +223,19 @@ function Screen({ onExit }: GameContext) {
   const obstacles = activeObstacles(score);
   const foodSize = Math.round(CELL * 0.92);
 
+  // Textured field background (tiled, two variants) — built once.
+  const fieldLayer = useMemo(() => {
+    const cells: React.ReactNode[] = [];
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        cells.push(
+          <View key={`fld${r}-${c}`} pointerEvents="none" style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
+            <Sprite source={FIELD_IMGS[(r + c) % 2]} size={CELL} />
+          </View>
+        );
+    return cells;
+  }, []);
+
   return (
     <View style={st.fill}>
       <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
@@ -218,6 +254,8 @@ function Screen({ onExit }: GameContext) {
           style={[st.board, { width: BOARD_W, height: BOARD_H, borderColor: phase === "over" ? color.danger : color.surfaceLine }]}
           {...pan.panHandlers}
         >
+          {fieldLayer}
+
           {/* obstacles */}
           {Array.from(obstacles).map((k) => {
             const [r, c] = k.split(",").map(Number);
@@ -233,35 +271,52 @@ function Screen({ onExit }: GameContext) {
             <Sprite source={FOOD_IMG} size={foodSize} />
           </View>
 
-          {/* snake — continuous body: full cells connect; head/tail rounded, eyes face travel */}
+          {/* snake — shaded segments, head→tail gradient, rounded head/tail, eyes + tongue */}
           {snake.map((s, i) => {
             const isHead = i === 0;
             const isTail = i === snake.length - 1 && snake.length > 1;
             const crashed = phase === "over" && crashRef.current && crashRef.current.r === s.r && crashRef.current.c === s.c;
-            const bg = crashed ? color.danger : isHead ? SNAKE_HEAD : SNAKE_BODY;
-            const rounded = isHead || isTail ? Math.round(CELL * 0.4) : 0;
+            const t = snake.length > 1 ? i / (snake.length - 1) : 0;
+            const bg = crashed ? color.danger : isHead ? SNAKE_HEAD : mixHex(SNAKE_NEAR, SNAKE_FAR, t);
+            const rounded = isHead ? Math.round(CELL * 0.46) : isTail ? Math.round(CELL * 0.4) : Math.round(CELL * 0.26);
+            const inset = Math.max(1, Math.round(CELL * 0.08));
             return (
               <View
                 key={`s${i}`}
-                style={{ position: "absolute", left: s.c * CELL, top: s.r * CELL, width: CELL, height: CELL, backgroundColor: bg, borderRadius: rounded }}
+                style={{ position: "absolute", left: s.c * CELL, top: s.r * CELL, width: CELL, height: CELL, backgroundColor: bg, borderRadius: rounded, borderWidth: 1.5, borderColor: "rgba(0,0,0,0.3)" }}
               >
-                {isHead && (() => {
+                {!crashed ? (
+                  <View pointerEvents="none" style={{ position: "absolute", left: inset, top: inset, right: inset, height: Math.round(CELL * 0.32), borderRadius: rounded, backgroundColor: "rgba(255,255,255,0.20)" }} />
+                ) : null}
+                {isHead && !crashed ? (() => {
                   const d = dirRef.current;
-                  const fx = CELL / 2 + d.dx * CELL * 0.22;
-                  const fy = CELL / 2 + d.dy * CELL * 0.22;
+                  const cx = CELL / 2 + d.dx * CELL * 0.18;
+                  const cy = CELL / 2 + d.dy * CELL * 0.18;
                   const px = -d.dy, py = d.dx;
-                  const er = Math.max(2, Math.round(CELL * 0.15));
+                  const er = Math.max(3, Math.round(CELL * 0.2));
+                  const pr = Math.max(1, Math.round(er * 0.5));
                   const eyes = [
-                    { x: fx + px * CELL * 0.2, y: fy + py * CELL * 0.2 },
-                    { x: fx - px * CELL * 0.2, y: fy - py * CELL * 0.2 },
+                    { x: cx + px * CELL * 0.2, y: cy + py * CELL * 0.2 },
+                    { x: cx - px * CELL * 0.2, y: cy - py * CELL * 0.2 },
                   ];
-                  return eyes.map((e, k) => (
-                    <View key={k} style={{ position: "absolute", left: e.x - er / 2, top: e.y - er / 2, width: er, height: er, borderRadius: 999, backgroundColor: color.onAmber }} />
-                  ));
-                })()}
+                  const tx = CELL / 2 + d.dx * CELL * 0.5;
+                  const ty = CELL / 2 + d.dy * CELL * 0.5;
+                  return (
+                    <>
+                      <View pointerEvents="none" style={{ position: "absolute", left: tx - CELL * 0.06, top: ty - CELL * 0.06, width: CELL * 0.12, height: CELL * 0.12, borderRadius: 2, backgroundColor: "#FF4D5E" }} />
+                      {eyes.map((e, k) => (
+                        <View key={k} style={{ position: "absolute", left: e.x - er / 2, top: e.y - er / 2, width: er, height: er, borderRadius: 999, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+                          <View style={{ width: pr, height: pr, borderRadius: 999, backgroundColor: "#0A0A0A" }} />
+                        </View>
+                      ))}
+                    </>
+                  );
+                })() : null}
               </View>
             );
           })}
+
+          <EffectsLayer ref={fxRef} reduced={reducedMotion} />
         </View>
         <Body muted style={{ marginTop: space.md, textAlign: "center" }}>
           Swipe or use the D-pad. Eat apples, dodge your tail and the crates.

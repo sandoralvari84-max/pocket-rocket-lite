@@ -1,9 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, Pressable, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+import { PixelText, Body, IconButton, GameOverlay, Sprite } from "../design/ui";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
+
+// Owned art — wooden board tiles + dimensional pieces (tools/art/gen_draughts_art.py).
+const SQ_LIGHT = require("../../assets/arcade/draughts/square_light.png");
+const SQ_DARK = require("../../assets/arcade/draughts/square_dark.png");
+const PIECE_IMG: Record<number, ReturnType<typeof require>> = {
+  1: require("../../assets/arcade/draughts/man_amber.png"),
+  2: require("../../assets/arcade/draughts/man_cyan.png"),
+  3: require("../../assets/arcade/draughts/king_amber.png"),
+  4: require("../../assets/arcade/draughts/king_cyan.png"),
+};
 
 // Board values:
 // 0 empty | 1 player man | 2 machine man | 3 player king | 4 machine king
@@ -188,6 +200,9 @@ function bestMachineMove(b: Board): Move | null {
 
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fx = useRef<EffectsHandle>(null);
+  const [phase, setPhase] = useState<"ready" | "playing" | "paused">("ready");
   const [board, setBoard] = useState<Board>(() => initialBoard());
   const [sel, setSel] = useState<Pos | null>(null);
   const [turn, setTurn] = useState<"player" | "machine">("player");
@@ -204,11 +219,18 @@ function Screen({ ask, onExit }: GameContext) {
     setMsg("Your move (amber). Captures are forced.");
     setLastPath([]);
     busy.current = false;
+    setPhase("playing");
   }, []);
+
+  const start = () => setPhase("playing");
+  const togglePause = () => setPhase((p) => (p === "playing" ? "paused" : p === "paused" ? "playing" : p));
+  const burstCaps = (caps: Pos[]) => {
+    for (const cap of caps) fx.current?.burst((cap.c + 0.5) * SZ, (cap.r + 0.5) * SZ, { count: 14, color: "#FF9810", speed: 150, size: 6 });
+  };
 
   // Machine turn — deterministic minimax, never the LLM.
   useEffect(() => {
-    if (turn !== "machine" || over) return;
+    if (turn !== "machine" || over || phase !== "playing") return;
     let alive = true;
     busy.current = true;
     const t = setTimeout(() => {
@@ -218,6 +240,7 @@ function Screen({ ask, onExit }: GameContext) {
       const after = applyMove(board, move);
       setBoard(after);
       setLastPath([move.from, ...move.path]);
+      if (move.caps.length > 0) burstCaps(move.caps);
       const playerMoves = legalMoves(after, PLAYER);
       if (playerMoves.length === 0) {
         setOver("lose");
@@ -239,7 +262,7 @@ function Screen({ ask, onExit }: GameContext) {
       busy.current = false;
     }, 420);
     return () => { alive = false; clearTimeout(t); };
-  }, [turn, over, board, ask]);
+  }, [turn, over, board, ask, phase]);
 
   const playerLegal = turn === "player" && !over ? legalMoves(board, PLAYER) : [];
   const selMoves = sel ? playerLegal.filter((m) => m.from.r === sel.r && m.from.c === sel.c) : [];
@@ -247,7 +270,7 @@ function Screen({ ask, onExit }: GameContext) {
   const isSelectable = (r: number, c: number): boolean => playerLegal.some((m) => m.from.r === r && m.from.c === c);
 
   const onCell = (r: number, c: number): void => {
-    if (over || turn !== "player" || busy.current) return;
+    if (over || turn !== "player" || busy.current || phase !== "playing") return;
     // Tapping one of our movable pieces selects it.
     if (ownerOf(board[r][c]) === 1 && isSelectable(r, c)) { setSel({ r, c }); return; }
     if (!sel) return;
@@ -257,6 +280,7 @@ function Screen({ ask, onExit }: GameContext) {
     setBoard(after);
     setSel(null);
     setLastPath([chosen.from, ...chosen.path]);
+    if (chosen.caps.length > 0) burstCaps(chosen.caps);
     const machineMoves = legalMoves(after, MACHINE);
     if (machineMoves.length === 0) { setOver("win"); setMsg("The machine cannot move. You win!"); return; }
     setMsg("Machine thinking…");
@@ -267,7 +291,10 @@ function Screen({ ask, onExit }: GameContext) {
     <View style={st.fill}>
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
         <PixelText size="h2" style={{ color: color.amber }}>DRAUGHTS</PixelText>
-        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <IconButton label="Pause" glyph={phase === "paused" ? "▶" : "❚❚"} onPress={togglePause} />
+          <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        </View>
       </View>
       <Body style={st.msg}>{msg}</Body>
 
@@ -278,54 +305,49 @@ function Screen({ ask, onExit }: GameContext) {
               const selected = !!sel && sel.r === r && sel.c === c;
               const target = isTarget(r, c);
               const lit = lastPath.some((p) => p.r === r && p.c === c);
+              const movable = isSelectable(r, c) && !selected && turn === "player" && !over;
               return (
                 <Pressable
                   key={`${r}-${c}`}
                   onPress={() => onCell(r, c)}
-                  style={[
-                    st.sq,
-                    { left: c * SZ, top: r * SZ, width: SZ, height: SZ, backgroundColor: isDark(r, c) ? color.surface : color.surface2 },
-                    lit && { backgroundColor: color.amberGlowBg },
-                  ]}
+                  style={[st.sq, { left: c * SZ, top: r * SZ, width: SZ, height: SZ }]}
                 >
-                  {v !== 0 ? (
-                    <View
-                      style={[
-                        st.piece,
-                        {
-                          width: SZ * 0.72, height: SZ * 0.72, borderRadius: SZ * 0.36,
-                          backgroundColor: ownerOf(v) === 1 ? color.amber : color.cyan,
-                          // Kings wear a bright warm-white rim so they read as crowned at a glance.
-                          borderColor: selected ? color.text : isKing(v) ? color.text : "rgba(0,0,0,0.35)",
-                          borderWidth: selected ? 3 : isKing(v) ? 3 : 2,
-                        },
-                      ]}
-                    >
-                      {isKing(v) ? (
-                        <>
-                          {/* Double-disc ring — classic "stacked" king read, no glyph dependency. */}
-                          <View
-                            style={[
-                              st.kingRing,
-                              {
-                                width: SZ * 0.5, height: SZ * 0.5, borderRadius: SZ * 0.25,
-                                borderColor: ownerOf(v) === 1 ? color.onAmber : color.onCyan,
-                              },
-                            ]}
-                          />
-                          {/* Crown glyph centred on top (plain Text — system font, not the ASCII pixel font). */}
-                          <Text style={[st.crown, { fontSize: SZ * 0.42, color: ownerOf(v) === 1 ? color.onAmber : color.onCyan }]}>♚</Text>
-                        </>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  {target ? <View style={[st.dot, { width: SZ * 0.26, height: SZ * 0.26, borderRadius: SZ * 0.13 }]} /> : null}
+                  <Sprite source={isDark(r, c) ? SQ_DARK : SQ_LIGHT} size={SZ} style={st.sqImg} />
+                  {lit ? <View style={[st.lit, { width: SZ, height: SZ }]} /> : null}
+                  {v !== 0 ? <Sprite source={PIECE_IMG[v]} size={SZ} /> : null}
+                  {selected ? <View style={[st.ring, { width: SZ * 0.9, height: SZ * 0.9, borderRadius: SZ * 0.45, borderColor: color.text }]} /> : null}
+                  {movable ? <View style={[st.ring, { width: SZ * 0.9, height: SZ * 0.9, borderRadius: SZ * 0.45, borderColor: "rgba(90,230,150,0.75)" }]} /> : null}
+                  {target ? <View style={[st.dot, { width: SZ * 0.32, height: SZ * 0.32, borderRadius: SZ * 0.16 }]} /> : null}
                 </Pressable>
               );
             }),
           )}
+          <EffectsLayer ref={fx} reduced={reducedMotion} />
         </View>
       </View>
+
+      <GameOverlay
+        visible={phase === "ready"}
+        kind="pause"
+        title="DRAUGHTS"
+        primaryLabel="Play"
+        onPrimary={start}
+        onExit={onExit}
+      >
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          You are amber at the bottom. Move diagonally; captures are forced. Reach
+          the far row to crown a king.
+        </Body>
+      </GameOverlay>
+
+      <GameOverlay
+        visible={phase === "paused" && !over}
+        kind="pause"
+        title="PAUSED"
+        primaryLabel="Resume"
+        onPrimary={togglePause}
+        onExit={onExit}
+      />
 
       <GameOverlay
         visible={!!over}
@@ -350,10 +372,10 @@ const st = StyleSheet.create({
   boardWrap: { alignItems: "center" },
   board: { position: "relative", borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: color.surfaceLine },
   sq: { position: "absolute", alignItems: "center", justifyContent: "center" },
-  piece: { alignItems: "center", justifyContent: "center", borderStyle: "solid" },
-  kingRing: { position: "absolute", borderWidth: 2.5, backgroundColor: "transparent" },
-  crown: { fontWeight: "900", textAlign: "center", includeFontPadding: false },
-  dot: { position: "absolute", backgroundColor: color.success, opacity: 0.85 },
+  sqImg: { position: "absolute", left: 0, top: 0 },
+  lit: { position: "absolute", left: 0, top: 0, backgroundColor: "rgba(255,152,16,0.30)" },
+  ring: { position: "absolute", borderWidth: 3 },
+  dot: { position: "absolute", backgroundColor: color.success, opacity: 0.9 },
 });
 
 export const draughtsGame: GameModule = {

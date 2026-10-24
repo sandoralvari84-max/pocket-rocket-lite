@@ -12,7 +12,6 @@ import { fourUpGame } from "./four-up";
 import { draughtsGame } from "./draughts";
 import { fleetHuntGame } from "./fleet-hunt";
 import { wordGallowsGame } from "./word-gallows";
-import { twentyQuestionsGame } from "./twenty-questions";
 
 export const GAMES: GameModule[] = [
   // arcade
@@ -20,5 +19,4 @@ export const GAMES: GameModule[] = [
   blockDropGame, flipperFrenzyGame, puttPalGame,
   // turn-based
   threeInARowGame, rockPaperScissorsGame, fourUpGame, draughtsGame, fleetHuntGame, wordGallowsGame,
-  twentyQuestionsGame,
 ];

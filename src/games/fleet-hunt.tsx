@@ -3,17 +3,24 @@ import { View, StyleSheet, Pressable, Dimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+import { PixelText, Body, IconButton, GameOverlay, Sprite } from "../design/ui";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
 
-// Owned sprite art for the fleet and firing markers.
+// Owned sprite art for the ocean, the fleet and firing markers.
+const WATER_IMGS = [
+  require("../../assets/arcade/fleet/water_0.png"),
+  require("../../assets/arcade/fleet/water_1.png"),
+];
+const SHIP4_IMG = require("../../assets/arcade/fleet/ship4.png"); // horizontal 4-cell flagship (4:1)
 const SHIP3_IMG = require("../../assets/arcade/fleet/ship3.png"); // horizontal 3-cell vessel (3:1)
 const SHIP2_IMG = require("../../assets/arcade/fleet/ship2.png"); // horizontal 2-cell vessel (2:1)
 const HIT_IMG = require("../../assets/arcade/fleet/hit.png");     // explosion (1 cell)
 const MISS_IMG = require("../../assets/arcade/fleet/miss.png");   // water splash (1 cell)
 const SUNK_IMG = require("../../assets/arcade/fleet/sunk.png");   // burning hull overlay (1 cell)
 
-const N = 6;
-const SHIP_SIZES = [3, 2, 2];
+const N = 8;
+const SHIP_SIZES = [4, 3, 3, 2, 2];
 const { width: W, height: H } = Dimensions.get("window");
 
 // Full-screen dual-grid layout: size each board to fill the width while both
@@ -26,7 +33,7 @@ const availW = W - space.lg * 2 - RULER;
 const availH = Math.floor((H - V_CHROME) / 2) - RULER;
 const GRID = Math.max(240, Math.min(availW, availH));
 const CELL = GRID / N;
-const COLS = "ABCDEF";
+const COLS = "ABCDEFGH";
 
 interface CellState { ship: number; fired: boolean; }
 type Grid = CellState[][];
@@ -119,8 +126,12 @@ function chooseShot(grid: Grid, ai: AIState): Pos {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function Screen({ ask, onExit }: GameContext) {
+function Screen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fxEnemy = useRef<EffectsHandle>(null);
+  const fxPlayer = useRef<EffectsHandle>(null);
+  const [phase, setPhase] = useState<"ready" | "playing" | "paused">("ready");
   const enemySetup = useRef(placeShips());
   const playerSetup = useRef(placeShips());
   const [enemy, setEnemy] = useState<Grid>(enemySetup.current.grid);
@@ -141,11 +152,15 @@ function Screen({ ask, onExit }: GameContext) {
     setMsg("Tap the enemy grid to fire.");
     ai.current = { hits: [] };
     busy.current = false;
+    setPhase("playing");
   }, []);
+
+  const start = () => setPhase("playing");
+  const togglePause = () => setPhase((p) => (p === "playing" ? "paused" : p === "paused" ? "playing" : p));
 
   // Enemy turn — deterministic hunt/target using real hit feedback. No LLM.
   useEffect(() => {
-    if (turn !== "enemy" || over) return;
+    if (turn !== "enemy" || over || phase !== "playing") return;
     let alive = true;
     busy.current = true;
     const t = setTimeout(() => {
@@ -177,18 +192,24 @@ function Screen({ ask, onExit }: GameContext) {
         setMsg(`${note} Your move.`);
         setTurn("player");
       }
+      // splash/impact burst on YOUR waters where the enemy fired
+      if (hitShip >= 0) fxPlayer.current?.burst((shot.c + 0.5) * CELL, (shot.r + 0.5) * CELL, { count: 14, color: "#FF5C47", speed: 150, size: 6 });
+      else fxPlayer.current?.burst((shot.c + 0.5) * CELL, (shot.r + 0.5) * CELL, { count: 8, color: "#78D2FF", speed: 110, size: 5 });
       busy.current = false;
     }, 420);
     return () => { alive = false; clearTimeout(t); };
-  }, [turn, over, player]);
+  }, [turn, over, player, phase]);
 
   const fireAt = (r: number, c: number): void => {
-    if (over || turn !== "player" || busy.current) return;
+    if (over || turn !== "player" || busy.current || phase !== "playing") return;
     if (enemy[r][c].fired) return;
     const ng = enemy.map((row) => row.map((cell) => ({ ...cell })));
     ng[r][c].fired = true;
     setEnemy(ng);
     const hitShip = ng[r][c].ship;
+    // impact burst on ENEMY waters where you fired
+    if (hitShip >= 0) fxEnemy.current?.burst((c + 0.5) * CELL, (r + 0.5) * CELL, { count: 16, color: "#FF5C47", speed: 160, size: 6 });
+    else fxEnemy.current?.burst((c + 0.5) * CELL, (r + 0.5) * CELL, { count: 8, color: "#78D2FF", speed: 110, size: 5 });
     let note = `You fired ${coordLabel({ r, c })} — ${hitShip >= 0 ? "hit!" : "miss."}`;
     if (hitShip >= 0 && shipSunk(ng, enemySetup.current.ships[hitShip])) note += " You sank a ship!";
     if (allSunk(ng, enemySetup.current.ships)) {
@@ -222,6 +243,7 @@ function Screen({ ask, onExit }: GameContext) {
     onPress: ((r: number, c: number) => void) | null,
     ships: Pos[][],
     accent: string,
+    fxRef: React.RefObject<EffectsHandle | null>,
   ): React.ReactNode => {
     const sunk = new Set<string>();
     ships.forEach((s) => { if (shipSunk(grid, s)) s.forEach((p) => sunk.add(`${p.r}-${p.c}`)); });
@@ -246,20 +268,26 @@ function Screen({ ask, onExit }: GameContext) {
           </View>
           {/* grid */}
           <View style={[st.grid, { width: GRID, height: GRID, borderColor: accent }]}>
-            {/* Layer 1 — open water + fire tints + the tap targets. */}
+            {/* Layer 0 — the ocean itself (tiled, two subtle variants). */}
+            {grid.map((row, r) =>
+              row.map((_c, c) => (
+                <View key={`w-${r}-${c}`} pointerEvents="none" style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
+                  <Sprite source={WATER_IMGS[(r + c) % 2]} size={CELL} />
+                </View>
+              )),
+            )}
+            {/* Layer 1 — fire tints (over water) + the tap targets. */}
             {grid.map((row, r) =>
               row.map((cell, c) => {
                 const isSunk = cell.fired && cell.ship >= 0 && sunk.has(`${r}-${c}`);
                 const isHit = cell.fired && cell.ship >= 0 && !isSunk;
-                let bg: string = color.surface;              // open water
-                if (isSunk) bg = color.dangerDim;            // destroyed hull (dark red block)
-                else if (isHit) bg = color.danger;           // fresh hit (bright red)
+                const tint = isSunk ? "rgba(120,20,16,0.55)" : isHit ? "rgba(255,70,54,0.42)" : "transparent";
                 return (
                   <Pressable
                     key={`${r}-${c}`}
                     onPress={onPress ? () => onPress(r, c) : undefined}
                     accessibilityRole={onPress ? "button" : undefined}
-                    style={[st.cell, { left: c * CELL, top: r * CELL, width: CELL, height: CELL, backgroundColor: bg }]}
+                    style={[st.cell, { left: c * CELL, top: r * CELL, width: CELL, height: CELL, backgroundColor: tint }]}
                   />
                 );
               }),
@@ -273,7 +301,7 @@ function Screen({ ask, onExit }: GameContext) {
                 const minC = Math.min(...cols);
                 const len = s.length;
                 const horizontal = s.every((p) => p.r === s[0].r);
-                const src = len >= 3 ? SHIP3_IMG : SHIP2_IMG;
+                const src = len >= 4 ? SHIP4_IMG : len >= 3 ? SHIP3_IMG : SHIP2_IMG;
                 // Un-rotated box is always length*CELL wide by CELL tall (sprite is horizontal).
                 const w = len * CELL;
                 const h = CELL;
@@ -317,6 +345,7 @@ function Screen({ ask, onExit }: GameContext) {
                 );
               }),
             )}
+            <EffectsLayer ref={fxRef} reduced={reducedMotion} />
           </View>
         </View>
       </View>
@@ -327,7 +356,10 @@ function Screen({ ask, onExit }: GameContext) {
     <View style={st.fill}>
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
         <PixelText size="h2" style={{ color: color.amber }}>FLEET HUNT</PixelText>
-        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <IconButton label="Pause" glyph={phase === "paused" ? "▶" : "❚❚"} onPress={togglePause} />
+          <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        </View>
       </View>
       <Body style={st.msg}>{msg}</Body>
 
@@ -337,7 +369,7 @@ function Screen({ ask, onExit }: GameContext) {
             <PixelText size="label" style={{ color: color.cyan }}>ENEMY WATERS</PixelText>
             {fleetPips(enemy, enemySetup.current.ships, color.cyan)}
           </View>
-          {renderBoard(enemy, false, fireAt, enemySetup.current.ships, color.cyanDim)}
+          {renderBoard(enemy, false, fireAt, enemySetup.current.ships, color.cyanDim, fxEnemy)}
         </View>
 
         <View style={{ height: GAP }} />
@@ -347,9 +379,32 @@ function Screen({ ask, onExit }: GameContext) {
             <PixelText size="label" style={{ color: color.amber }}>YOUR FLEET</PixelText>
             {fleetPips(player, playerSetup.current.ships, color.amber)}
           </View>
-          {renderBoard(player, true, null, playerSetup.current.ships, color.amberDim)}
+          {renderBoard(player, true, null, playerSetup.current.ships, color.amberDim, fxPlayer)}
         </View>
       </View>
+
+      <GameOverlay
+        visible={phase === "ready"}
+        kind="pause"
+        title="FLEET HUNT"
+        primaryLabel="Engage"
+        onPrimary={start}
+        onExit={onExit}
+      >
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Tap the enemy waters to fire. Sink all three enemy ships before they sink
+          your fleet.
+        </Body>
+      </GameOverlay>
+
+      <GameOverlay
+        visible={phase === "paused" && !over}
+        kind="pause"
+        title="PAUSED"
+        primaryLabel="Resume"
+        onPrimary={togglePause}
+        onExit={onExit}
+      />
 
       <GameOverlay
         visible={!!over}
@@ -376,7 +431,7 @@ const st = StyleSheet.create({
   colRuler: { flexDirection: "row", paddingLeft: RULER, height: RULER },
   rowRuler: { width: RULER, justifyContent: "flex-start" },
   rulerCell: { alignItems: "center", justifyContent: "center" },
-  grid: { position: "relative", borderWidth: 2, borderRadius: radius.sm, overflow: "hidden", backgroundColor: color.surface },
+  grid: { position: "relative", borderWidth: 2, borderRadius: radius.sm, overflow: "hidden", backgroundColor: "#0A182E" },
   cell: { position: "absolute", borderWidth: 0.5, borderColor: color.bg, alignItems: "center", justifyContent: "center" },
   shipImg: { position: "absolute" },
   markCell: { position: "absolute", alignItems: "center", justifyContent: "center" },

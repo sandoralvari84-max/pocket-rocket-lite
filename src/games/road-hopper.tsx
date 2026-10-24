@@ -5,6 +5,8 @@ import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
 import { ArcadeJoystick } from "../design/Joystick";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
 
 /* ----------------------------------------------------------------------------
  * Road Hopper — Frogger. Now a real game with win/lose:
@@ -76,6 +78,10 @@ function buildLanes(level: number): LaneState[] {
 
 function Screen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fxRef = useRef<EffectsHandle>(null);
+  const cpx = (c: number) => (c + 0.5) * CELL;
+  const cpy = (r: number) => (r + 0.5) * CELL;
 
   const rowRef = useRef(START_ROW);
   const colRef = useRef(Math.floor(COLS / 2));
@@ -115,7 +121,10 @@ function Screen({ onExit }: GameContext) {
     hopTimer.current = setTimeout(() => setHopping(false), 140);
     if (nr === GOAL_ROW) {
       // reached the top -> level complete
-      setScore((s) => s + 100 + level * 20);
+      const pts = 100 + level * 20;
+      setScore((s) => s + pts);
+      fxRef.current?.burst(cpx(nc), cpy(GOAL_ROW), { count: 20, color: color.cyan, speed: 150, size: 6 });
+      fxRef.current?.popScore(cpx(nc), cpy(GOAL_ROW), `+${pts}`, color.cyan);
       phaseRef.current = "clear";
       setPhase("clear");
     }
@@ -168,7 +177,10 @@ function Screen({ onExit }: GameContext) {
         const pL = colRef.current;
         const pR = colRef.current + 1;
         const hit = lane.vehicles.some((v) => pL < v.x + lane.def.width && pR > v.x);
-        if (hit) { loseLife(); bump(); return; }
+        if (hit) {
+          fxRef.current?.burst(cpx(colRef.current), cpy(row), { count: 16, color: color.danger, speed: 150, size: 6 });
+          loseLife(); bump(); return;
+        }
       }
 
       bump();
@@ -195,7 +207,7 @@ function Screen({ onExit }: GameContext) {
         out.push(
           <View key={`ln${r}`} style={{ position: "absolute", left: 0, top: r * CELL - 1, width: BOARD_W, height: 2, flexDirection: "row" }}>
             {Array.from({ length: COLS }).map((_, i) => (
-              <View key={i} style={{ width: CELL * 0.5, height: 2, marginRight: CELL * 0.5, backgroundColor: color.surfaceLine }} />
+              <View key={i} style={{ width: CELL * 0.5, height: 3, marginRight: CELL * 0.5, borderRadius: 1.5, backgroundColor: "rgba(255,221,128,0.55)" }} />
             ))}
           </View>
         );
@@ -246,8 +258,11 @@ function Screen({ onExit }: GameContext) {
             )}
 
             <View style={{ position: "absolute", left: colRef.current * CELL, top: row * CELL }}>
+              <View style={{ position: "absolute", left: CELL * 0.22, top: CELL * 0.7, width: CELL * 0.56, height: CELL * 0.2, borderRadius: CELL * 0.1, backgroundColor: "rgba(0,0,0,0.3)" }} />
               <Sprite source={hopping ? HOPPER_HOP : HOPPER_IDLE} size={CELL} />
             </View>
+
+            <EffectsLayer ref={fxRef} reduced={reducedMotion} />
           </View>
         </Pressable>
         <Body muted style={{ marginTop: space.md, textAlign: "center" }}>

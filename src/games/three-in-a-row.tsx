@@ -9,9 +9,11 @@ type Cell = "X" | "O" | null; // X = player (amber), O = machine (cyan)
 type Board = Cell[];
 
 const { width: W } = Dimensions.get("window");
-const SIDE = Math.min(W - space.lg * 2, 330);
-const GAP = 6;
-const CELL = (SIDE - GAP * 4) / 3;
+const GAP = 10; // inner frame padding
+// Absolute-positioned cells (no flex-wrap): a sub-pixel rounding that wrapped the
+// 3rd cell onto a new row was the old "garbled grid" bug. This can't wrap.
+const CELL = Math.floor((Math.min(W - space.lg * 2, 340) - GAP * 2) / 3);
+const BOARD = CELL * 3 + GAP * 2;
 
 const LINES: ReadonlyArray<readonly [number, number, number]> = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -173,22 +175,26 @@ function Screen({ ask, onExit }: GameContext) {
       <View style={st.body}>
         <Body style={st.status}>{status}</Body>
 
-        <View style={[st.grid, { width: SIDE, height: SIDE }]}>
+        <View style={[st.grid, { width: BOARD, height: BOARD }]}>
+          {/* # grid lines */}
+          {[1, 2].map((n) => (
+            <View key={`v${n}`} style={[st.vline, { left: GAP + n * CELL - 1.5, top: GAP, height: BOARD - GAP * 2 }]} />
+          ))}
+          {[1, 2].map((n) => (
+            <View key={`h${n}`} style={[st.hline, { top: GAP + n * CELL - 1.5, left: GAP, width: BOARD - GAP * 2 }]} />
+          ))}
           {board.map((c, i) => {
+            const r = Math.floor(i / 3), col = i % 3;
             const inWin = win ? win.line.includes(i) : false;
             const isLast = last === i;
             return (
               <Pressable
                 key={i}
                 onPress={() => onCell(i)}
-                style={[
-                  st.cell,
-                  { width: CELL, height: CELL },
-                  isLast && { borderColor: color.amber },
-                  inWin && { backgroundColor: color.amberGlowBg, borderColor: color.success },
-                ]}
+                style={[st.cell, { left: GAP + col * CELL, top: GAP + r * CELL, width: CELL, height: CELL }, inWin && st.cellWin]}
               >
                 {c === "X" ? <MarkX /> : c === "O" ? <MarkO /> : null}
+                {isLast && !inWin ? <View style={st.lastDot} /> : null}
               </Pressable>
             );
           })}
@@ -219,15 +225,15 @@ const st = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
   status: { color: color.text, fontWeight: "700", textAlign: "center" },
   grid: {
-    flexDirection: "row", flexWrap: "wrap", gap: GAP,
-    backgroundColor: color.surface, borderRadius: radius.lg, padding: GAP,
-    borderWidth: 1, borderColor: color.surfaceLine,
+    position: "relative",
+    backgroundColor: "#1C2536", borderRadius: radius.lg,
+    borderWidth: 2, borderColor: "#30406A",
   },
-  cell: {
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: color.bg, borderRadius: radius.md,
-    borderWidth: 2, borderColor: color.surfaceLine,
-  },
+  cell: { position: "absolute", alignItems: "center", justifyContent: "center" },
+  cellWin: { backgroundColor: "rgba(80,230,140,0.18)", borderRadius: radius.md },
+  vline: { position: "absolute", width: 3, borderRadius: 2, backgroundColor: "#3A4E78" },
+  hline: { position: "absolute", height: 3, borderRadius: 2, backgroundColor: "#3A4E78" },
+  lastDot: { position: "absolute", left: 10, right: 10, bottom: 6, height: 3, borderRadius: 2, backgroundColor: color.amber },
   quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
 });
 

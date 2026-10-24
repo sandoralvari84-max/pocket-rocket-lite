@@ -5,5 +5,5 @@
 export const appMeta = {
   name: "Pocket Rocket Lite",
   version: "1.0.0",
-  build: "2026-10-23 · chat+sprites",
+  build: "2026-10-24 · visual",
 } as const;

@@ -3,7 +3,15 @@ import { View, StyleSheet, Dimensions, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, IconButton, GameOverlay } from "../design/ui";
+import { PixelText, Body, IconButton, GameOverlay, Sprite } from "../design/ui";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
+
+// Owned pinball art (tools/art/gen_flipper_art.py). Skins the existing physics
+// geometry — the collision shapes are unchanged.
+const BUMPER_IDLE = require("../../assets/arcade/flipper/bumper_idle.png");
+const BUMPER_LIT = require("../../assets/arcade/flipper/bumper_lit.png");
+const BALL_IMG = require("../../assets/arcade/flipper/ball.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -107,11 +115,15 @@ function GameScreen({ onExit }: GameContext) {
   const overRef = useRef(false);
   const flashRef = useRef<number[]>([0, 0, 0]); // bumper hit pulse timers
   const rafRef = useRef<number | null>(null);
+  const phaseRef = useRef<"ready" | "playing" | "paused">("ready");
+  const fxRef = useRef<EffectsHandle>(null);
+  const { reducedMotion } = useSettings();
 
   const [, setTick] = useState(0);
   const [score, setScore] = useState(0);
   const [balls, setBalls] = useState(3);
   const [over, setOver] = useState(false);
+  const [phase, setPhase] = useState<"ready" | "playing" | "paused">("ready");
   const bump = () => setTick((t) => (t + 1) % 1000000);
   const addScore = (n: number) => setScore((s) => s + n);
 
@@ -125,7 +137,7 @@ function GameScreen({ onExit }: GameContext) {
   };
 
   const step = () => {
-    if (overRef.current) return;
+    if (overRef.current || phaseRef.current !== "playing") return;
     const b = ballRef.current;
 
     // advance flippers once per frame (shared omega across sub-steps)
@@ -161,6 +173,7 @@ function GameScreen({ onExit }: GameContext) {
           b.vy = (b.vy - 2 * dot * ny) * 0.92 + ny * 2.6;
           flashRef.current[i] = 6;
           addScore(100);
+          fxRef.current?.burst(bu.x, bu.y, { count: 10, color: "#FFB84D", speed: 150, size: 5 });
         }
       }
 
@@ -169,10 +182,10 @@ function GameScreen({ onExit }: GameContext) {
 
       // flippers (dynamic) — collision uses exactly the drawn segment
       if (collideSeg(b, PIVOT_LX, PIVOT_Y, lbx, lby, FLIP_HALF, 0.35, lf.omega, lf.angle)) {
-        if (lf.omega !== 0) addScore(5);
+        if (lf.omega !== 0) { addScore(5); fxRef.current?.burst(b.x, b.y, { count: 6, color: "#00E5FF", speed: 130, size: 4 }); }
       }
       if (collideSeg(b, PIVOT_RX, PIVOT_Y, rbx, rby, FLIP_HALF, 0.35, rf.omega, rf.angle)) {
-        if (rf.omega !== 0) addScore(5);
+        if (rf.omega !== 0) { addScore(5); fxRef.current?.burst(b.x, b.y, { count: 6, color: "#00E5FF", speed: 130, size: 4 }); }
       }
 
       // speed cap
@@ -203,13 +216,21 @@ function GameScreen({ onExit }: GameContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const start = () => { phaseRef.current = "playing"; setPhase("playing"); };
+  const togglePause = () => {
+    if (phaseRef.current === "playing") { phaseRef.current = "paused"; setPhase("paused"); }
+    else if (phaseRef.current === "paused") { phaseRef.current = "playing"; setPhase("playing"); }
+  };
+
   const reset = () => {
     ballRef.current = freshBall();
     leftF.current = { angle: L_REST, omega: 0 };
     rightF.current = { angle: R_REST, omega: 0 };
     leftDown.current = false; rightDown.current = false;
     overRef.current = false;
-    setOver(false); setScore(0); setBalls(3);
+    fxRef.current?.clear();
+    phaseRef.current = "playing";
+    setOver(false); setScore(0); setBalls(3); setPhase("playing");
   };
 
   const b = ballRef.current;
@@ -237,35 +258,38 @@ function GameScreen({ onExit }: GameContext) {
         );
       })}
 
-      {/* bumpers */}
+      {/* bumpers (lit sprite flashes on hit) */}
       {BUMPERS.map((bu, i) => {
         const hot = flashRef.current[i] > 0;
+        const SZ = BUMP_R * 2 + 18;
         return (
-          <View key={i} pointerEvents="none" style={{
-            position: "absolute", left: bu.x - BUMP_R, top: bu.y - BUMP_R, width: BUMP_R * 2, height: BUMP_R * 2,
-            borderRadius: BUMP_R, backgroundColor: hot ? color.amber : color.cyanGlowBg,
-            borderWidth: 3, borderColor: hot ? color.text : color.cyan,
-          }} />
+          <View key={i} pointerEvents="none" style={{ position: "absolute", left: bu.x - SZ / 2, top: bu.y - SZ / 2 }}>
+            <Sprite source={hot ? BUMPER_LIT : BUMPER_IDLE} size={SZ} />
+          </View>
         );
       })}
 
       {/* flippers — drawn from pivot along current angle (matches collision segment) */}
       <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_LX, top: PIVOT_Y, transform: [{ rotate: `${lf.angle * 180 / Math.PI}deg` }] }}>
-        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2 }]} />
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: color.amber }]} />
+        <View style={[st.flipHi, { width: FLIP_LEN - 8 }]} />
       </View>
       <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_RX, top: PIVOT_Y, transform: [{ rotate: `${rf.angle * 180 / Math.PI}deg` }] }}>
-        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2 }]} />
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: color.cyan }]} />
+        <View style={[st.flipHi, { width: FLIP_LEN - 8 }]} />
       </View>
       {/* pivot caps */}
       {[{ x: PIVOT_LX }, { x: PIVOT_RX }].map((pv, i) => (
         <View key={i} pointerEvents="none" style={{ position: "absolute", left: pv.x - 7, top: PIVOT_Y - 7, width: 14, height: 14, borderRadius: 7, backgroundColor: color.surface2, borderWidth: 2, borderColor: color.cyan }} />
       ))}
 
-      {/* ball */}
-      <View pointerEvents="none" style={{
-        position: "absolute", left: b.x - R, top: b.y - R, width: R * 2, height: R * 2, borderRadius: R,
-        backgroundColor: color.amber, borderWidth: 2, borderColor: shadeHi,
-      }} />
+      {/* ball (chrome sprite) */}
+      <View pointerEvents="none" style={{ position: "absolute", left: b.x - (R + 4), top: b.y - (R + 4) }}>
+        <Sprite source={BALL_IMG} size={R * 2 + 8} />
+      </View>
+
+      {/* impact sparks */}
+      <EffectsLayer ref={fxRef} reduced={reducedMotion} />
 
       {/* HUD */}
       <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
@@ -273,22 +297,33 @@ function GameScreen({ onExit }: GameContext) {
           <PixelText size="score">{String(score).padStart(6, "0")}</PixelText>
           <PixelText size="label" style={{ marginTop: 4 }}>BALLS {balls}</PixelText>
         </View>
-        <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          <IconButton label="Pause" glyph={phase === "paused" ? "▶" : "❚❚"} onPress={togglePause} />
+          <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
+        </View>
       </View>
 
+      <GameOverlay visible={phase === "ready"} kind="pause" title="FLIPPER FRENZY"
+        primaryLabel="Launch" onPrimary={start} onExit={onExit}>
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Hold the left or right side of the screen to flip. Keep the ball alive and
+          rack up points on the bumpers.
+        </Body>
+      </GameOverlay>
+      <GameOverlay visible={phase === "paused" && !over} kind="pause" title="PAUSED"
+        primaryLabel="Resume" onPrimary={togglePause} onExit={onExit} />
       <GameOverlay visible={over} kind="over" title="GAME OVER" score={`SCORE ${score}`}
         primaryLabel="Play again" onPrimary={reset} onExit={onExit} />
     </View>
   );
 }
 
-const shadeHi = "#FFD089";
-
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: "#0A0E1A" },
   half: { position: "absolute", top: TOP, bottom: 0, width: W / 2, zIndex: 2 },
-  wall: { position: "absolute", backgroundColor: color.surfaceLine, borderRadius: 4 },
+  wall: { position: "absolute", backgroundColor: "#3A4760", borderRadius: 4 },
   flip: { position: "absolute", borderRadius: FLIP_HALF, backgroundColor: color.cyan },
+  flipHi: { position: "absolute", left: 4, top: -FLIP_HALF + 2, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.45)" },
   hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
 });

@@ -1,0 +1,82 @@
+import React from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { color, space, radius, type as T } from "../design/tokens";
+import { PixelText, Body } from "../design/ui";
+
+// Real shortcuts only — each opens Chat with a head-start prompt and routes to the
+// on-device model. No placeholder tiles for features that don't exist yet.
+type Tool = { glyph: string; title: string; sub: string; seed: string; tint: "amber" | "cyan" };
+const TOOLS: Tool[] = [
+  { glyph: "▤", title: "Paste & Ask", sub: "Drop in text and ask about it", seed: "Here's some text I'd like help with:\n\n", tint: "amber" },
+  { glyph: "✓", title: "Fact-check a claim", sub: "Reason through whether it holds up", seed: "Help me reason through whether this claim holds up: ", tint: "cyan" },
+  { glyph: "≡", title: "Summarise", sub: "Shorten a note or message", seed: "Summarise this clearly:\n\n", tint: "amber" },
+  { glyph: "☼", title: "Explain simply", sub: "Plain-language explanation", seed: "Explain this simply, like I'm five: ", tint: "cyan" },
+  { glyph: "✎", title: "Rephrase / draft", sub: "Reword or draft some text", seed: "Rephrase this more clearly: ", tint: "amber" },
+  { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
+];
+
+export default function Tools({ onPick }: { onPick: (seed: string) => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <ScrollView
+      contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={st.head}>
+        <PixelText size="title" style={{ color: color.amber }}>TOOLS</PixelText>
+        <Body muted style={{ marginTop: space.xs }}>
+          Shortcuts into your on-device buddy. Each opens Chat with a head start —
+          your text never leaves the phone.
+        </Body>
+      </View>
+
+      <View style={st.grid}>
+        {TOOLS.map((t) => {
+          const c = t.tint === "amber" ? color.amber : color.cyan;
+          const bg = t.tint === "amber" ? color.amberGlowBg : color.cyanGlowBg;
+          return (
+            <Pressable
+              key={t.title}
+              onPress={() => onPick(t.seed)}
+              accessibilityRole="button"
+              accessibilityLabel={t.title}
+              style={({ pressed }) => [st.card, pressed && { borderColor: c, backgroundColor: color.surface2 }]}
+            >
+              <View style={[st.tile, { backgroundColor: bg, borderColor: c }]}>
+                <Text style={[st.glyph, { color: c }]}>{t.glyph}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.title}>{t.title}</Text>
+                <Text style={st.sub}>{t.sub}</Text>
+              </View>
+              <Text style={st.chev}>›</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Body muted style={st.note}>
+        More tools (notes, reminders, recipes) are on the roadmap — these are the
+        ones that genuinely work today.
+      </Body>
+    </ScrollView>
+  );
+}
+
+const st = StyleSheet.create({
+  pad: { padding: space.lg, paddingBottom: space.xxl, gap: space.md },
+  head: { marginBottom: space.sm },
+  grid: { gap: space.md },
+  card: {
+    flexDirection: "row", alignItems: "center", gap: space.md,
+    backgroundColor: color.surface, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: color.surfaceLine, padding: space.md,
+  },
+  tile: { width: 48, height: 48, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  glyph: { fontSize: 22, fontWeight: "900" },
+  title: { ...T.h2, fontSize: 16 },
+  sub: { ...T.small, color: color.textMuted, marginTop: 2 },
+  chev: { color: color.textFaint, fontSize: 24, fontWeight: "800" },
+  note: { textAlign: "center", marginTop: space.md, fontSize: 12 },
+});

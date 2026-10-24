@@ -10,9 +10,11 @@ import { chat } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings } from "./settings";
 import { color, space, radius, type as T, HIT } from "./design/tokens";
-import { Body, PixelText, Input, Banner } from "./design/ui";
+import { Body, PixelText, Input, Banner, Sprite } from "./design/ui";
 import VoiceBar, { VoiceBarState } from "./VoiceBar";
 import { appMeta } from "./appMeta";
+
+const EMBLEM = require("../assets/brand/emblem.png");
 
 type Msg = { role: "user" | "assistant"; text: string };
 
@@ -42,7 +44,7 @@ function speakable(t: string): string {
     .slice(0, 600);
 }
 
-export default function VoiceChat() {
+export default function VoiceChat({ seed, seedNonce }: { seed?: string; seedNonce?: number } = {}) {
   const settings = useSettings();
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -80,6 +82,13 @@ export default function VoiceChat() {
     setError("");
   }
   useEffect(() => () => { if (errTimer.current) clearTimeout(errTimer.current); }, []);
+
+  // A Tools shortcut seeds the composer with a starter prompt (the nonce makes a
+  // repeated tap re-apply). Prefilled locally only — nothing sends until you do.
+  useEffect(() => {
+    if (seed != null && seedNonce != null) setInput(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedNonce]);
 
   // Onboard-computer startup greeting, once. Reads live settings at speak time.
   useEffect(() => {
@@ -233,7 +242,7 @@ export default function VoiceChat() {
             contentContainerStyle={s.emptyWrap}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={s.emptyGlyph}>▮▯▮</Text>
+            <Sprite source={EMBLEM} size={96} />
             <Text style={s.emptyTitle}>Ask me anything</Text>
             <Body muted style={{ textAlign: "center", maxWidth: 300 }}>
               Type below or tap the mic. Everything runs on your device — nothing leaves the phone.

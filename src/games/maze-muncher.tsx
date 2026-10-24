@@ -14,6 +14,8 @@ import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
 import { ArcadeJoystick } from "../design/Joystick";
+import { EffectsLayer, type EffectsHandle } from "../design/effects";
+import { useSettings } from "../settings";
 
 /* ----------------------------------------------------------------------------
  * Maze Muncher — Pac-Man-style muncher with DETERMINISTIC chase AI.
@@ -87,9 +89,34 @@ const BOARD_W = CELL * COLS;
 const BOARD_H = CELL * ROWS;
 const LIVES_START = 3;
 
-// Original owned sprites (tools/art/gen_maze_art.py).
-const WALL_IMG = require("../../assets/arcade/maze/wall.png");
-const FLOOR_IMG = require("../../assets/arcade/maze/floor.png");
+// Original owned sprites (tools/art/gen_maze_art.py + gen_maze_tiles.py).
+// WALL_IMGS is a 16-way autotile set indexed by a 4-neighbour wall mask
+// (N=1, E=2, S=4, W=8) so walls form continuous bevelled ribbons with rounded
+// exposed corners. FLOOR_IMGS are subtle corridor variants. require() must be a
+// static literal (Metro), so all tiles are listed explicitly.
+const WALL_IMGS = [
+  require("../../assets/arcade/maze/wall_00.png"),
+  require("../../assets/arcade/maze/wall_01.png"),
+  require("../../assets/arcade/maze/wall_02.png"),
+  require("../../assets/arcade/maze/wall_03.png"),
+  require("../../assets/arcade/maze/wall_04.png"),
+  require("../../assets/arcade/maze/wall_05.png"),
+  require("../../assets/arcade/maze/wall_06.png"),
+  require("../../assets/arcade/maze/wall_07.png"),
+  require("../../assets/arcade/maze/wall_08.png"),
+  require("../../assets/arcade/maze/wall_09.png"),
+  require("../../assets/arcade/maze/wall_10.png"),
+  require("../../assets/arcade/maze/wall_11.png"),
+  require("../../assets/arcade/maze/wall_12.png"),
+  require("../../assets/arcade/maze/wall_13.png"),
+  require("../../assets/arcade/maze/wall_14.png"),
+  require("../../assets/arcade/maze/wall_15.png"),
+];
+const FLOOR_IMGS = [
+  require("../../assets/arcade/maze/floor_0.png"),
+  require("../../assets/arcade/maze/floor_1.png"),
+  require("../../assets/arcade/maze/floor_2.png"),
+];
 const PELLET_IMG = require("../../assets/arcade/maze/pellet.png");
 const POWER_IMGS = [
   require("../../assets/arcade/maze/power_0.png"),
@@ -162,6 +189,11 @@ const dist2 = (ar: number, ac: number, br: number, bc: number): number =>
 
 function Screen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
+  const fx = useRef<EffectsHandle>(null);
+  // pixel centre of a grid cell, for spawning effects
+  const px = (c: number) => (c + 0.5) * CELL;
+  const py = (r: number) => (r + 0.5) * CELL;
 
   const levelRef = useRef(1);
   const mazeRef = useRef<MazeDef>(MAZES[0]);
@@ -236,6 +268,7 @@ function Screen({ onExit }: GameContext) {
   function fullRestart() {
     levelRef.current = 1;
     loadLevel(1);
+    fx.current?.clear();
     setLevel(1); setScore(0); setLives(LIVES_START);
     phaseRef.current = "playing"; setPhase("playing"); bump();
   }
@@ -243,6 +276,7 @@ function Screen({ onExit }: GameContext) {
   function nextLevel() {
     levelRef.current += 1;
     loadLevel(levelRef.current);
+    fx.current?.clear();
     setLevel(levelRef.current);
     phaseRef.current = "playing"; setPhase("playing"); bump();
   }
@@ -279,10 +313,15 @@ function Screen({ onExit }: GameContext) {
       }
 
       const pk = key(p.r, p.c);
-      if (pelletsRef.current.has(pk)) { pelletsRef.current.delete(pk); setScore((s) => s + 10); }
+      if (pelletsRef.current.has(pk)) {
+        pelletsRef.current.delete(pk); setScore((s) => s + 10);
+        fx.current?.burst(px(p.c), py(p.r), { count: 4, color: "#00E5FF", speed: 70, size: 4, rise: 8 });
+      }
       if (powersRef.current.has(pk)) {
         powersRef.current.delete(pk);
         setScore((s) => s + 50);
+        fx.current?.burst(px(p.c), py(p.r), { count: 16, color: "#FF9810", speed: 150, size: 6 });
+        fx.current?.popScore(px(p.c), py(p.r), "+50", "#FF9810");
         frightRef.current = frightTicks(levelRef.current);
         enemiesRef.current.forEach((e) => {
           if (!e.eaten) { e.frightened = true; e.dx = -e.dx; e.dy = -e.dy; }
@@ -290,6 +329,7 @@ function Screen({ onExit }: GameContext) {
       }
 
       if (pelletsRef.current.size === 0 && powersRef.current.size === 0) {
+        fx.current?.burst(px(p.c), py(p.r), { count: 20, color: "#00E5FF", speed: 160, size: 6 });
         phaseRef.current = "clear"; setPhase("clear"); bump(); return;
       }
 
@@ -310,6 +350,8 @@ function Screen({ onExit }: GameContext) {
         for (const e of enemiesRef.current) {
           if (e.r === p.r && e.c === p.c) {
             if (e.frightened) {
+              fx.current?.burst(px(e.c), py(e.r), { count: 14, color: "#FF4D8D", speed: 150, size: 6 });
+              fx.current?.popScore(px(e.c), py(e.r), "+200", "#FF4D8D");
               e.r = e.spawn.r; e.c = e.spawn.c; e.dx = 0; e.dy = 0; e.frightened = false;
               setScore((s) => s + 200);
             } else {
@@ -370,6 +412,9 @@ function Screen({ onExit }: GameContext) {
     }
 
     function onDeath() {
+      const pp = playerRef.current;
+      fx.current?.burst(px(pp.c), py(pp.r), { count: 22, color: "#F4F7FB", speed: 180, size: 6, rise: 10 });
+      fx.current?.burst(px(pp.c), py(pp.r), { count: 12, color: "#FF9810", speed: 110, size: 5 });
       setLives((v) => {
         const nv = v - 1;
         if (nv <= 0) { phaseRef.current = "over"; setPhase("over"); }
@@ -408,7 +453,7 @@ function Screen({ onExit }: GameContext) {
       for (let c = 0; c < COLS; c++)
         cells.push(
           <View key={`f${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-            <Sprite source={FLOOR_IMG} size={CELL} />
+            <Sprite source={FLOOR_IMGS[(r * 7 + c * 3) % FLOOR_IMGS.length]} size={CELL} />
           </View>
         );
     return cells;
@@ -419,12 +464,19 @@ function Screen({ onExit }: GameContext) {
     const cells: React.ReactNode[] = [];
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
-        if (grid[r][c] === "#")
+        if (grid[r][c] === "#") {
+          // 4-neighbour mask; out-of-bounds counts as wall so borders merge.
+          let m = 0;
+          if (isWall(grid, r - 1, c)) m |= 1; // N
+          if (isWall(grid, r, c + 1)) m |= 2; // E
+          if (isWall(grid, r + 1, c)) m |= 4; // S
+          if (isWall(grid, r, c - 1)) m |= 8; // W
           cells.push(
             <View key={`w${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-              <Sprite source={WALL_IMG} size={CELL} />
+              <Sprite source={WALL_IMGS[m]} size={CELL} />
             </View>
           );
+        }
     return cells;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level]);
@@ -486,6 +538,8 @@ function Screen({ onExit }: GameContext) {
           <View style={{ position: "absolute", left: p.c * CELL, top: p.r * CELL }}>
             <Sprite source={munchImg} size={CELL} />
           </View>
+
+          <EffectsLayer ref={fx} reduced={reducedMotion} />
         </View>
       </View>
 

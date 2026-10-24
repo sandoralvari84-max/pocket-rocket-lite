@@ -1,9 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Dimensions, type GestureResponderEvent } from "react-native";
+import { View, ImageBackground, StyleSheet, Dimensions, type GestureResponderEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, IconButton, GameOverlay } from "../design/ui";
+import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
+
+// Owned tileable textures (tools/art/gen_putt_art.py) — collision rects unchanged.
+const GRASS = require("../../assets/arcade/putt/grass.png");
+const WATER = require("../../assets/arcade/putt/water.png");
+const SAND = require("../../assets/arcade/putt/sand.png");
+const WOOD = require("../../assets/arcade/putt/wood.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -113,11 +119,14 @@ function GameScreen({ onExit }: GameContext) {
   const scoresRef = useRef<number[]>([]); // strokes taken, per completed hole
   const rafRef = useRef<number | null>(null);
 
+  const startedRef = useRef(false);
   const [, setTick] = useState(0);
   const [holeIdx, setHoleIdx] = useState(0);
   const [strokes, setStrokes] = useState(0);
   const [phase, setPhase] = useState<"aim" | "holeDone" | "courseDone">("aim");
+  const [started, setStarted] = useState(false);
   const bump = () => setTick((t) => (t + 1) % 1000000);
+  const start = () => { startedRef.current = true; setStarted(true); };
 
   const step = () => {
     if (phaseRef.current !== "aim" || !movingRef.current) return;
@@ -183,7 +192,7 @@ function GameScreen({ onExit }: GameContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canAim = () => phaseRef.current === "aim" && !movingRef.current;
+  const canAim = () => phaseRef.current === "aim" && !movingRef.current && startedRef.current;
   const nearBall = (e: GestureResponderEvent) => {
     const x = e.nativeEvent.locationX, y = e.nativeEvent.locationY;
     const b = ballRef.current;
@@ -268,7 +277,6 @@ function GameScreen({ onExit }: GameContext) {
   }
   const totalSoFar = totalRef.current + strokes;
   const liveDiff = totalSoFar - (parRef.current + hole.par);
-  const stripeH = PH / 10;
 
   return (
     <View
@@ -280,20 +288,16 @@ function GameScreen({ onExit }: GameContext) {
       onResponderRelease={onRelease}
       onResponderTerminate={onRelease}
     >
-      {/* fairway with mowing stripes */}
-      <View pointerEvents="none" style={st.fairway}>
-        {Array.from({ length: 10 }).map((_, i) => (
-          <View key={`g${i}`} style={{ position: "absolute", left: 0, right: 0, top: i * stripeH, height: stripeH + 1, backgroundColor: i % 2 ? "#2E7D32" : "#34893B" }} />
-        ))}
-      </View>
+      {/* fairway (tiled grass texture) */}
+      <ImageBackground source={GRASS} resizeMode="repeat" style={st.fairway} imageStyle={{ borderRadius: radius.md }} />
 
-      {/* water hazards (blue — resets the stroke) */}
+      {/* water hazards (textured — resets the stroke) */}
       {hole.water.map((r, i) => (
-        <View key={`w${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: "#2F6FB2", borderWidth: 2, borderColor: "#6FA8DC", borderRadius: 6 }} />
+        <ImageBackground key={`w${i}`} source={WATER} resizeMode="repeat" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, borderWidth: 2, borderColor: "#6FA8DC", borderRadius: 6, overflow: "hidden", pointerEvents: "none" }} imageStyle={{ borderRadius: 4 }} />
       ))}
-      {/* sand bunkers (tan) */}
+      {/* sand bunkers (textured) */}
       {hole.sand.map((r, i) => (
-        <View key={`s${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: "#D9C27E", borderWidth: 1, borderColor: "#B89B52", borderRadius: 10 }} />
+        <ImageBackground key={`s${i}`} source={SAND} resizeMode="repeat" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, borderWidth: 1, borderColor: "#B89B52", borderRadius: 10, overflow: "hidden", pointerEvents: "none" }} imageStyle={{ borderRadius: 9 }} />
       ))}
       {/* ramps (boost pads) */}
       {hole.ramps.map((rp, i) => {
@@ -304,15 +308,15 @@ function GameScreen({ onExit }: GameContext) {
           </View>
         );
       })}
-      {/* walls / bumpers */}
+      {/* walls / bumpers (wood texture) */}
       {hole.walls.map((r, i) => (
-        <View key={`wl${i}`} pointerEvents="none" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, backgroundColor: "#9C6B3F", borderWidth: 2, borderColor: "#6E4A28", borderRadius: 4 }} />
+        <ImageBackground key={`wl${i}`} source={WOOD} resizeMode="repeat" style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, borderWidth: 2, borderColor: "#6E4A28", borderRadius: 4, overflow: "hidden", pointerEvents: "none" }} imageStyle={{ borderRadius: 3 }} />
       ))}
 
       {/* hole + flag */}
       <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - HOLE_R, top: hole.hole.y - HOLE_R, width: HOLE_R * 2, height: HOLE_R * 2, borderRadius: HOLE_R, backgroundColor: "#0A2A12", borderWidth: 3, borderColor: "#06160A" }} />
-      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - 1.5, top: hole.hole.y - HOLE_R - 30, width: 3, height: 30, backgroundColor: color.text }} />
-      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x + 1.5, top: hole.hole.y - HOLE_R - 30, width: 18, height: 12, backgroundColor: color.danger }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x - 1.5, top: hole.hole.y - HOLE_R - 32, width: 3, height: 32, borderRadius: 2, backgroundColor: "#D9D3C4" }} />
+      <View pointerEvents="none" style={{ position: "absolute", left: hole.hole.x + 1.5, top: hole.hole.y - HOLE_R - 31, width: 0, height: 0, borderTopWidth: 8, borderBottomWidth: 8, borderLeftWidth: 22, borderTopColor: "transparent", borderBottomColor: "transparent", borderLeftColor: color.danger }} />
 
       {/* grab-zone hint while the ball is at rest */}
       {idle ? (
@@ -361,6 +365,14 @@ function GameScreen({ onExit }: GameContext) {
         <PixelText size="label" style={{ color: color.textMuted }}>GRAB THE BALL, PULL BACK TO AIM, RELEASE TO PUTT</PixelText>
       </View>
 
+      <GameOverlay visible={!started} kind="pause" title="PUTT PAL"
+        primaryLabel="Start" onPrimary={start} onExit={onExit}>
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Grab the ball, pull back to aim, release to putt. Sink all {HOLES.length}{" "}
+          holes in as few strokes as you can.
+        </Body>
+      </GameOverlay>
+
       <GameOverlay
         visible={phase === "holeDone"} kind="win"
         title={`HOLE ${holeIdx + 1}: ${scoreTerm(strokes - hole.par)}`}
@@ -392,7 +404,7 @@ function GameScreen({ onExit }: GameContext) {
 
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
-  fairway: { position: "absolute", left: PLx, top: PT, width: PW, height: PH, borderRadius: radius.md, borderWidth: 3, borderColor: "#1B5E20", backgroundColor: "#2E7D32", overflow: "hidden" },
+  fairway: { position: "absolute", left: PLx, top: PT, width: PW, height: PH, borderRadius: radius.md, borderWidth: 3, borderColor: "#1B5E20", backgroundColor: "#2E7D32", overflow: "hidden", pointerEvents: "none" },
   hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
   hint: { position: "absolute", left: 0, right: 0, alignItems: "center", paddingHorizontal: space.lg },
