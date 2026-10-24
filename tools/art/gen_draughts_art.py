@@ -1,103 +1,67 @@
 #!/usr/bin/env python3
 """
-Draughts — premium board + pieces. ORIGINAL owned art (Pillow, in-repo).
-
-A warm wooden board with dimensional, shaded checker pieces:
-  square_light.png / square_dark.png  120px wood tiles with subtle grain
-  man_amber.png  / man_cyan.png        shaded checker (highlight, rim, groove, drop shadow)
-  king_amber.png / king_cyan.png       same + a gold crown emblem
-
-Drawn at the native 120 px square size (no upscaling → no blur).
-Full rights, no third-party assets. Regenerate: python tools/art/gen_draughts_art.py
+Draughts — board + pieces, "Pocket Rocket nostalgia" polish (smooth glossy discs,
+gradient wood squares, gold crowns). Smooth 2x->1x via shared helpers. Same
+filenames/sizes so the game needs no change. Pillow, owned.
 """
 import os
+import sys
 from PIL import Image, ImageDraw, ImageFilter
+sys.path.insert(0, os.path.dirname(__file__))
+from polish import P  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "arcade", "draughts")
-S = 120
-CLEAR = (0, 0, 0, 0)
 
-# wood palette
-LIGHT = (201, 168, 118, 255)
-LIGHT_GRAIN = (214, 184, 136, 255)
-LIGHT_DK = (182, 150, 100, 255)
-DARK = (74, 50, 34, 255)
-DARK_GRAIN = (88, 60, 42, 255)
-DARK_DK = (58, 38, 26, 255)
+LIGHT = ((214, 184, 136), (176, 142, 94))
+DARK = ((92, 62, 42), (52, 34, 22))
+AMBER = ((255, 212, 130), (255, 152, 16), (150, 80, 8), (120, 60, 4))
+CYAN = ((180, 246, 255), (0, 198, 230), (0, 110, 140), (0, 56, 72))
 
 
-def square(light: bool) -> Image.Image:
-    base, grain, edge = (LIGHT, LIGHT_GRAIN, LIGHT_DK) if light else (DARK, DARK_GRAIN, DARK_DK)
-    img = Image.new("RGBA", (S, S), base)
-    d = ImageDraw.Draw(img)
-    # horizontal wood grain streaks
-    for y in range(6, S, 11):
-        col = grain if (y // 11) % 2 == 0 else edge
-        d.line([(0, y), (S, y + 2)], fill=col, width=2)
-    # soft inner bevel
-    d.rectangle([0, 0, S - 1, S - 1], outline=edge, width=2)
-    d.line([(0, 0), (S, 0)], fill=(255, 255, 255, 36), width=2)
-    return img
+def square(ramp):
+    W = 240
+    im, d = P.canvas(W)
+    P.rr_grad(im, [0, 0, W, W], 0, ramp[0], ramp[1], outline=None)
+    grain = (ramp[1][0] + 14, ramp[1][1] + 10, ramp[1][2] + 8, 150)
+    for y in range(12, W, 22):
+        d.line([(0, y), (W, y + 3)], fill=grain, width=3)
+    d.line([(0, 1), (W, 1)], fill=(255, 255, 255, 40), width=3)
+    d.rectangle([0, 0, W - 1, W - 1], outline=(0, 0, 0, 40), width=3)
+    return P.finish(im, 120)
 
 
-def _disc(base, hi, sh, rim):
-    """A shaded checker disc with a soft drop shadow, on a transparent 120px tile."""
-    img = Image.new("RGBA", (S, S), CLEAR)
-    # drop shadow
-    sh_layer = Image.new("RGBA", (S, S), CLEAR)
-    ds = ImageDraw.Draw(sh_layer)
-    ds.ellipse([18, 26, S - 14, S - 8], fill=(0, 0, 0, 110))
-    sh_layer = sh_layer.filter(ImageFilter.GaussianBlur(5))
-    img.alpha_composite(sh_layer)
-    d = ImageDraw.Draw(img)
-    cx, cy, r = S // 2, S // 2 - 4, 44
-    # body + rim
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=base, outline=rim, width=4)
-    # bottom-right shadow crescent
-    d.ellipse([cx - r + 8, cy - r + 12, cx + r, cy + r], fill=sh)
-    d.ellipse([cx - r, cy - r, cx + r - 6, cy + r - 10], fill=base)
-    # top-left highlight
-    d.ellipse([cx - r + 10, cy - r + 8, cx - 2, cy - 2], fill=hi)
-    d.ellipse([cx - r + 14, cy - r + 12, cx + r - 18, cy + r - 22], fill=base)
-    # engraved groove ring
-    d.ellipse([cx - 26, cy - 26, cx + 26, cy + 26], outline=rim, width=3)
-    return img, d, (cx, cy)
-
-
-def man(base, hi, sh, rim):
-    img, _d, _c = _disc(base, hi, sh, rim)
-    return img
-
-
-def king(base, hi, sh, rim):
-    img, d, (cx, cy) = _disc(base, hi, sh, rim)
-    gold, gold_dk = (255, 212, 96, 255), (190, 150, 40, 255)
-    # crown: three points on a band
-    band_y = cy + 10
-    d.rectangle([cx - 22, band_y, cx + 22, band_y + 8], fill=gold, outline=gold_dk)
-    pts_x = [cx - 22, cx - 7, cx + 7, cx + 22]
-    peaks = [cx - 15, cx, cx + 15]
-    tri = []
-    base_y = band_y
-    for i, px in enumerate(peaks):
-        d.polygon([(pts_x[i], base_y), (px, base_y - 22), (pts_x[i + 1], base_y)], fill=gold, outline=gold_dk)
-        tri.append(px)
-    for px in tri:
-        d.ellipse([px - 4, band_y - 30, px + 4, band_y - 22], fill=gold, outline=gold_dk)
-    return img
+def disc(ramp, crown=False):
+    hi, base, rim, edge = ramp
+    W = 240
+    im, d = P.canvas(W)
+    sh = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).ellipse([44, 64, W - 28, W - 16], fill=(0, 0, 0, 120))
+    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(10)))
+    cx, cy, r = W // 2, W // 2 - 8, 88
+    P.ell_grad(im, [cx - r, cy - r, cx + r, cy + r], hi, edge, outline=rim + (255,), ow=8)
+    d.ellipse([cx - 52, cy - 52, cx + 52, cy + 52], outline=rim + (255,), width=6)
+    P.ell_grad(im, [cx - 44, cy - 44, cx + 44, cy + 44], hi, base, outline=None)
+    P.spec(im, cx - 26, cy - 28, 20, 14)
+    if crown:
+        gold_hi, gold = (255, 236, 160), (210, 160, 44)
+        band = cy + 18
+        P.rr_grad(im, [cx - 44, band, cx + 44, band + 16], 4, gold_hi, gold)
+        xs = [cx - 44, cx - 14, cx + 14, cx + 44]
+        for i, px in enumerate((cx - 30, cx, cx + 30)):
+            P.poly_grad(im, [(xs[i], band), (px, band - 44), (xs[i + 1], band)], gold_hi, gold, outline=None)
+            d.ellipse([px - 8, band - 60, px + 8, band - 44], fill=gold_hi + (255,))
+    return P.finish(im, 120)
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    square(True).save(os.path.join(OUT, "square_light.png"))
-    square(False).save(os.path.join(OUT, "square_dark.png"))
-    AMBER = ((255, 152, 16, 255), (255, 206, 120, 255), (188, 104, 8, 255), (70, 34, 0, 255))
-    CYAN = ((0, 200, 230, 255), (160, 242, 255, 255), (0, 120, 150, 255), (0, 48, 62, 255))
-    man(*AMBER).save(os.path.join(OUT, "man_amber.png"))
-    man(*CYAN).save(os.path.join(OUT, "man_cyan.png"))
-    king(*AMBER).save(os.path.join(OUT, "king_amber.png"))
-    king(*CYAN).save(os.path.join(OUT, "king_cyan.png"))
-    print("wrote squares + man/king (amber/cyan) to", os.path.normpath(OUT))
+    square(LIGHT).save(os.path.join(OUT, "square_light.png"))
+    square(DARK).save(os.path.join(OUT, "square_dark.png"))
+    disc(AMBER).save(os.path.join(OUT, "man_amber.png"))
+    disc(CYAN).save(os.path.join(OUT, "man_cyan.png"))
+    disc(AMBER, crown=True).save(os.path.join(OUT, "king_amber.png"))
+    disc(CYAN, crown=True).save(os.path.join(OUT, "king_cyan.png"))
+    print("wrote polished squares + man/king to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":

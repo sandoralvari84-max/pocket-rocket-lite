@@ -1,70 +1,56 @@
 #!/usr/bin/env python3
 """
-Dot Catcher — player ship + collectible. ORIGINAL owned art (Pillow, in-repo).
-
-A sleek arcade catcher craft and a glowing energy orb, space theme:
-  ship.png   120px  catcher ship (wings, cockpit, twin thrusters, open scoop)
-  orb.png    120px  energy orb (cyan halo + amber core + sparkle)
-  star_s/m/l.png     tiny star dots for the starfield (3 sizes)
-
-Drawn at native 120 px (no upscaling → no blur).
-Full rights, no third-party assets. Regenerate: python tools/art/gen_catch_art.py
+Dot Catcher — player ship + collectible orb + stars. ORIGINAL owned art (Pillow),
+"Pocket Rocket nostalgia" polish: smooth 2x->1x, gradient hull, glass cockpit,
+chrome, thruster glow, soft gloss. Same filenames/sizes so the game needs no change.
 """
 import os
-from PIL import Image, ImageDraw, ImageFilter
+import sys
+from PIL import Image, ImageDraw
+sys.path.insert(0, os.path.dirname(__file__))
+from polish import P  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "arcade", "catch")
-S = 120
-CLEAR = (0, 0, 0, 0)
 
-HULL = (80, 150, 210, 255)
-HULL_HI = (150, 205, 245, 255)
-HULL_DK = (40, 86, 130, 255)
-GLASS = (180, 240, 255, 255)
-AMBER = (255, 152, 16, 255)
-OUTLINE = (16, 24, 36, 255)
+HULL_HI = (170, 220, 250); HULL = (80, 150, 210); HULL_DK = (36, 80, 126)
+GLASS_HI = (210, 248, 255); GLASS_DK = (90, 170, 205)
+AMBER = (255, 170, 40); AMBER_HI = (255, 214, 140)
+CYAN = (40, 224, 255); CYAN_DK = (6, 130, 160)
 
 
-def ship() -> Image.Image:
-    img = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(img)
-    cx = S // 2
-    # open catcher scoop (wide U) — matches the wide paddle hitbox
-    d.arc([14, 30, S - 14, S - 6], 200, 340, fill=HULL_DK, width=10)
-    # main hull: swept wing body
-    d.polygon([(cx, 20), (S - 16, 70), (S - 28, 92), (28, 92), (16, 70)], fill=HULL, outline=OUTLINE)
-    # wing highlights
-    d.line([(cx, 24), (S - 22, 70)], fill=HULL_HI, width=3)
-    d.line([(cx, 24), (22, 70)], fill=HULL_HI, width=3)
+def ship():
+    W = 240
+    im, d = P.canvas(W)
+    P.glow(im, 120, 150, 70, (90, 160, 220), 46)
+    # twin thruster flames (behind)
+    for tx in (92, 148):
+        P.glow(im, tx, 196, 22, AMBER, 150)
+        d.polygon([(tx - 10, 176), (tx, 220), (tx + 10, 176)], fill=AMBER + (255,))
+        d.polygon([(tx - 5, 176), (tx, 206), (tx + 5, 176)], fill=(255, 240, 200, 255))
+    # hull — swept wing
+    P.poly_grad(im, [(120, 36), (210, 140), (176, 184), (64, 184), (30, 140)], HULL_HI, HULL_DK)
     # cockpit glass
-    d.polygon([(cx, 40), (cx + 16, 66), (cx - 16, 66)], fill=GLASS, outline=OUTLINE)
-    # twin thrusters with amber flame
-    for tx in (cx - 20, cx + 20):
-        d.rectangle([tx - 7, 86, tx + 7, 98], fill=HULL_DK, outline=OUTLINE)
-        d.polygon([(tx - 6, 98), (tx, 112), (tx + 6, 98)], fill=AMBER)
-    return img
+    P.poly_grad(im, [(120, 74), (152, 132), (88, 132)], GLASS_HI, GLASS_DK)
+    d.ellipse([110, 88, 130, 108], fill=(255, 255, 255, 120))
+    P.gloss(im, [30, 60, 210, 150])
+    return P.finish(im, 120)
 
 
-def orb() -> Image.Image:
-    img = Image.new("RGBA", (S, S), CLEAR)
-    glow = Image.new("RGBA", (S, S), CLEAR)
-    dg = ImageDraw.Draw(glow)
-    dg.ellipse([16, 16, S - 16, S - 16], fill=(0, 200, 230, 150))
-    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(9)))
-    d = ImageDraw.Draw(img)
-    cx = cy = S // 2
-    d.ellipse([30, 30, S - 30, S - 30], fill=(0, 196, 228, 255), outline=(0, 90, 110, 255), width=3)
-    d.ellipse([42, 42, S - 42, S - 42], fill=AMBER)
-    d.ellipse([52, 50, 72, 68], fill=(255, 240, 200, 255))  # sparkle highlight
-    return img
+def orb():
+    W = 240
+    im, d = P.canvas(W)
+    P.glow(im, 120, 120, 96, CYAN, 90)
+    P.ell_grad(im, [54, 54, 186, 186], (150, 244, 255), CYAN_DK, outline=(4, 90, 110, 255), ow=5)
+    P.ell_grad(im, [84, 84, 156, 156], AMBER_HI, (190, 110, 12), outline=None)
+    P.spec(im, 104, 100, 20, 14)
+    return P.finish(im, 120)
 
 
-def star(sz: int) -> Image.Image:
-    img = Image.new("RGBA", (sz * 2 + 4, sz * 2 + 4), CLEAR)
-    d = ImageDraw.Draw(img)
+def star(sz):
+    im, d = P.canvas_wh(sz * 2 + 4, sz * 2 + 4)
     c = sz + 2
     d.ellipse([c - sz, c - sz, c + sz, c + sz], fill=(235, 242, 255, 235))
-    return img
+    return im
 
 
 def main():
@@ -74,7 +60,7 @@ def main():
     star(3).save(os.path.join(OUT, "star_s.png"))
     star(5).save(os.path.join(OUT, "star_m.png"))
     star(8).save(os.path.join(OUT, "star_l.png"))
-    print("wrote ship, orb, star_s/m/l to", os.path.normpath(OUT))
+    print("wrote polished ship, orb, stars to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":
