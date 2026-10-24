@@ -14,9 +14,12 @@ import About from "./screens/About";
 import Tools from "./screens/Tools";
 import Notes from "./screens/Notes";
 import Memory from "./screens/Memory";
+import Grocery from "./screens/Grocery";
+import Diet from "./screens/Diet";
+import Fitness from "./screens/Fitness";
 
 type Tab = "chat" | "games" | "tools" | "settings";
-type FeatureScreen = "notes" | "memory";
+type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -132,6 +135,15 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   }
   if (screen === "memory") {
     return <Memory onBack={() => setScreen(null)} />;
+  }
+  if (screen === "grocery") {
+    return <Grocery onBack={() => setScreen(null)} />;
+  }
+  if (screen === "diet") {
+    return <Diet onBack={() => setScreen(null)} />;
+  }
+  if (screen === "fitness") {
+    return <Fitness onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.

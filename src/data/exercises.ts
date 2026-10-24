@@ -1,0 +1,43 @@
+// Bundled exercise reference list for the FITNESS tool. Grouped by primary muscle.
+// Owned content; the tool's progress math (volume = sets×reps×weight, best weight)
+// is deterministic code, never the model.
+export type Exercise = { name: string; group: string };
+
+export const EXERCISES: Exercise[] = [
+  { name: "Back squat", group: "Legs" },
+  { name: "Front squat", group: "Legs" },
+  { name: "Leg press", group: "Legs" },
+  { name: "Lunge", group: "Legs" },
+  { name: "Leg curl", group: "Legs" },
+  { name: "Leg extension", group: "Legs" },
+  { name: "Calf raise", group: "Legs" },
+  { name: "Deadlift", group: "Back" },
+  { name: "Romanian deadlift", group: "Back" },
+  { name: "Barbell row", group: "Back" },
+  { name: "Lat pulldown", group: "Back" },
+  { name: "Pull-up", group: "Back" },
+  { name: "Seated row", group: "Back" },
+  { name: "Bench press", group: "Chest" },
+  { name: "Incline bench press", group: "Chest" },
+  { name: "Dumbbell press", group: "Chest" },
+  { name: "Chest fly", group: "Chest" },
+  { name: "Push-up", group: "Chest" },
+  { name: "Overhead press", group: "Shoulders" },
+  { name: "Lateral raise", group: "Shoulders" },
+  { name: "Front raise", group: "Shoulders" },
+  { name: "Rear delt fly", group: "Shoulders" },
+  { name: "Barbell curl", group: "Arms" },
+  { name: "Dumbbell curl", group: "Arms" },
+  { name: "Hammer curl", group: "Arms" },
+  { name: "Triceps pushdown", group: "Arms" },
+  { name: "Skull crusher", group: "Arms" },
+  { name: "Dips", group: "Arms" },
+  { name: "Plank", group: "Core" },
+  { name: "Crunch", group: "Core" },
+  { name: "Hanging leg raise", group: "Core" },
+  { name: "Russian twist", group: "Core" },
+  { name: "Running", group: "Cardio" },
+  { name: "Cycling", group: "Cardio" },
+  { name: "Rowing", group: "Cardio" },
+  { name: "Jump rope", group: "Cardio" },
+];

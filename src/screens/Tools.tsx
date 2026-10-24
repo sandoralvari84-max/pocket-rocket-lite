@@ -17,7 +17,8 @@ const TOOLS: Tool[] = [
   { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
 ];
 
-export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: "notes" | "memory") => void }) {
+type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness";
+export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
   return (
@@ -64,6 +65,24 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
         </View>
         <Text style={st.chev}>›</Text>
       </Pressable>
+
+      {([
+        { route: "grocery" as const, glyph: "🛒", tint: color.amber, bg: color.amberGlowBg, title: "Grocery", sub: "Shopping list by category — check it off as you shop" },
+        { route: "diet" as const, glyph: "🥗", tint: color.cyan, bg: color.cyanGlowBg, title: "Diet", sub: "Log food, track calories & macros vs a daily goal" },
+        { route: "fitness" as const, glyph: "🏋", tint: color.amber, bg: color.amberGlowBg, title: "Fitness", sub: "Log workouts, track training volume & progress" },
+      ]).map((f) => (
+        <Pressable key={f.route} onPress={() => onOpen(f.route)} accessibilityRole="button" accessibilityLabel={f.title}
+          style={({ pressed }) => [st.card, pressed && { borderColor: f.tint, backgroundColor: color.surface2 }]}>
+          <View style={[st.tile, { backgroundColor: f.bg, borderColor: f.tint }]}>
+            <Text style={[st.glyph, { color: f.tint }]}>{f.glyph}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.title}>{L(f.title)}</Text>
+            <Text style={st.sub}>{L(f.sub)}</Text>
+          </View>
+          <Text style={st.chev}>›</Text>
+        </Pressable>
+      ))}
 
       <View style={st.grid}>
         {TOOLS.map((t) => {
