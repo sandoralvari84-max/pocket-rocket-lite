@@ -16,7 +16,7 @@ const TOOLS: Tool[] = [
   { glyph: "✦", title: "Brainstorm", sub: "A few quick ideas", seed: "Give me a few ideas for: ", tint: "cyan" },
 ];
 
-export default function Tools({ onPick }: { onPick: (seed: string) => void }) {
+export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: "notes") => void }) {
   const insets = useSafeAreaInsets();
   return (
     <ScrollView
@@ -30,6 +30,23 @@ export default function Tools({ onPick }: { onPick: (seed: string) => void }) {
           your text never leaves the phone.
         </Body>
       </View>
+
+      {/* Feature apps (not chat shortcuts) */}
+      <Pressable
+        onPress={() => onOpen("notes")}
+        accessibilityRole="button"
+        accessibilityLabel="Dictaphone and notes"
+        style={({ pressed }) => [st.card, pressed && { borderColor: color.amber, backgroundColor: color.surface2 }]}
+      >
+        <View style={[st.tile, { backgroundColor: color.amberGlowBg, borderColor: color.amber }]}>
+          <Text style={[st.glyph, { color: color.amber }]}>🎙</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={st.title}>Dictaphone & Notes</Text>
+          <Text style={st.sub}>Record voice notes (transcribed) or jot text — saved on-device</Text>
+        </View>
+        <Text style={st.chev}>›</Text>
+      </Pressable>
 
       <View style={st.grid}>
         {TOOLS.map((t) => {
@@ -57,7 +74,7 @@ export default function Tools({ onPick }: { onPick: (seed: string) => void }) {
       </View>
 
       <Body muted style={st.note}>
-        More tools (notes, reminders, recipes) are on the roadmap — these are the
+        More tools (reminders, recipes, training) are on the roadmap — these are the
         ones that genuinely work today.
       </Body>
     </ScrollView>

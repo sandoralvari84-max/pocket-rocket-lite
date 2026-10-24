@@ -11,8 +11,10 @@ import { appMeta } from "./appMeta";
 import Settings from "./screens/Settings";
 import About from "./screens/About";
 import Tools from "./screens/Tools";
+import Notes from "./screens/Notes";
 
 type Tab = "chat" | "games" | "tools" | "settings";
+type FeatureScreen = "notes";
 
 // Honest one-line descriptions, keyed by frozen game id.
 const BLURB: Record<string, string> = {
@@ -81,19 +83,21 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [game, setGame] = useState<GameModule | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [screen, setScreen] = useState<FeatureScreen | null>(null);
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
   const insets = useSafeAreaInsets();
 
-  // Android hardware back: game -> library, About -> Settings, tab root -> default.
+  // Android hardware back: game -> library, feature screen/About -> back, tab root -> default.
   useEffect(() => {
     const onBack = () => {
       if (game) { setGame(null); return true; }
+      if (screen) { setScreen(null); return true; }
       if (showAbout) { setShowAbout(false); return true; }
       return false;
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
     return () => sub.remove();
-  }, [game, showAbout]);
+  }, [game, screen, showAbout]);
 
   // A launched game owns the whole screen; preserve the frozen { ask, onExit } wiring.
   if (game) {
@@ -103,6 +107,11 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
         <GameScreen ask={ask} onExit={() => setGame(null)} />
       </GameErrorBoundary>
     );
+  }
+
+  // Feature screens (Dictaphone, …) own the whole screen, reached from Tools.
+  if (screen === "notes") {
+    return <Notes onBack={() => setScreen(null)} />;
   }
 
   // About lives off the main screens — reached from Settings, dismissed back to it.
@@ -141,7 +150,12 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
           </ScrollView>
         )}
 
-        {tab === "tools" && <Tools onPick={(text) => { setSeed({ text, n: Date.now() }); setTab("chat"); }} />}
+        {tab === "tools" && (
+          <Tools
+            onPick={(text) => { setSeed({ text, n: Date.now() }); setTab("chat"); }}
+            onOpen={(s) => setScreen(s)}
+          />
+        )}
 
         {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} onModelSetup={onModelSetup} />}
       </View>
