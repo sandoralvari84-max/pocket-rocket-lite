@@ -62,6 +62,22 @@ const TR: Record<string, Pair> = {
     { de: "Eine kleine KI, die komplett auf deinem Telefon läuft. Optional — einmal hinzufügen, dann für immer offline nutzbar.",
       es: "Una IA pequeña que funciona por completo en tu teléfono. Opcional — añádela una vez y funciona sin conexión para siempre." },
 
+  // ---- Travel / routes ----
+  "TRAVEL": { de: "REISEN", es: "VIAJES" },
+  "Travel": { de: "Reisen", es: "Viajes" },
+  "Bus / train": { de: "Bus / Bahn", es: "Bus / tren" },
+  "Drive": { de: "Auto", es: "Coche" },
+  "Walk": { de: "Zu Fuß", es: "A pie" },
+  "Cycle": { de: "Rad", es: "Bici" },
+  "Name (e.g. To work)": { de: "Name (z. B. Zur Arbeit)", es: "Nombre (p. ej. Al trabajo)" },
+  "From (blank = my location)": { de: "Von (leer = mein Standort)", es: "Desde (vacío = mi ubicación)" },
+  "To (address or place)": { de: "Nach (Adresse oder Ort)", es: "A (dirección o lugar)" },
+  "Save route": { de: "Route speichern", es: "Guardar ruta" },
+  "MY ROUTES": { de: "MEINE ROUTEN", es: "MIS RUTAS" },
+  "Save a frequent trip — one tap opens it in Maps.": { de: "Häufige Fahrt speichern — ein Tipp öffnet sie in Maps.", es: "Guarda un viaje frecuente — un toque lo abre en Maps." },
+  "Go": { de: "Los", es: "Ir" },
+  "Transit mode shows live buses & times from Maps.": { de: "Der ÖPNV-Modus zeigt Live-Busse & -Zeiten aus Maps.", es: "El modo transporte muestra buses y horarios en vivo desde Maps." },
+
   // ---- Notification reader (Tier-2) ----
   "READER": { de: "VORLESER", es: "LECTOR" },
   "Reader": { de: "Vorleser", es: "Lector" },
