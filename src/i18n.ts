@@ -62,6 +62,24 @@ const TR: Record<string, Pair> = {
     { de: "Eine kleine KI, die komplett auf deinem Telefon läuft. Optional — einmal hinzufügen, dann für immer offline nutzbar.",
       es: "Una IA pequeña que funciona por completo en tu teléfono. Opcional — añádela una vez y funciona sin conexión para siempre." },
 
+  // ---- Notification reader (Tier-2) ----
+  "READER": { de: "VORLESER", es: "LECTOR" },
+  "Reader": { de: "Vorleser", es: "Lector" },
+  "Let it read your notifications": { de: "Lass es deine Benachrichtigungen vorlesen", es: "Deja que lea tus notificaciones" },
+  "Grant notification access, then Pocket Rocket can read incoming messages & alerts aloud — entirely on your phone, nothing leaves the device.":
+    { de: "Gewähre Benachrichtigungszugriff, dann liest Pocket Rocket eingehende Nachrichten & Hinweise laut vor — komplett auf deinem Telefon, nichts verlässt das Gerät.",
+      es: "Concede acceso a las notificaciones y Pocket Rocket podrá leer en voz alta los mensajes y avisos entrantes — todo en tu teléfono, nada sale del dispositivo." },
+  "Grant notification access": { de: "Benachrichtigungszugriff gewähren", es: "Conceder acceso a notificaciones" },
+  "I've granted it — check again": { de: "Erteilt — erneut prüfen", es: "Concedido — comprobar de nuevo" },
+  "Read new aloud": { de: "Neue vorlesen", es: "Leer nuevas en voz alta" },
+  "Listening — new notifications will be spoken": { de: "Hört zu — neue Benachrichtigungen werden vorgelesen", es: "Escuchando — se leerán las nuevas notificaciones" },
+  "Off — tap to have arrivals read to you": { de: "Aus — tippen, um Eingänge vorlesen zu lassen", es: "Apagado — toca para que te lean las que lleguen" },
+  "Read latest": { de: "Letzte vorlesen", es: "Leer la última" },
+  "Stop": { de: "Stopp", es: "Parar" },
+  "RECENT": { de: "LETZTE", es: "RECIENTES" },
+  "Nothing captured yet. New notifications will appear here.": { de: "Noch nichts erfasst. Neue Benachrichtigungen erscheinen hier.", es: "Nada capturado aún. Las nuevas notificaciones aparecerán aquí." },
+  "Clear captured": { de: "Erfasste löschen", es: "Borrar capturadas" },
+
   // ---- Experts (RAG over knowledge packs) ----
   "EXPERTS": { de: "EXPERTEN", es: "EXPERTOS" },
   "Experts": { de: "Experten", es: "Expertos" },

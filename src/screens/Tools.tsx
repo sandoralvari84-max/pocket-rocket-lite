@@ -6,7 +6,7 @@ import { PixelText, Body } from "../design/ui";
 import { L, useLang } from "../i18n";
 
 export type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals";
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs";
 
 type Feat = { route: FeatureRoute; glyph: string; title: string };
 type Section = { label: string; accent: "amber" | "cyan"; items: Feat[] };
@@ -17,6 +17,7 @@ const SECTIONS: Section[] = [
     { route: "notes", glyph: "🎙", title: "Dictaphone & Notes" },
     { route: "memory", glyph: "🧠", title: "Memory" },
     { route: "experts", glyph: "📚", title: "Experts" },
+    { route: "notifs", glyph: "🔔", title: "Reader" },
   ] },
   { label: "Health & body", accent: "amber", items: [
     { route: "diet", glyph: "🥗", title: "Diet" },

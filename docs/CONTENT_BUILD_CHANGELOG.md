@@ -71,3 +71,17 @@ Instead of churning working code unattended, **verified the deterministic turn-b
   games, 0 human wins, 386 AI wins punishing blunders, 183 draws).
 - **Four-Up: takes immediate wins, blocks horizontal & vertical threats, prefers winning.**
 - Plus the earlier tool-math / converter / streak / RAG-retrieval suites. `node tools/tests/run-all.mjs`.
+
+## Deep phone integration (Tier-2) — in progress
+
+- **Notification reader** — BUILT (native `NotifListenerService.kt` + `PocketNotifModule` +
+  package registered in MainApplication; manifest service w/ BIND_NOTIFICATION_LISTENER_SERVICE;
+  JS `src/notif.ts` + `screens/Notifications.tsx` "Reader" in Tools→Assistant). Grant "Notification
+  access" → reads incoming notifications aloud on-device (expo-speech), "Read new aloud" toggle +
+  per-item tap. tsc clean, Kotlin build OK. **Awaiting device test** (phone off USB).
+- **Next hooks (queued, lightweight via Intents unless noted):**
+  - Health/fitness: **Health Connect** (steps / sleep / weight / activity) → feed Diet/Fitness/
+    Sleep/Measurements. Native (androidx.health.connect) + permission flow.
+  - **Set alarm** — ACTION_SET_ALARM intent (hour/min/label).
+  - **Open Pictures / Gallery** — VIEW/IMAGE intent.
+  - **Scanning tool (OCR)** — camera + on-device OCR (react-native-nitro-ocr / ML Kit); native.
