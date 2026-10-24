@@ -48,9 +48,10 @@ function EkgBar({ state, reducedMotion = false, height = 84 }: { state: VoiceBar
     <View style={[s.wrap, { height }]}>
       <View style={[s.scope, { borderColor: col + "66", borderRadius: height / 2 }]}>
         <View pointerEvents="none" style={[s.scopeBloom, { backgroundColor: col, opacity: glow ? 0.16 : 0.07 }]} />
-        <Animated.View style={{ flexDirection: "row", height: inner, transform: [{ translateX }, { scaleY }] }}>
-          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ width: COPY_W, height: inner }} />
-          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ width: COPY_W, height: inner }} />
+        {/* Two copies, overlapped 1px so the seam between them is seamless (no hairline). */}
+        <Animated.View style={{ width: COPY_W * 2, height: inner, transform: [{ translateX }, { scaleY }] }}>
+          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: 0, width: COPY_W + 1, height: inner }} />
+          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: COPY_W, width: COPY_W + 1, height: inner }} />
         </Animated.View>
         <View pointerEvents="none" style={s.gloss} />
       </View>

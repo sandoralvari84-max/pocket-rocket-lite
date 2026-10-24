@@ -397,7 +397,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
             <Sprite source={EMBLEM} size={34} />
           </Animated.View>
           <View style={{ flex: 1, marginLeft: space.sm }}>
-            <PixelText size="label" style={{ color: color.amber, fontSize: 11 }}>{appMeta.name.toUpperCase()}</PixelText>
+            <PixelText size="label" style={{ color: PERSONA[persona].accent, fontSize: 11 }}>{appMeta.name.toUpperCase()}</PixelText>
             <Text style={s.sub}>{L("On-device assistant · offline")}</Text>
           </View>
           <View style={s.personaWrap}>
