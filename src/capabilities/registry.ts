@@ -179,4 +179,66 @@ export const CAPABILITIES: Capability[] = [
       return null;
     },
   },
+
+  // ---- ONLINE (leaves the device). Owner build: on. Shipped: off until opt-in. ----
+  {
+    id: "play_youtube", sideEffect: false, permission: "online", online: true,
+    blurb: "play a video on YouTube",
+    match(t) {
+      if (!/\byoutube\b/.test(t)) return null;
+      let q = "";
+      let m = t.match(/\b(?:play|watch|put on|search(?: for)?)\s+(.+?)\s+(?:on\s+)?youtube\b/);
+      if (m) q = m[1];
+      else { m = t.match(/\byoutube\b\s*(?:for\s+)?(.*)/); if (m) q = m[1]; }
+      q = q.replace(/[?.!]+$/, "").trim();
+      const slots: Slots = {};
+      if (q) slots.query = q;
+      return q
+        ? { slots, confidence: 0.85, label: `Play “${q}” on YouTube` }
+        : { slots, confidence: 0.6, label: "Open YouTube", missing: ["query"] };
+    },
+  },
+  {
+    id: "web_search", sideEffect: false, permission: "online", online: true,
+    blurb: "search the web / look something up online",
+    match(t) {
+      const m = t.match(/\b(?:google|search the web(?: for)?|search online|look (?:it|that|this|something)? ?up|on the internet)\s*(.*)/);
+      if (!m) return null;
+      const q = m[1].replace(/\b(online|on the (?:web|internet))\b/g, "").replace(/[?.!]+$/, "").trim();
+      const slots: Slots = {};
+      if (q) slots.query = q;
+      return q
+        ? { slots, confidence: 0.8, label: `Search the web for “${q}”` }
+        : { slots, confidence: 0.6, label: "Search the web", missing: ["query"] };
+    },
+  },
+  {
+    id: "email_draft", sideEffect: true, permission: "online", online: true,
+    blurb: "draft an email (sent from your mail app)",
+    match(t) {
+      if (!/\be-?mail\b/.test(t)) return null;
+      let m = t.match(/\be-?mail\s+([a-z][a-z .'-]{1,30})\s+(?:saying|that|about)\s+(.+)/);
+      if (m) {
+        const slots: Slots = { to: m[1].trim(), body: m[2].replace(/[?.!]+$/, "").trim() };
+        return { slots, confidence: 0.82, label: `Draft an email to ${m[1].trim()}` };
+      }
+      m = t.match(/\b(?:send an? e-?mail to|e-?mail)\s+([a-z][a-z .'-]{1,30})\b/);
+      if (m) {
+        const slots: Slots = { to: m[1].trim() };
+        return { slots, confidence: 0.64, label: `Draft an email to ${m[1].trim()}`, missing: ["body"] };
+      }
+      return null;
+    },
+  },
+  {
+    // Heaviest: reads your mailbox. Owner build only; DISABLED in shipped v1 (see build.ts).
+    id: "read_inbox", sideEffect: false, permission: "email", online: true, ownerOnly: true,
+    blurb: "read your email inbox",
+    match(t) {
+      if (/\b(check|read|any)\b.*\b(e-?mail|inbox|mail)\b/.test(t) || /\bnew e-?mails?\b/.test(t)) {
+        return { slots: {}, confidence: 0.72, label: "Read your inbox" };
+      }
+      return null;
+    },
+  },
 ];

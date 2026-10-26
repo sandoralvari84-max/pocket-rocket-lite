@@ -4,6 +4,7 @@
 // consent-gated. App = brain, model = mouth, phone = hands.
 
 export type CapabilityId =
+  // offline (default on in both owner + shipped builds)
   | "set_alarm"
   | "set_timer"
   | "directions"
@@ -15,7 +16,12 @@ export type CapabilityId =
   | "add_reminder"
   | "find_contact"
   | "where_am_i"
-  | "read_notifications";
+  | "read_notifications"
+  // online, opt-in (owner build = on; shipped build = off until the user opts in)
+  | "play_youtube"
+  | "web_search"
+  | "email_draft"
+  | "read_inbox";
 
 export type Slots = Record<string, string>;
 
@@ -28,6 +34,7 @@ export interface Matched {
   permission?: string;     // consent/permission key required (undefined = none)
   label: string;           // human-readable confirm line, e.g. "Set an alarm for 7:00 AM"
   missing?: string[];      // slot names still needed (e.g. a time) before executing
+  online?: boolean;        // true => leaves the device (opt-in; off by default in shipped build)
 }
 
 // What a matcher returns (sans the registry-owned fields).
@@ -39,6 +46,8 @@ export interface Capability {
   id: CapabilityId;
   sideEffect: boolean;
   permission?: string;
+  online?: boolean;        // reaches the network / leaves the device
+  ownerOnly?: boolean;     // present in the owner build; gated/absent in shipped (see build.ts)
   // One-line description the model is told about, so it can *offer* the capability
   // in conversation (it never invokes it — the dispatcher does, from the user's words).
   blurb: string;

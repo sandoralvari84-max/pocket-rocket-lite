@@ -31,6 +31,11 @@ function detect(raw) {
   if (/\b(steps|how (far|much) did i walk|walked)\b/.test(t)) return { id: "read_health", slots: { metric: "steps" } };
   if (/\b(sleep|how (long|well) did i sleep|slept)\b/.test(t)) return { id: "read_health", slots: { metric: "sleep" } };
   if (/\b(open|show|pick|choose|look at)\b.*\b(photo|picture|gallery|image)s?\b/.test(t)) return { id: "pick_photo", slots: {} };
+  // online (owner build)
+  if (/\byoutube\b/.test(t)) { let q = ""; let mm = t.match(/\b(?:play|watch|put on|search(?: for)?)\s+(.+?)\s+(?:on\s+)?youtube\b/); if (mm) q = mm[1]; else { mm = t.match(/\byoutube\b\s*(?:for\s+)?(.*)/); if (mm) q = mm[1]; } q = q.replace(/[?.!]+$/, "").trim(); return { id: "play_youtube", slots: q ? { query: q } : {} }; }
+  let em = t.match(/\be-?mail\s+([a-z][a-z .'-]{1,30})\s+(?:saying|that|about)\s+(.+)/); if (em) return { id: "email_draft", slots: { to: em[1].trim() } };
+  if (/\b(check|read|any)\b.*\b(e-?mail|inbox|mail)\b/.test(t) || /\bnew e-?mails?\b/.test(t)) return { id: "read_inbox", slots: {} };
+  m = t.match(/\b(?:google|search the web(?: for)?|search online|look (?:it|that|this|something)? ?up|on the internet)\s*(.*)/); if (m) { const q = m[1].replace(/\b(online|on the (?:web|internet))\b/g, "").replace(/[?.!]+$/, "").trim(); return { id: "web_search", slots: q ? { query: q } : {} }; }
   return null;
 }
 
@@ -53,6 +58,14 @@ const CASES = [
   ["how did i sleep last night", "read_health", { metric: "sleep" }],
   ["open my photos", "pick_photo", {}],
   ["show me a picture", "pick_photo", {}],
+  // online (owner build)
+  ["play lofi beats on youtube", "play_youtube", { query: "lofi beats" }],
+  ["youtube cat videos", "play_youtube", { query: "cat videos" }],
+  ["search the web for tenerife weather", "web_search", { query: "tenerife weather" }],
+  ["google the best paella recipe", "web_search", { query: "the best paella recipe" }],
+  ["email mom saying i'll be late", "email_draft", { to: "mom" }],
+  ["check my email", "read_inbox", {}],
+  ["any new emails", "read_inbox", {}],
   // negatives — plain chat must NOT trigger a capability
   ["what's the capital of France", null, null],
   ["tell me a joke about alarms", null, null], // tricky: 'alarms' present but no set/time intent? -> acceptable either way

@@ -20,6 +20,7 @@ export function detectCapability(raw: string): Matched | null {
         id: cap.id,
         sideEffect: cap.sideEffect,
         permission: cap.permission,
+        online: cap.online,
         slots: m.slots,
         confidence: m.confidence,
         label: m.label,
