@@ -48,6 +48,8 @@ export function parseDuration(t: string): number | null {
   return found ? total : null;
 }
 
+const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 function fmtDur(sec: number): string {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return [h && `${h}h`, m && `${m}m`, s && `${s}s`].filter(Boolean).join(" ") || "0s";
@@ -176,6 +178,19 @@ export const CAPABILITIES: Capability[] = [
       if (/\b(notifications?|what did i miss|any (new )?(messages|alerts))\b/.test(t)) {
         return { slots: {}, confidence: 0.75, label: "Read your recent notifications" };
       }
+      return null;
+    },
+  },
+  {
+    id: "translate", sideEffect: false, permission: "translate",
+    blurb: "translate text between languages (on-device, offline)",
+    match(t) {
+      let m = t.match(/\btranslate\s+(?:this|that|it)\s+(?:in)?to\s+([a-z]+)\b/);
+      if (m) { const slots: Slots = { to: m[1] }; return { slots, confidence: 0.72, label: `Translate to ${title(m[1])}`, missing: ["text"] }; }
+      m = t.match(/\btranslate\s+(.+?)\s+(?:in)?to\s+([a-z]+)\b/);
+      if (m) { const slots: Slots = { text: m[1].trim(), to: m[2] }; return { slots, confidence: 0.88, label: `Translate to ${title(m[2])}` }; }
+      m = t.match(/\bhow do (?:you|i) say\s+(.+?)\s+in\s+([a-z]+)\b/);
+      if (m) { const slots: Slots = { text: m[1].trim(), to: m[2] }; return { slots, confidence: 0.85, label: `Say it in ${title(m[2])}` }; }
       return null;
     },
   },

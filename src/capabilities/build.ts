@@ -39,6 +39,7 @@ export const POLICY: Record<CapabilityId, CapPolicy> = {
   find_contact:       { online: false, ownerDefault: true, shippedDefault: true },
   where_am_i:         { online: false, ownerDefault: true, shippedDefault: true },
   read_notifications: { online: false, ownerDefault: true, shippedDefault: true },
+  translate:          { online: false, ownerDefault: true, shippedDefault: true }, // ML Kit on-device, offline
 
   // --- online hand-off: owner ON, shipped OFF-until-opt-in ---
   play_youtube: {

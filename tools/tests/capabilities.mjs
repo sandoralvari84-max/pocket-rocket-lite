@@ -31,6 +31,9 @@ function detect(raw) {
   if (/\b(steps|how (far|much) did i walk|walked)\b/.test(t)) return { id: "read_health", slots: { metric: "steps" } };
   if (/\b(sleep|how (long|well) did i sleep|slept)\b/.test(t)) return { id: "read_health", slots: { metric: "sleep" } };
   if (/\b(open|show|pick|choose|look at)\b.*\b(photo|picture|gallery|image)s?\b/.test(t)) return { id: "pick_photo", slots: {} };
+  { let x = t.match(/\btranslate\s+(?:this|that|it)\s+(?:in)?to\s+([a-z]+)\b/); if (x) return { id: "translate", slots: { to: x[1] } }; }
+  { let x = t.match(/\btranslate\s+(.+?)\s+(?:in)?to\s+([a-z]+)\b/); if (x) return { id: "translate", slots: { text: x[1].trim(), to: x[2] } }; }
+  { let x = t.match(/\bhow do (?:you|i) say\s+(.+?)\s+in\s+([a-z]+)\b/); if (x) return { id: "translate", slots: { text: x[1].trim(), to: x[2] } }; }
   // online (owner build)
   if (/\byoutube\b/.test(t)) { let q = ""; let mm = t.match(/\b(?:play|watch|put on|search(?: for)?)\s+(.+?)\s+(?:on\s+)?youtube\b/); if (mm) q = mm[1]; else { mm = t.match(/\byoutube\b\s*(?:for\s+)?(.*)/); if (mm) q = mm[1]; } q = q.replace(/[?.!]+$/, "").trim(); return { id: "play_youtube", slots: q ? { query: q } : {} }; }
   let em = t.match(/\be-?mail\s+([a-z][a-z .'-]{1,30})\s+(?:saying|that|about)\s+(.+)/); if (em) return { id: "email_draft", slots: { to: em[1].trim() } };
@@ -58,6 +61,9 @@ const CASES = [
   ["how did i sleep last night", "read_health", { metric: "sleep" }],
   ["open my photos", "pick_photo", {}],
   ["show me a picture", "pick_photo", {}],
+  ["translate good morning to spanish", "translate", { text: "good morning", to: "spanish" }],
+  ["how do you say thank you in french", "translate", { text: "thank you", to: "french" }],
+  ["translate this into german", "translate", { to: "german" }],
   // online (owner build)
   ["play lofi beats on youtube", "play_youtube", { query: "lofi beats" }],
   ["youtube cat videos", "play_youtube", { query: "cat videos" }],

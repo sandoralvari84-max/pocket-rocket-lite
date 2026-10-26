@@ -17,6 +17,7 @@ export type CapabilityId =
   | "find_contact"
   | "where_am_i"
   | "read_notifications"
+  | "translate"
   // online, opt-in (owner build = on; shipped build = off until the user opts in)
   | "play_youtube"
   | "web_search"
