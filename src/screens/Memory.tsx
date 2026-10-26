@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius, type as T } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import {
   useProfile, setProfileField, clearProfile, facts, type OwnerProfile,
@@ -60,6 +60,10 @@ export default function Memory({ onBack }: { onBack: () => void }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <ToolIntro
+          what={L("Holds what your buddy knows about you — your name, pronouns, a short bio, reply preferences, and any facts you add. It's given to the on-device model as context and is never invented or changed by it.")}
+          setup={L("Fill in the fields and add facts with the Add button. Everything is saved only on this phone, and you can edit or clear it anytime.")}
+        />
         <Body muted style={{ marginBottom: space.md }}>
           {L("What your buddy remembers about you. Stored only on this phone, sent to the on-device model as context. Edit or clear it anytime.")}
         </Body>

@@ -23,9 +23,10 @@ export async function ensureWhisper(onProgress: (f: number) => void): Promise<vo
   if (!(await whisperExists())) await downloadWhisper(onProgress);
   await loadWhisper();
 }
-export async function transcribe(audioPath: string): Promise<string> {
+// whisper-tiny is multilingual — pass an ISO code (en/es/hu/de/…) for the spoken language.
+export async function transcribe(audioPath: string, language = "en"): Promise<string> {
   if (!ctx) throw new Error("whisper not loaded");
-  const { promise } = ctx.transcribe(audioPath, { language: "en" });
+  const { promise } = ctx.transcribe(audioPath, { language });
   const { result } = await promise;
   return (result ?? "").trim();
 }

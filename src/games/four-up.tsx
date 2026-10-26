@@ -1,12 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Pressable, Dimensions, Animated, Easing } from "react-native";
+import { View, StyleSheet, Pressable, Dimensions, Image, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
-import { color, space, radius } from "../design/tokens";
+import { color, space } from "../design/tokens";
 import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 import { useSettings } from "../settings";
 
-type Disc = "P" | "M" | null; // P = player (amber), M = machine (cyan)
+// Pen-and-paper on a tabletop: a cream sheet lying on a warm wooden desk, with the
+// four-in-a-row grid and discs doodled in ink — same surface as Three in a Row.
+const SHEET = require("../../assets/arcade/paper/sheet_a.jpg"); // generated paper-on-table surface
+const INK = "#2E5CB8";     // blue biro (the player's discs)
+const INK_RIM = "#1E3E80";
+const RED = "#C0392B";     // red pen (the machine's discs)
+const RED_RIM = "#8C271B";
+const GRID_INK = "#26324A"; // navy ink for the hand-drawn grid
+const TABLE = "#1C1109";    // deep warm wood (base of the desk)
+
+// Fixed ink colours, readable on cream paper: player = blue biro, machine = red pen.
+const PLAYER = { base: INK, rim: INK_RIM };
+const MACHINE = { base: RED, rim: RED_RIM };
+
+type Disc = "P" | "M" | null; // P = player, M = machine
 type Board = Disc[]; // row-major, length COLS*ROWS, index 0 = top-left
 
 const COLS = 7;
@@ -14,17 +28,23 @@ const ROWS = 6;
 const NEED = 4;
 const DEPTH = 6; // alpha-beta search depth
 
-// Chunky, near-full-width board. Size the slot from whichever of width/height
-// is tighter so the grid keeps its aspect and fills as much screen as possible.
-const { width: W, height: H } = Dimensions.get("window");
-const PAD = 7; // inner padding of the board frame (per side)
-const maxGridW = W - space.md * 2;
-const maxGridH = H * 0.6;
-const slotByW = Math.floor((maxGridW - PAD * 2) / COLS);
-const slotByH = Math.floor((maxGridH - PAD * 2) / ROWS);
-const SLOT = Math.max(48, Math.min(slotByW, slotByH)); // keep columns >= 48px touch target
-const GRID_W = SLOT * COLS + PAD * 2;
-const DISC = Math.floor(SLOT * 0.84);
+// The grid is drawn directly on the generated paper sheet. These map the paper's
+// writing area (slightly wider than Tic-Tac-Toe's, since the grid is 7 wide) to px.
+const { width: W } = Dimensions.get("window");
+const ART_AR = 784 / 1168;                        // sheet_a.jpg aspect
+const SHEET_W = Math.min(W - 24, 340);
+const SHEET_H = Math.round(SHEET_W / ART_AR);
+const PAP = { x0: 0.21, x1: 0.81, y0: 0.26, y1: 0.70 }; // wider paper writing rect (frac)
+const papL = PAP.x0 * SHEET_W, papT = PAP.y0 * SHEET_H;
+const papW = (PAP.x1 - PAP.x0) * SHEET_W, papH = (PAP.y1 - PAP.y0) * SHEET_H;
+// Fit the 7x6 grid inside the paper writing area, centred. A square cell keeps the
+// grid regular; floor() avoids the sub-pixel wrap that once garbled the layout.
+const CELL = Math.floor(Math.min(papW / 7, papH / 6));
+const gridW = CELL * 7;
+const gridH = CELL * 6;
+const boardL = Math.round(papL + (papW - gridW) / 2);
+const boardT = Math.round(papT + (papH - gridH) / 2);
+const DISC = Math.floor(CELL * 0.74); // inked disc diameter
 
 const idx = (r: number, c: number): number => r * COLS + c;
 const emptyBoard = (): Board => Array<Disc>(COLS * ROWS).fill(null);
@@ -61,6 +81,27 @@ function winnerAt(b: Board, r: number, c: number): boolean {
     if (count >= NEED) return true;
   }
   return false;
+}
+
+// Same test, but returns the exact cells of the winning line (for highlighting).
+function winnerCellsAt(b: Board, r: number, c: number): number[] | null {
+  const who = b[idx(r, c)];
+  if (!who) return null;
+  for (const [dr, dc] of DIRS) {
+    const cells = [idx(r, c)];
+    for (let s = 1; s < NEED; s++) {
+      const nr = r + dr * s, nc = c + dc * s;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || b[idx(nr, nc)] !== who) break;
+      cells.push(idx(nr, nc));
+    }
+    for (let s = 1; s < NEED; s++) {
+      const nr = r - dr * s, nc = c - dc * s;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || b[idx(nr, nc)] !== who) break;
+      cells.push(idx(nr, nc));
+    }
+    if (cells.length >= NEED) return cells;
+  }
+  return null;
 }
 
 function placeInto(b: Board, c: number, who: Disc): { next: Board; row: number } {
@@ -155,42 +196,78 @@ function bestColumn(b: Board): number {
   return pick;
 }
 
+/* ---- Sketchy ink grid line: two overlapping strokes with a tiny tilt ---- */
+function SketchLine({ vertical, left, top, length }: { vertical?: boolean; left: number; top: number; length: number }) {
+  const thick = vertical ? { width: 3, height: length } : { width: length, height: 3 };
+  const thin = vertical ? { width: 1.6, height: length } : { width: length, height: 1.6 };
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left, top }}>
+      <View style={[st.sketch, thick, { backgroundColor: GRID_INK, transform: [{ rotate: vertical ? "0.5deg" : "-0.4deg" }] }]} />
+      <View style={[st.sketch, thin, { position: "absolute", backgroundColor: GRID_INK, opacity: 0.4, transform: [{ rotate: vertical ? "-0.6deg" : "0.5deg" }, vertical ? { translateX: 1.2 } : { translateY: 1.2 }] }]} />
+    </View>
+  );
+}
+
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
   const { reducedMotion } = useSettings();
   const [board, setBoard] = useState<Board>(emptyBoard);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState(false);
+  const [started, setStarted] = useState(false); // pre-game "ready" gate
   const [result, setResult] = useState<"win" | "lose" | "draw" | null>(null);
   const [status, setStatus] = useState("Your turn — drop into a column");
   const [quip, setQuip] = useState("");
   const [last, setLast] = useState<number | null>(null);
-  const [dropCell, setDropCell] = useState<number | null>(null); // cell index currently settling
-  const drop = useRef(new Animated.Value(1)).current; // 0 = just dropped, 1 = seated
+  const [winCells, setWinCells] = useState<number[]>([]);
+  const [dropCell, setDropCell] = useState<number | null>(null); // cell index currently falling
+
+  // Drop animation: an accelerating fall (translateY, native-driven) ending in a
+  // small squash "thunk". fallY is the disc's vertical offset in px; squash drives
+  // a brief scaleX up / scaleY down on landing. A placed disc is ALWAYS rendered in
+  // its seat — the transform only offsets it while falling — so an interrupted
+  // animation can never strand a disc off-screen.
+  const fallY = useRef(new Animated.Value(0)).current;
+  const squash = useRef(new Animated.Value(0)).current;
+  const winPulse = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropSafety = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Settle a freshly placed disc with a bounded scale+fade "pop". A placed disc
-  // is ALWAYS rendered in its slot; the pop only scales it up from small, so an
-  // interrupted animation (e.g. the machine replying before the player's pop
-  // finishes) can never strand a disc off-screen — the old disappearing bug.
-  // Honors reduced motion: when on, the disc simply appears seated.
   const runDrop = (cell: number) => {
     if (reducedMotion) { setDropCell(null); return; }
     const r = Math.floor(cell / COLS);
-    const ms = 150 + r * 42; // deeper rows fall a little longer
+    const startY = -(CELL * (r + 1)); // from above the top opening of the grid
+    const fall = 200 + r * 40;        // deeper rows fall a little longer
     setDropCell(cell);
-    drop.setValue(0);
-    Animated.timing(drop, {
-      toValue: 1,
-      duration: ms,
-      easing: Easing.bounce,   // a real falling disc that settles with a bounce
-      useNativeDriver: true,
-    }).start(({ finished }) => { if (finished) setDropCell(null); });
+    fallY.setValue(startY);
+    squash.setValue(0);
+    Animated.sequence([
+      // accelerating drop
+      Animated.timing(fallY, { toValue: 0, duration: fall, easing: Easing.in(Easing.quad), useNativeDriver: false }),
+      // impact squash + settle back (the satisfying "thunk")
+      Animated.timing(squash, { toValue: 1, duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      Animated.timing(squash, { toValue: 0, duration: 130, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+    ]).start(({ finished }) => { if (finished) setDropCell(null); });
     // Safety: the disc always ends fully seated even if the animation is pre-empted.
     if (dropSafety.current) clearTimeout(dropSafety.current);
-    dropSafety.current = setTimeout(() => setDropCell(null), ms + 260);
+    dropSafety.current = setTimeout(() => setDropCell(null), fall + 400);
   };
+
+  // Pulse the four winning discs (opacity loop is native-driver safe).
+  useEffect(() => {
+    winPulse.stopAnimation();
+    if (winCells.length === 0) { winPulse.setValue(0); return; }
+    if (reducedMotion) { winPulse.setValue(1); return; }
+    winPulse.setValue(0.3);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(winPulse, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(winPulse, { toValue: 0.3, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [winCells, reducedMotion, winPulse]);
 
   const fetchTaunt = () => {
     ask(
@@ -212,7 +289,11 @@ function Screen({ ask, onExit }: GameContext) {
       setLast(row >= 0 ? idx(row, c) : null);
       if (row >= 0) runDrop(idx(row, c));
       setBusy(false);
-      if (row !== -1 && winnerAt(next, row, c)) { setStatus("The machine connects four."); setResult("lose"); setOver(true); return; }
+      if (row !== -1 && winnerAt(next, row, c)) {
+        setWinCells(winnerCellsAt(next, row, c) ?? []);
+        setStatus("The machine connects four.");
+        setResult("lose"); setOver(true); return;
+      }
       if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
       setStatus("Your turn — drop into a column");
       fetchTaunt();
@@ -220,14 +301,18 @@ function Screen({ ask, onExit }: GameContext) {
   };
 
   const onColumn = (c: number) => {
-    if (busy || over) return;
+    if (busy || over || !started) return;
     const { next, row } = placeInto(board, c, "P");
     if (row === -1) return;
     setBoard(next);
     setLast(idx(row, c));
     runDrop(idx(row, c));
     setQuip("");
-    if (winnerAt(next, row, c)) { setStatus("You connect four — you win!"); setResult("win"); setOver(true); return; }
+    if (winnerAt(next, row, c)) {
+      setWinCells(winnerCellsAt(next, row, c) ?? []);
+      setStatus("You connect four — you win!");
+      setResult("win"); setOver(true); return;
+    }
     if (legalColumns(next).length === 0) { setStatus("The board is full — a draw."); setResult("draw"); setOver(true); return; }
     machineTurn(next);
   };
@@ -235,7 +320,8 @@ function Screen({ ask, onExit }: GameContext) {
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
     if (dropSafety.current) clearTimeout(dropSafety.current);
-    drop.setValue(1);
+    fallY.setValue(0);
+    squash.setValue(0);
     setDropCell(null);
     setBoard(emptyBoard());
     setOver(false);
@@ -243,6 +329,7 @@ function Screen({ ask, onExit }: GameContext) {
     setBusy(false);
     setQuip("");
     setLast(null);
+    setWinCells([]);
     setStatus("Your turn — drop into a column");
   };
 
@@ -251,6 +338,13 @@ function Screen({ ask, onExit }: GameContext) {
     if (dropSafety.current) clearTimeout(dropSafety.current);
   }, []);
 
+  const scaleX = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+  const scaleY = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 0.86] });
+
+  // Clamp grid-line positions so every rule stays inside the clipped board box.
+  const vLeft = (n: number) => Math.min(Math.max(n * CELL - 1.5, 0), gridW - 3);
+  const hTop = (n: number) => Math.min(Math.max(n * CELL - 1.5, 0), gridH - 3);
+
   return (
     <View style={st.fill}>
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
@@ -258,71 +352,86 @@ function Screen({ ask, onExit }: GameContext) {
         <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
-      {/* table surface + depth */}
-      <View pointerEvents="none" style={st.felt} />
-
       <View style={st.body}>
         <Body style={st.status}>{status}</Body>
 
-        {/* gentle mock-3D tilt; the slab under the grid gives the board thickness */}
-        <View style={st.boardTilt}>
-        <View style={st.slab}>
-        <View style={[st.grid, { width: GRID_W, padding: PAD }]}>
-          {Array.from({ length: COLS }, (_, c) => (
-            <Pressable key={c} style={st.colTap} disabled={busy || over} onPress={() => onColumn(c)}>
-              {Array.from({ length: ROWS }, (_, r) => {
-                const cell = idx(r, c);
-                const v = board[cell];
-                const isLast = last === cell;
-                const falling = dropCell === cell && !reducedMotion;
-                // Fall from the TOP of its own column (inside the board) down to
-                // the seat — always on-screen, so a placed disc can never vanish.
-                const translateY = falling
-                  ? drop.interpolate({ inputRange: [0, 1], outputRange: [-r * SLOT, 0] })
-                  : 0;
-                return (
-                  <View key={r} style={[st.slot, { width: SLOT, height: SLOT }]}>
-                    {v === null ? (
-                      <View style={[st.hole, { width: DISC, height: DISC, borderRadius: DISC / 2 }]} />
-                    ) : (
-                      <Animated.View
-                        style={[
-                          st.disc,
-                          { width: DISC, height: DISC, borderRadius: DISC / 2 },
-                          v === "P" ? st.player : st.machine,
-                          isLast && st.lastRing,
-                          falling && { transform: [{ translateY }] },
-                        ]}
-                      >
-                        {/* top-left gloss highlight for a chunky, physical read */}
-                        <View
-                          style={[
-                            st.gloss,
-                            {
-                              width: DISC * 0.5,
-                              height: DISC * 0.34,
-                              borderRadius: DISC * 0.25,
-                              top: DISC * 0.12,
-                              left: DISC * 0.16,
-                            },
-                          ]}
-                        />
-                      </Animated.View>
-                    )}
-                  </View>
-                );
-              })}
-            </Pressable>
-          ))}
-        </View>
-        </View>
+        {/* the generated paper-on-table sheet; the grid is drawn on the page */}
+        <View style={{ width: SHEET_W, height: SHEET_H }}>
+          <Image source={SHEET} resizeMode="cover" fadeDuration={0} style={st.sheetImg} />
+          <View style={[st.grid, { position: "absolute", left: boardL, top: boardT, width: gridW, height: gridH }]}>
+            {/* # hand-drawn ink grid: 8 verticals x 7 horizontals rule the box */}
+            {Array.from({ length: COLS + 1 }, (_, n) => (
+              <SketchLine key={`v${n}`} vertical left={vLeft(n)} top={0} length={gridH} />
+            ))}
+            {Array.from({ length: ROWS + 1 }, (_, n) => (
+              <SketchLine key={`h${n}`} left={0} top={hTop(n)} length={gridW} />
+            ))}
+
+            {/* one Pressable per column spans the full height; discs seat inside */}
+            {Array.from({ length: COLS }, (_, c) => (
+              <Pressable
+                key={c}
+                style={[st.colTap, { left: c * CELL, width: CELL, height: gridH }]}
+                disabled={busy || over || !started}
+                onPress={() => onColumn(c)}
+              >
+                {Array.from({ length: ROWS }, (_, r) => {
+                  const cell = idx(r, c);
+                  const v = board[cell];
+                  const isLast = last === cell && winCells.length === 0;
+                  const inWin = winCells.includes(cell);
+                  const falling = dropCell === cell && !reducedMotion;
+                  const paint = v === "P" ? PLAYER : v === "M" ? MACHINE : null;
+                  return (
+                    <View key={r} style={[st.slot, { width: CELL, height: CELL }]}>
+                      {v === null || paint === null ? (
+                        // empty cell = the cream paper showing through, with a faint pencilled ring
+                        <View style={[st.empty, { width: DISC, height: DISC, borderRadius: DISC / 2 }]} />
+                      ) : (
+                        <>
+                          <Animated.View
+                            style={[
+                              st.disc,
+                              { width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: paint.base, borderColor: paint.rim },
+                              isLast && st.lastRing,
+                              falling && { transform: [{ translateY: fallY }, { scaleX }, { scaleY }] },
+                            ]}
+                          />
+                          {inWin ? (
+                            <Animated.View
+                              pointerEvents="none"
+                              style={[
+                                st.winRing,
+                                { width: DISC + 7, height: DISC + 7, borderRadius: (DISC + 7) / 2, opacity: winPulse },
+                              ]}
+                            />
+                          ) : null}
+                        </>
+                      )}
+                    </View>
+                  );
+                })}
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         {quip ? <Body muted style={st.quip}>“{quip}”</Body> : <View style={{ height: 24 }} />}
       </View>
 
-      {/* subtle vignette for depth (never blocks taps) */}
-      <View pointerEvents="none" style={st.vignette} />
+      <GameOverlay
+        visible={!started}
+        kind="pause"
+        title="FOUR UP"
+        primaryLabel="Play"
+        onPrimary={() => setStarted(true)}
+        onExit={onExit}
+      >
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Drop discs into the columns. Line up four of your colour — across, down, or
+          diagonally — before the machine does.
+        </Body>
+      </GameOverlay>
 
       <GameOverlay
         visible={over}
@@ -337,35 +446,23 @@ function Screen({ ask, onExit }: GameContext) {
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#0A1420" },
-  // a felt/table surface filling the lower two-thirds behind the board
-  felt: { position: "absolute", left: 0, right: 0, bottom: 0, height: "66%", backgroundColor: "#12324A", opacity: 0.55 },
-  vignette: { ...StyleSheet.absoluteFillObject, boxShadow: "inset 0 0 130px 26px rgba(0,0,0,0.5)" },
+  fill: { flex: 1, backgroundColor: TABLE },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
+  body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.md },
   status: { color: color.text, fontWeight: "700", textAlign: "center", paddingHorizontal: space.lg },
 
-  // mock-3D: gentle tilt + drop shadow of the whole board on the table
-  boardTilt: { transform: [{ perspective: 900 }, { rotateX: "16deg" }], boxShadow: "0 26px 34px rgba(0,0,0,0.6)" },
-  // the slab gives the board a visible thickness: a darker rim with a deeper front lip
-  slab: { backgroundColor: "#0E1526", borderRadius: radius.lg + 3, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 16, borderWidth: 1, borderColor: "#223055" },
-
-  grid: {
-    flexDirection: "row", backgroundColor: "#1F2940", borderRadius: radius.lg,
-    borderWidth: 3, borderColor: "#30406A",
-    overflow: "hidden", // clip the falling disc to the board frame
-  },
-  colTap: { flexDirection: "column" },
+  sheetImg: { width: SHEET_W, height: SHEET_H, borderRadius: 12 },
+  grid: { backgroundColor: "transparent", overflow: "hidden" },
+  sketch: { borderRadius: 2 },
+  colTap: { position: "absolute", top: 0, flexDirection: "column" },
   slot: { alignItems: "center", justifyContent: "center" },
-  // empty cell = a punched hole in the board surface
-  hole: { backgroundColor: "#0B0F1A", borderWidth: 2, borderColor: "rgba(0,0,0,0.5)" },
-  // seated disc: chunky circle with a rim + soft contact shadow for dimensionality
-  disc: { alignItems: "center", justifyContent: "flex-start", borderWidth: 3, overflow: "hidden", boxShadow: "0 3px 5px rgba(0,0,0,0.45)" },
-  gloss: { position: "absolute", backgroundColor: "rgba(255,255,255,0.28)" },
-  player: { backgroundColor: color.amber, borderColor: color.amberDim },
-  machine: { backgroundColor: color.cyan, borderColor: color.cyanDim },
-  lastRing: { borderColor: color.text },
-  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24 },
+  // empty cell: a faint pencilled ring, cream paper showing through
+  empty: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: "rgba(38,50,74,0.22)" },
+  // seated disc: a flat inked circle with a darker rim, a touch of hand-drawn shadow
+  disc: { borderWidth: 2.5, boxShadow: "0 1px 2px rgba(28,17,9,0.28)" },
+  lastRing: { borderColor: TABLE },
+  winRing: { position: "absolute", borderWidth: 3, borderColor: GRID_INK, backgroundColor: "transparent" },
+  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24, color: color.text },
 });
 
 export const fourUpGame: GameModule = {

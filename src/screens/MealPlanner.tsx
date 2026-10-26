@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Input, IconButton } from "../design/ui";
+import { PixelText, Input, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -59,6 +59,10 @@ export default function MealPlanner({ onBack }: { onBack: () => void }) {
       </ScrollView>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Plan breakfast, lunch and dinner for each day of the coming week. Saved on-device.")}
+          setup={L("Pick a day along the top, then type into each meal slot — it saves as you type.")}
+        />
         {SLOTS.map((slot, i) => (
           <View key={slot} style={st.slotCard}>
             <Text style={st.slotLabel}>{L(slot)}</Text>

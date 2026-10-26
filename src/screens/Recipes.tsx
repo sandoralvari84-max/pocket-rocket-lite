@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 import { grocery } from "./Grocery";
@@ -71,6 +71,10 @@ export default function Recipes({ onBack }: { onBack: () => void }) {
         <IconButton label="New recipe" glyph="＋" onPress={openNew} />
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Save your recipes — title, ingredients and steps — and send the ingredients straight to your Grocery list. Stored on your phone.")}
+          setup={L("Tap ＋ to add a recipe. Put ingredients one per line so you can push them to Grocery in one tap.")}
+        />
         {list.length === 0 ? (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>{L("No recipes yet. Tap ＋ to add one.")}</Body>
         ) : list.map((r) => (

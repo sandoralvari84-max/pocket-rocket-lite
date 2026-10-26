@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 import { FOODS, type Food } from "../data/foods";
@@ -65,6 +65,10 @@ export default function Diet({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ToolIntro
+          what={L("Logs what you eat from a built-in food table and tallies today's calories and macros against a goal you set. The totals are plain math, not AI guesses.")}
+          setup={L("Search a food, set the grams, and tap Log it. Use the − / + buttons by 'goal' to set your daily calorie target.")}
+        />
         {/* Today's totals vs goal */}
         <View style={st.card}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>

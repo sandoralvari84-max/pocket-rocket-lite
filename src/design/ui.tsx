@@ -6,7 +6,7 @@ import {
   StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp, Image, ImageSourcePropType, ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { color, space, radius, type as T, HIT } from "./tokens";
+import { color, space, radius, type as T, HIT, font, glow } from "./tokens";
 import { L, useLang } from "../i18n";
 
 /* ---------- Screen shell ---------- */
@@ -132,11 +132,13 @@ export function GameOverlay({ visible, kind, title, score, children, onPrimary, 
   useLang(); // re-render on language change
   if (!visible) return null;
   const accent = kind === "win" ? color.success : kind === "over" ? color.danger : color.amber;
+  // Soft accent glow on the panel + title, matching the home phrase treatment.
+  const accentGlow = kind === "win" ? "rgba(91,209,107,0.26)" : kind === "over" ? "rgba(255,82,71,0.26)" : "rgba(255,152,0,0.26)";
   return (
     <View style={os.gameScrim} pointerEvents="auto">
-      <View style={[os.gamePanel, { borderColor: accent }]}>
-        <PixelText size="h2" style={{ color: accent, textAlign: "center" }}>{L(title)}</PixelText>
-        {!!score && <PixelText size="score" style={{ textAlign: "center", marginTop: space.md }}>{score}</PixelText>}
+      <View style={[os.gamePanel, { boxShadow: `0 0 14px ${accentGlow}` }]}>
+        <Text style={[os.gameTitle, { color: accent, textShadowColor: accentGlow }]}>{L(title)}</Text>
+        {!!score && <Text style={os.gameScore}>{score}</Text>}
         {children}
         <View style={{ gap: space.sm, marginTop: space.xl }}>
           <Button title={L(primaryLabel)} onPress={onPrimary} full />
@@ -174,6 +176,42 @@ export function Sprite({ source, size, style }: { source: ImageSourcePropType; s
   return <Image source={source} style={[{ width: size, height: size }, style]} resizeMode="contain" fadeDuration={0} />;
 }
 
+/* ---------- Shared screen header (mockup .shead): amber icon tile + title + subtitle ----
+   One consistent header across Tools / Library / Settings so every page reads the same. */
+export function ScreenHeader({ icon, title, subtitle, right, back }: {
+  icon?: ImageSourcePropType; title: string; subtitle?: string; right?: React.ReactNode; back?: () => void;
+}) {
+  return (
+    <View style={sh.row}>
+      {back && (
+        <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back" style={sh.back}>
+          <Text style={sh.backT}>‹</Text>
+        </Pressable>
+      )}
+      {icon && (
+        <View style={sh.tile}>
+          <Image source={icon} style={sh.icon} resizeMode="contain" />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={sh.title}>{title}</Text>
+        {subtitle ? <Text style={sh.sub}>{subtitle}</Text> : null}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+const sh = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.md, borderBottomWidth: 1, borderBottomColor: color.surfaceLine, marginBottom: space.md },
+  tile: { width: 36, height: 36, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: color.surface2, borderWidth: 1, borderColor: color.amber + "66", boxShadow: glow.amberSoft },
+  icon: { width: 20, height: 20, tintColor: color.amber },
+  title: { fontFamily: font.bodyBold, fontSize: 21, color: color.text, letterSpacing: 0.3 },
+  sub: { fontFamily: font.mono, fontSize: 10.5, color: color.textMuted, letterSpacing: 0.4, marginTop: 3 },
+  back: { width: 34, height: 34, borderRadius: radius.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: color.surfaceLine, backgroundColor: color.surface },
+  backT: { color: color.amber, fontSize: 24, marginTop: -4 },
+});
+
 const bs = StyleSheet.create({
   btn: { minHeight: HIT, paddingHorizontal: space.lg, borderRadius: radius.md, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   btnT: { fontSize: 15, fontWeight: "800", letterSpacing: 0.3 },
@@ -191,7 +229,10 @@ const os = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: space.xl },
   sheet: { width: "100%", maxWidth: 420, backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.xl },
   gameScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(6,9,13,0.82)", alignItems: "center", justifyContent: "center", padding: space.xl, zIndex: 50 },
-  gamePanel: { width: "100%", maxWidth: 360, backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 2, padding: space.xl },
+  gamePanel: { width: "100%", maxWidth: 360, backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.xl },
+  // Big CRT title + score (VT323), matching the home phrase + the scoreboard overlay.
+  gameTitle: { fontFamily: font.crt, fontSize: 42, lineHeight: 44, textAlign: "center", letterSpacing: 2, includeFontPadding: false, textShadowRadius: 12, textShadowOffset: { width: 0, height: 0 } },
+  gameScore: { fontFamily: font.crt, fontSize: 32, lineHeight: 34, color: color.amber, textAlign: "center", marginTop: space.sm, includeFontPadding: false, textShadowColor: "rgba(255,152,0,0.18)", textShadowRadius: 10, textShadowOffset: { width: 0, height: 0 } },
 });
 
 /* ---------- Titled console panel (shared by Settings / About) ---------- */
@@ -287,3 +328,37 @@ export class GameErrorBoundary extends React.Component<
     return this.props.children as React.ReactElement;
   }
 }
+
+/* ---------- Tool "about" card: what it does + how to set it up (collapsible) ---------- */
+export function ToolIntro({ what, setup }: { what: string; setup?: string }) {
+  const [open, setOpen] = React.useState(true);
+  return (
+    <Pressable onPress={() => setOpen((o) => !o)} accessibilityRole="button" accessibilityLabel="About this tool" style={ti.card}>
+      <View style={ti.row}>
+        <Text style={ti.title}>ⓘ  ABOUT THIS TOOL</Text>
+        <Text style={ti.chev}>{open ? "⌄" : "›"}</Text>
+      </View>
+      {open && (
+        <View style={{ marginTop: space.xs }}>
+          <Text style={ti.h}>WHAT IT DOES</Text>
+          <Text style={ti.b}>{what}</Text>
+          {setup ? (
+            <>
+              <Text style={[ti.h, { marginTop: space.sm }]}>SETUP</Text>
+              <Text style={ti.b}>{setup}</Text>
+            </>
+          ) : null}
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+const ti = StyleSheet.create({
+  card: { backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.md, marginBottom: space.md },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontFamily: font.mono, fontSize: 10, letterSpacing: 1.5, color: color.cyan },
+  chev: { color: color.textMuted, fontSize: 16 },
+  h: { fontFamily: font.mono, fontSize: 9, letterSpacing: 2, color: color.amber, opacity: 0.9, marginBottom: 3, marginTop: 4 },
+  b: { fontFamily: font.body, fontSize: 13, color: color.textMuted, lineHeight: 18 },
+});

@@ -15,7 +15,8 @@ export function ArcadeJoystick({ onDirection, size = 128 }: {
   const R = size / 2;
   const travel = R * 0.52;           // how far the ball can move from centre
   const deadzone = travel * 0.45;    // must push past this to register
-  const DIAG = 1.6;                  // dominant axis must beat the other by this
+  const DIAG = 1.15;                 // dominant axis need only modestly lead → responsive
+                                     // cardinal turns; only a near-perfect 45° push is held
   const pos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastKey = useRef("");
 

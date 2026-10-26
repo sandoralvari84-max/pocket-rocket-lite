@@ -4,6 +4,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { MODEL, SAMPLER, foldPrompt } from "./preset";
 import { ownerContext } from "./data/profile";
 import { searchKB, type KBChunk } from "./data/kb";
+import * as Device from "expo-device";
+import { getSettings } from "./settings";
 
 // RAG over the bundled knowledge packs. Retrieval is deterministic (searchKB); the
 // model only phrases the retrieved passages and must not invent beyond them. With no
@@ -36,71 +38,101 @@ export async function askExpert(question: string, nicheId?: string): Promise<Exp
   }
 }
 
-// The ~1GB model canNOT be bundled inside the APK: Metro's asset transformer reads the
-// whole file into a JS string and V8 caps strings at ~512MB, so require()-ing the .gguf
-// always fails to bundle. Instead the model is delivered ALONGSIDE the app (QuickShare a
-// folder with the APK + the .gguf) and imported once via the system file picker, or
-// downloaded over Wi-Fi as a fallback. Either way it then runs fully offline forever.
-export const MODEL_URL =
-  "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/" + MODEL.file;
+// The model canNOT be bundled inside the APK (Metro reads assets into a JS string and
+// V8 caps strings at ~512MB). It is delivered ALONGSIDE the app (QuickShare the .gguf with
+// the APK) and imported via the file picker, or downloaded over Wi-Fi. Then offline forever.
+//
+// TWO PROFILES so the app survives low-RAM phones: a 0.5B (~491MB file, ~0.6GB RAM) for
+// 4GB devices, and the 1.5B (~1.1GB file, ~1.3GB RAM) for roomier phones. The active one
+// is chosen by device RAM (expo-device) unless the user pins a choice in Settings.
+export type ModelProfile = {
+  id: "small" | "large"; label: string; file: string; url: string; bytes: number; n_ctx: number;
+};
+export const MODEL_PROFILES: Record<"small" | "large", ModelProfile> = {
+  small: {
+    id: "small", label: "0.5B",
+    file: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+    url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+    bytes: 491400032, n_ctx: 4096,
+  },
+  large: {
+    id: "large", label: "1.5B",
+    file: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    bytes: 1117320736, n_ctx: 8192,
+  },
+};
 
-const MODEL_PATH = FileSystem.documentDirectory + MODEL.file;
-const EXPECTED_SIZE = 1117320736; // full q4_k_m .gguf; a partial download is smaller
+// <= ~5GB total RAM picks the 0.5B (safe on 4GB phones); more picks the 1.5B.
+const LOW_RAM_BYTES = 5 * 1024 * 1024 * 1024;
+export function recommendedProfile(): ModelProfile {
+  const total = Device.totalMemory ?? 0; // bytes; 0 = unknown, assume roomy
+  return total > 0 && total <= LOW_RAM_BYTES ? MODEL_PROFILES.small : MODEL_PROFILES.large;
+}
+export function activeProfile(): ModelProfile {
+  const pref = getSettings().modelProfile;
+  if (pref === "small") return MODEL_PROFILES.small;
+  if (pref === "large") return MODEL_PROFILES.large;
+  return recommendedProfile();
+}
+export function activeModelLabel(): string { return activeProfile().label; }
+const pathFor = (p: ModelProfile): string => FileSystem.documentDirectory + p.file;
+const gb = (bytes: number): string => (bytes / 1e9).toFixed(1);
+
 let ctx: LlamaContext | null = null;
 
 // COMPLETE, not just present: a download interrupted by screen-sleep leaves a
-// big-but-partial file that passes a ">100MB" check yet fails to load.
+// big-but-partial file that passes a loose check yet fails to load.
 export async function modelExists(): Promise<boolean> {
-  const i = await FileSystem.getInfoAsync(MODEL_PATH);
-  return i.exists && (i.size ?? 0) >= EXPECTED_SIZE - 1024 * 1024;
+  const p = activeProfile();
+  const i = await FileSystem.getInfoAsync(pathFor(p));
+  return i.exists && (i.size ?? 0) >= p.bytes - 2 * 1024 * 1024;
 }
 
-// Discard a partial/corrupt model so the next attempt re-fetches a clean copy.
+// Discard a partial/corrupt copy of the ACTIVE model so the next attempt re-fetches clean.
 export async function clearModel(): Promise<void> {
-  try { await FileSystem.deleteAsync(MODEL_PATH, { idempotent: true }); } catch {}
+  const p = activeProfile();
+  try { await FileSystem.deleteAsync(pathFor(p), { idempotent: true }); } catch {}
 }
 
-// Import the model from a file the user picks — the .gguf that was QuickShared in the
-// same folder as the APK. Copies it into app storage once; then fully offline forever.
-// Returns false if the user cancels the picker. Uses the system picker (access to the one
-// chosen file only), so it needs no broad storage permission. Screen-sleep-proof: a local
-// file copy, not a network download that Android can pause when the screen turns off.
+// Import the active model .gguf from a file the user picks (QuickShared beside the APK).
 export async function importModel(): Promise<boolean> {
+  const p = activeProfile();
   const res = await DocumentPicker.getDocumentAsync({
-    type: "*/*",            // .gguf has no registered MIME type, so don't filter it out
+    type: "*/*",            // .gguf has no registered MIME type, so do not filter it out
     copyToCacheDirectory: true,
     multiple: false,
   });
   if (res.canceled || !res.assets?.[0]) return false;
   const picked = res.assets[0];
-  if ((picked.size ?? 0) < EXPECTED_SIZE - 1024 * 1024) {
+  if ((picked.size ?? 0) < p.bytes - 4 * 1024 * 1024) {
     throw new Error(
-      "That file looks too small to be the model (expected ~1 GB). " +
-      "Pick the qwen2.5-1.5b…q4_k_m.gguf file shared alongside the app."
+      `That file looks too small (expected ~${gb(p.bytes)} GB). Pick the ${p.file} shared alongside the app.`
     );
   }
   await clearModel(); // remove any stale/partial copy first
-  await FileSystem.copyAsync({ from: picked.uri, to: MODEL_PATH });
+  await FileSystem.copyAsync({ from: picked.uri, to: pathFor(p) });
   if (!(await modelExists())) { await clearModel(); throw new Error("Model copy did not complete — please try again."); }
   return true;
 }
 
 export async function downloadModel(onProgress: (frac: number) => void): Promise<void> {
+  const p = activeProfile();
   const dl = FileSystem.createDownloadResumable(
-    MODEL_URL, MODEL_PATH, {},
-    (p) => onProgress(p.totalBytesExpectedToWrite > 0
-      ? p.totalBytesWritten / p.totalBytesExpectedToWrite : 0)
+    p.url, pathFor(p), {},
+    (pr) => onProgress(pr.totalBytesExpectedToWrite > 0
+      ? pr.totalBytesWritten / pr.totalBytesExpectedToWrite : 0)
   );
   await dl.downloadAsync();
 }
 
 export async function loadModel(): Promise<void> {
   if (ctx) return;
+  const p = activeProfile();
   try {
-    ctx = await initLlama({ model: MODEL_PATH, n_ctx: Math.min(MODEL.n_ctx, 2048), n_gpu_layers: 0 });
+    ctx = await initLlama({ model: pathFor(p), n_ctx: Math.min(p.n_ctx, 2048), n_gpu_layers: 0 });
   } catch (e) {
-    // A corrupt/partial model won't load — delete it so Retry re-downloads cleanly
-    // instead of looping on the broken file.
+    // A corrupt/partial model will not load. Delete it so Retry re-downloads cleanly.
     await clearModel();
     ctx = null;
     throw e;

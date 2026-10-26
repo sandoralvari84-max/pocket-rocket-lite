@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
-import { color, space, radius } from "../design/tokens";
-import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
+import { color, space, radius, consoleUI } from "../design/tokens";
+import { PixelText, IconButton, GameOverlay, Body } from "../design/ui";
 import { ScoreboardOverlay } from "../design/Scoreboard";
 import { ArcadeJoystick } from "../design/Joystick";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
@@ -20,9 +20,11 @@ import { useSettings } from "../settings";
 
 /* ----------------------------------------------------------------------------
  * Nibbler — Snake. Grid logic is fully deterministic (visuals never touch it):
- *   - clean-tiled snake (token colours) + distinct apple sprite (Kenney CC0)
- *   - progressive speed as the snake grows
- *   - obstacles appear at higher scores
+ *   - one continuous snake: overlapping tube segments, head→tail gradient,
+ *     a directional head with eyes + tongue and a gloss highlight
+ *   - vector apple (glossy red + leaf) and blocky crate obstacles
+ *   - clean dark playfield with faint gridlines inside a console bezel
+ *   - progressive speed as the snake grows; obstacles appear at higher scores
  *   - shared HUD + GameOverlay, pause, crash feedback
  * ------------------------------------------------------------------------- */
 
@@ -33,18 +35,25 @@ const CELL = Math.floor(Math.min(W - 24, H * 0.56) / COLS);
 const BOARD_W = CELL * COLS;
 const BOARD_H = CELL * ROWS;
 
-// Original owned sprites (tools/art/gen_nibbler_art.py + gen_nibbler_field.py).
-const FOOD_IMG = require("../../assets/arcade/nibbler/apple.png");
-const ROCK_IMG = require("../../assets/arcade/nibbler/rock.png");
-const FIELD_IMGS = [
-  require("../../assets/arcade/nibbler/field_0.png"),
-  require("../../assets/arcade/nibbler/field_1.png"),
-];
+// Snake tube geometry — segments are drawn slightly undersized and bridged by
+// connectors so the body reads as one continuous rounded tube.
+const TUBE = Math.round(CELL * 0.82);
+const HEAD = Math.round(CELL * 0.94);
 
 // Nibbler's own period palette: a vivid arcade-green snake on a dark field.
-const SNAKE_HEAD = "#7BEE74";
+const SNAKE_HEAD = "#7CF08A";
 const SNAKE_NEAR = "#43C85E"; // body just behind the head
 const SNAKE_FAR = "#176B2E";  // body near the tail
+
+// Crate (obstacle) palette — amber-brown with edge shading, distinct from the snake.
+const CRATE_FILL = "#8A5A28";
+const CRATE_HI = "#C08A42";
+const CRATE_LO = "#4E3317";
+const CRATE_EDGE = "#2E1E0D";
+
+// Playfield.
+const FIELD_BG = "#0A0E13";
+const GRID_LINE = "rgba(0,229,255,0.05)";
 
 // Lerp between two "#rrggbb" colours (for the head→tail body gradient).
 function mixHex(a: string, b: string, t: number): string {
@@ -222,19 +231,20 @@ function Screen({ onExit }: GameContext) {
   const snake = snakeRef.current;
   const food = foodRef.current;
   const obstacles = activeObstacles(score);
-  const foodSize = Math.round(CELL * 0.92);
+  const appleSize = Math.round(CELL * 0.74);
 
-  // Textured field background (tiled, two variants) — built once.
-  const fieldLayer = useMemo(() => {
-    const cells: React.ReactNode[] = [];
-    for (let r = 0; r < ROWS; r++)
-      for (let c = 0; c < COLS; c++)
-        cells.push(
-          <View key={`fld${r}-${c}`} pointerEvents="none" style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-            <Sprite source={FIELD_IMGS[(r + c) % 2]} size={CELL} />
-          </View>
-        );
-    return cells;
+  // Clean playfield: faint gridlines matching the cell grid — built once.
+  const gridLayer = useMemo(() => {
+    const lines: React.ReactNode[] = [];
+    for (let c = 1; c < COLS; c++)
+      lines.push(
+        <View key={`gv${c}`} pointerEvents="none" style={{ position: "absolute", left: c * CELL, top: 0, width: 1, height: BOARD_H, backgroundColor: GRID_LINE }} />
+      );
+    for (let r = 1; r < ROWS; r++)
+      lines.push(
+        <View key={`gh${r}`} pointerEvents="none" style={{ position: "absolute", left: 0, top: r * CELL, width: BOARD_W, height: 1, backgroundColor: GRID_LINE }} />
+      );
+    return lines;
   }, []);
 
   return (
@@ -251,76 +261,123 @@ function Screen({ onExit }: GameContext) {
       </View>
 
       <View style={st.center}>
-        <View
-          style={[st.board, { width: BOARD_W, height: BOARD_H, borderColor: phase === "over" ? color.danger : color.surfaceLine }]}
-          {...pan.panHandlers}
-        >
-          {fieldLayer}
+        <View style={st.bezel}>
+          <View
+            style={[st.board, { width: BOARD_W, height: BOARD_H, borderColor: phase === "over" ? color.danger : consoleUI.frameLine }]}
+            {...pan.panHandlers}
+          >
+            {gridLayer}
 
-          {/* obstacles */}
-          {Array.from(obstacles).map((k) => {
-            const [r, c] = k.split(",").map(Number);
-            return (
-              <View key={`o${k}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-                <Sprite source={ROCK_IMG} size={CELL} />
+            {/* obstacles — blocky crates */}
+            {Array.from(obstacles).map((k) => {
+              const [r, c] = k.split(",").map(Number);
+              const m = Math.max(1, Math.round(CELL * 0.08));
+              const brace = Math.max(2, Math.round(CELL * 0.1));
+              const inner = CELL - m * 2;
+              return (
+                <View
+                  key={`o${k}`}
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute", left: c * CELL + m, top: r * CELL + m,
+                    width: inner, height: inner, backgroundColor: CRATE_FILL,
+                    borderRadius: Math.max(2, Math.round(CELL * 0.08)),
+                    borderWidth: 2, borderTopColor: CRATE_HI, borderLeftColor: CRATE_HI,
+                    borderRightColor: CRATE_EDGE, borderBottomColor: CRATE_EDGE,
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* corner plates + diagonal brace for a wooden-crate read */}
+                  <View style={{ position: "absolute", left: 0, top: 0, right: 0, height: brace, backgroundColor: "rgba(0,0,0,0.12)" }} />
+                  <View style={{ position: "absolute", left: 0, bottom: 0, right: 0, height: brace, backgroundColor: "rgba(0,0,0,0.22)" }} />
+                  <View style={{ position: "absolute", left: inner * 0.5 - 1, top: -inner * 0.2, width: 2, height: inner * 1.4, backgroundColor: CRATE_LO, transform: [{ rotate: "45deg" }] }} />
+                  <View style={{ position: "absolute", left: inner * 0.5 - 1, top: -inner * 0.2, width: 2, height: inner * 1.4, backgroundColor: CRATE_LO, transform: [{ rotate: "-45deg" }] }} />
+                </View>
+              );
+            })}
+
+            {/* apple — glossy red with highlight + leaf/stem */}
+            <View pointerEvents="none" style={{ position: "absolute", left: food.c * CELL, top: food.r * CELL, width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
+              {/* stem */}
+              <View style={{ position: "absolute", top: (CELL - appleSize) / 2 - Math.round(appleSize * 0.06), left: CELL / 2 - 1, width: 2.5, height: Math.round(appleSize * 0.2), backgroundColor: "#6B4A2A", borderRadius: 2, transform: [{ rotate: "12deg" }] }} />
+              {/* leaf */}
+              <View style={{ position: "absolute", top: (CELL - appleSize) / 2 - Math.round(appleSize * 0.02), left: CELL / 2 + 1, width: Math.round(appleSize * 0.26), height: Math.round(appleSize * 0.16), backgroundColor: "#4FB24A", borderTopRightRadius: 999, borderBottomLeftRadius: 999, transform: [{ rotate: "-18deg" }] }} />
+              {/* body */}
+              <View style={{ width: appleSize, height: appleSize, borderRadius: appleSize / 2, backgroundColor: "#D8362C", overflow: "hidden" }}>
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: appleSize * 0.4, backgroundColor: "rgba(90,10,6,0.35)", borderBottomLeftRadius: appleSize / 2, borderBottomRightRadius: appleSize / 2 }} />
+                <View style={{ position: "absolute", left: appleSize * 0.18, top: appleSize * 0.16, width: appleSize * 0.26, height: appleSize * 0.2, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.6)" }} />
               </View>
-            );
-          })}
+            </View>
 
-          {/* food */}
-          <View style={{ position: "absolute", left: food.c * CELL + (CELL - foodSize) / 2, top: food.r * CELL + (CELL - foodSize) / 2 }}>
-            <Sprite source={FOOD_IMG} size={foodSize} />
+            {/* snake connectors — bridge adjacent segments into one tube */}
+            {snake.map((s, i) => {
+              if (i === 0) return null;
+              const prev = snake[i - 1];
+              const cc = crashRef.current;
+              const crashed = phase === "over" && !!cc && ((cc.r === s.r && cc.c === s.c) || (cc.r === prev.r && cc.c === prev.c));
+              const t = snake.length > 1 ? i / (snake.length - 1) : 0;
+              const bg = crashed ? color.danger : mixHex(SNAKE_NEAR, SNAKE_FAR, t);
+              const x1 = cpx(s.c), y1 = cpy(s.r), x2 = cpx(prev.c), y2 = cpy(prev.r);
+              const horiz = s.r === prev.r;
+              const left = horiz ? Math.min(x1, x2) - TUBE / 2 : x1 - TUBE / 2;
+              const top = horiz ? y1 - TUBE / 2 : Math.min(y1, y2) - TUBE / 2;
+              const w = horiz ? Math.abs(x2 - x1) + TUBE : TUBE;
+              const h = horiz ? TUBE : Math.abs(y2 - y1) + TUBE;
+              return <View key={`sc${i}`} pointerEvents="none" style={{ position: "absolute", left, top, width: w, height: h, backgroundColor: bg, borderRadius: Math.round(TUBE * 0.32) }} />;
+            })}
+
+            {/* snake segment blobs + head detail */}
+            {snake.map((s, i) => {
+              const isHead = i === 0;
+              const cc = crashRef.current;
+              const crashed = phase === "over" && !!cc && cc.r === s.r && cc.c === s.c;
+              const t = snake.length > 1 ? i / (snake.length - 1) : 0;
+              const bg = crashed ? color.danger : isHead ? SNAKE_HEAD : mixHex(SNAKE_NEAR, SNAKE_FAR, t);
+              const size = isHead ? HEAD : TUBE;
+              const left = cpx(s.c) - size / 2;
+              const top = cpy(s.r) - size / 2;
+              return (
+                <View
+                  key={`s${i}`}
+                  pointerEvents="none"
+                  style={{ position: "absolute", left, top, width: size, height: size, backgroundColor: bg, borderRadius: size / 2 }}
+                >
+                  {/* gloss */}
+                  <View pointerEvents="none" style={{ position: "absolute", left: size * 0.18, top: size * 0.12, width: size * 0.5, height: size * (isHead ? 0.32 : 0.26), borderRadius: 999, backgroundColor: isHead ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.14)" }} />
+                  {isHead && !crashed ? (() => {
+                    const d = dirRef.current;
+                    const cx = HEAD / 2 + d.dx * HEAD * 0.16;
+                    const cy = HEAD / 2 + d.dy * HEAD * 0.16;
+                    const px = -d.dy, py = d.dx;
+                    const sep = HEAD * 0.22;
+                    const er = Math.max(3, Math.round(HEAD * 0.2));
+                    const pr = Math.max(1, Math.round(er * 0.5));
+                    const eyes = [
+                      { x: cx + px * sep, y: cy + py * sep },
+                      { x: cx - px * sep, y: cy - py * sep },
+                    ];
+                    const tx = HEAD / 2 + d.dx * HEAD * 0.52;
+                    const ty = HEAD / 2 + d.dy * HEAD * 0.52;
+                    return (
+                      <>
+                        <View style={{ position: "absolute", left: tx - HEAD * 0.055, top: ty - HEAD * 0.055, width: HEAD * 0.11, height: HEAD * 0.11, borderRadius: 2, backgroundColor: "#FF4D5E" }} />
+                        {eyes.map((e, k) => (
+                          <View key={k} style={{ position: "absolute", left: e.x - er / 2, top: e.y - er / 2, width: er, height: er, borderRadius: 999, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+                            <View style={{ width: pr, height: pr, borderRadius: 999, backgroundColor: "#0A0A0A" }} />
+                          </View>
+                        ))}
+                      </>
+                    );
+                  })() : null}
+                </View>
+              );
+            })}
+
+            <EffectsLayer ref={fxRef} reduced={reducedMotion} />
           </View>
-
-          {/* snake — shaded segments, head→tail gradient, rounded head/tail, eyes + tongue */}
-          {snake.map((s, i) => {
-            const isHead = i === 0;
-            const isTail = i === snake.length - 1 && snake.length > 1;
-            const crashed = phase === "over" && crashRef.current && crashRef.current.r === s.r && crashRef.current.c === s.c;
-            const t = snake.length > 1 ? i / (snake.length - 1) : 0;
-            const bg = crashed ? color.danger : isHead ? SNAKE_HEAD : mixHex(SNAKE_NEAR, SNAKE_FAR, t);
-            const rounded = isHead ? Math.round(CELL * 0.46) : isTail ? Math.round(CELL * 0.4) : Math.round(CELL * 0.26);
-            const inset = Math.max(1, Math.round(CELL * 0.08));
-            return (
-              <View
-                key={`s${i}`}
-                style={{ position: "absolute", left: s.c * CELL, top: s.r * CELL, width: CELL, height: CELL, backgroundColor: bg, borderRadius: rounded, borderWidth: 1.5, borderColor: "rgba(0,0,0,0.3)" }}
-              >
-                {!crashed ? (
-                  <View pointerEvents="none" style={{ position: "absolute", left: inset, top: inset, right: inset, height: Math.round(CELL * 0.32), borderRadius: rounded, backgroundColor: "rgba(255,255,255,0.20)" }} />
-                ) : null}
-                {isHead && !crashed ? (() => {
-                  const d = dirRef.current;
-                  const cx = CELL / 2 + d.dx * CELL * 0.18;
-                  const cy = CELL / 2 + d.dy * CELL * 0.18;
-                  const px = -d.dy, py = d.dx;
-                  const er = Math.max(3, Math.round(CELL * 0.2));
-                  const pr = Math.max(1, Math.round(er * 0.5));
-                  const eyes = [
-                    { x: cx + px * CELL * 0.2, y: cy + py * CELL * 0.2 },
-                    { x: cx - px * CELL * 0.2, y: cy - py * CELL * 0.2 },
-                  ];
-                  const tx = CELL / 2 + d.dx * CELL * 0.5;
-                  const ty = CELL / 2 + d.dy * CELL * 0.5;
-                  return (
-                    <>
-                      <View pointerEvents="none" style={{ position: "absolute", left: tx - CELL * 0.06, top: ty - CELL * 0.06, width: CELL * 0.12, height: CELL * 0.12, borderRadius: 2, backgroundColor: "#FF4D5E" }} />
-                      {eyes.map((e, k) => (
-                        <View key={k} style={{ position: "absolute", left: e.x - er / 2, top: e.y - er / 2, width: er, height: er, borderRadius: 999, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
-                          <View style={{ width: pr, height: pr, borderRadius: 999, backgroundColor: "#0A0A0A" }} />
-                        </View>
-                      ))}
-                    </>
-                  );
-                })() : null}
-              </View>
-            );
-          })}
-
-          <EffectsLayer ref={fxRef} reduced={reducedMotion} />
         </View>
         <Body muted style={{ marginTop: space.md, textAlign: "center" }}>
-          Swipe or use the D-pad. Eat apples, dodge your tail and the crates.
+          Swipe or use the stick. Eat apples, dodge your tail and the crates.
         </Body>
       </View>
 
@@ -333,8 +390,9 @@ function Screen({ onExit }: GameContext) {
         primaryLabel="Start" onPrimary={start} onExit={onExit}
       >
         <Body muted style={{ textAlign: "center", marginTop: space.md }}>
-          Guide the snake to each apple. It speeds up as it grows, and crates
-          appear the longer you survive.
+          Steer the snake with the stick (or a swipe) and eat every apple to
+          grow longer. It speeds up as it grows, and crates clutter the field
+          the longer you survive. Hit a wall, a crate, or your own tail and it's over.
         </Body>
       </GameOverlay>
 
@@ -354,7 +412,14 @@ function Screen({ onExit }: GameContext) {
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  board: { backgroundColor: "#05070f", borderRadius: radius.md, borderWidth: 1, overflow: "hidden" },
+  bezel: {
+    backgroundColor: consoleUI.frame, padding: space.xs,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: consoleUI.frameLine,
+  },
+  board: {
+    backgroundColor: FIELD_BG, borderRadius: radius.md, borderWidth: 1, overflow: "hidden",
+    boxShadow: "inset 0 0 12px rgba(0,0,0,0.6)",
+  },
   hud: {
     position: "absolute", left: 0, right: 0, zIndex: 10, paddingHorizontal: space.lg,
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",

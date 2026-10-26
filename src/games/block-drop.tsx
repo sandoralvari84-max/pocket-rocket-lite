@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Dimensions, Animated, ImageBackground } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
-import { color, space, radius, consoleUI, crt, glow } from "../design/tokens";
-import { PixelText, IconButton, GameOverlay } from "../design/ui";
+import { color, space, radius, consoleUI, crt, glow, font, type as T } from "../design/tokens";
+import { PixelText, IconButton, GameOverlay, Body } from "../design/ui";
+import { ArcadeJoystick, type JoyDir } from "../design/Joystick";
 import { ScoreboardOverlay } from "../design/Scoreboard";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
@@ -149,6 +150,30 @@ function WellGrid() {
   return <>{lines}</>;
 }
 
+// Vertical depth ramp inside the well: a few stacked low-alpha bands, darker
+// toward the floor, so the empty playfield reads as a recessed screen rather
+// than a flat black box. Static (built once), zero per-frame cost.
+function WellDepth() {
+  const bands: React.ReactNode[] = [];
+  const N = 7;
+  const h = BOARD_H / N;
+  for (let i = 0; i < N; i++) {
+    const a = 0.03 + (i / (N - 1)) * 0.22; // top faint → bottom darker
+    bands.push(
+      <View
+        key={`d${i}`}
+        pointerEvents="none"
+        style={{ position: "absolute", left: 0, right: 0, top: i * h, height: h + 1, backgroundColor: `rgba(3,6,10,${a.toFixed(3)})` }}
+      />
+    );
+  }
+  // a faint cool wash at the very top for a lit-screen feel
+  bands.push(
+    <View key="dtop" pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, height: Math.round(BOARD_H * 0.22), backgroundColor: "rgba(80,120,160,0.05)" }} />
+  );
+  return <>{bands}</>;
+}
+
 // Ambient backdrop: coarse console grid + low ambient amber/cyan glow + scanlines.
 // All LOW intensity and static — never reduces block contrast, costs nothing per frame.
 function Backdrop() {
@@ -198,11 +223,11 @@ function SidePanel({ label, children, accent }: { label: string; children?: Reac
     </View>
   );
 }
-function StatPanel({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function StatPanel({ label, value, accent, small }: { label: string; value: string; accent?: string; small?: boolean }) {
   return (
     <View style={st.statPanel}>
-      <PixelText size="label" style={st.panelLabel}>{label}</PixelText>
-      <Text style={[st.statValue, accent ? { color: accent } : null]}>{value}</Text>
+      <Text style={st.statLabel}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={[small ? st.statValueSm : st.statValue, accent ? { color: accent } : null]}>{value}</Text>
     </View>
   );
 }
@@ -216,7 +241,7 @@ function GameScreen({ onExit }: GameContext) {
   const pieceRef = useRef<Piece>(pieceFrom(queueRef.current.shift() as number));
   const heldRef = useRef<number | null>(null);
   const holdUsedRef = useRef(false);
-  const phaseRef = useRef<"play" | "clear" | "over">("play");
+  const phaseRef = useRef<"ready" | "play" | "clear" | "over">("ready");
   const clearRowsRef = useRef<number[]>([]);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesRef = useRef(0);
@@ -229,8 +254,18 @@ function GameScreen({ onExit }: GameContext) {
   const [lines, setLines] = useState(0);
   const [level, setLevel] = useState(1);
   const [over, setOver] = useState(false);
+  const [ready, setReady] = useState(true); // pre-game "ready" gate (block-drop starts in ready)
   const [, setNextTick] = useState(0); // force preview refresh
   const bump = () => setTick((t) => (t + 1) % 1000000);
+
+  // Begin play from the ready screen: switch phase to "play" and start gravity fresh.
+  const start = () => {
+    phaseRef.current = "play";
+    lastRef.current = Date.now();
+    accRef.current = 0;
+    setReady(false);
+    bump();
+  };
 
   // Visual-only: full-well flash for tetris / level-up (never affects logic).
   const flashAnim = useRef(new Animated.Value(0)).current;
@@ -397,6 +432,14 @@ function GameScreen({ onExit }: GameContext) {
     bump();
   };
 
+  // Joystick → movement. Left/right shift the piece; down soft-drops; up is ignored.
+  const onJoy = (d: JoyDir) => {
+    if (d.dx === -1) move(-1);
+    else if (d.dx === 1) move(1);
+    else if (d.dy === 1) softDrop();
+    // d.dy === -1 (up) intentionally does nothing
+  };
+
   const reset = () => {
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     boardRef.current = emptyBoard();
@@ -444,7 +487,9 @@ function GameScreen({ onExit }: GameContext) {
         {/* console bezel housing the well — reads as an inset screen */}
         <View style={st.bezel}>
           <View style={[st.board, { width: BOARD_W, height: BOARD_H }]}>
-            {/* faint playfield gridlines (behind everything) */}
+            {/* recessed-screen depth ramp (behind the grid) */}
+            <WellDepth />
+            {/* faint playfield gridlines (behind the pieces) */}
             <WellGrid />
             {/* top phosphor gloss on the screen */}
             <View pointerEvents="none" style={st.wellGloss} />
@@ -496,25 +541,39 @@ function GameScreen({ onExit }: GameContext) {
           </SidePanel>
           <StatPanel label="SCORE" value={String(score).padStart(5, "0")} accent={color.amber} />
           <View style={st.statRow}>
-            <StatPanel label="LVL" value={String(level)} accent={color.cyan} />
-            <StatPanel label="LINES" value={String(lines)} />
+            <StatPanel label="LVL" value={String(level)} accent={color.cyan} small />
+            <StatPanel label="LINES" value={String(lines)} small />
           </View>
         </View>
       </View>
 
-      {/* controls */}
-      <View style={[st.controls, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-        <View style={st.ctrlRow}>
-          <Btn label="◀" onPress={() => move(-1)} />
-          <Btn label="⟳" onPress={doRotate} />
-          <Btn label="▶" onPress={() => move(1)} />
+      {/* controls — joystick on the left, tactile console buttons on the right */}
+      <View style={[st.controls, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]} pointerEvents="box-none">
+        <View style={st.joyWrap}>
+          <ArcadeJoystick onDirection={onJoy} size={132} />
+          <Text style={st.ctrlHint}>MOVE · DOWN = SOFT DROP</Text>
         </View>
-        <View style={st.ctrlRow}>
-          <Btn label="HOLD" small onPress={doHold} />
-          <Btn label="▼" onPress={softDrop} />
-          <Btn label="⤓" accent onPress={hardDrop} />
+        <View style={st.btnStack}>
+          <ConsoleBtn label="ROTATE" glyph="⟳" onPress={doRotate} />
+          <ConsoleBtn label="DROP" glyph="⤓" strong onPress={hardDrop} />
+          <ConsoleBtn label="HOLD" glyph="⇄" small onPress={doHold} />
         </View>
       </View>
+
+      <GameOverlay
+        visible={ready}
+        kind="pause"
+        title="BLOCK DROP"
+        primaryLabel="Play"
+        onPrimary={start}
+        onExit={onExit}
+      >
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Fill complete rows to clear them and score. Steer with the stick, soft-drop with
+          down; ROTATE and hard-DROP with the keys; HOLD to stash a piece. It's over when
+          the stack reaches the top.
+        </Body>
+      </GameOverlay>
 
       <ScoreboardOverlay
         visible={over} gameId="block-drop" score={score} title="STACK OVERFLOW"
@@ -525,17 +584,23 @@ function GameScreen({ onExit }: GameContext) {
   );
 }
 
-function Btn({ label, onPress, accent, small }: { label: string; onPress: () => void; accent?: boolean; small?: boolean }) {
+// Tactile console button: amber-accented cap, rounded, bordered, with a pressed
+// state + soft amber glow. `strong` = filled primary (DROP), `small` = compact.
+function ConsoleBtn({ label, glyph, onPress, strong, small }: { label: string; glyph: string; onPress: () => void; strong?: boolean; small?: boolean }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={() => { try { onPress(); } catch (e) { console.warn("[block-drop]", e); } }}
       style={({ pressed }) => [
-        st.btn,
-        accent && { borderColor: color.amber, backgroundColor: color.amberGlowBg },
-        pressed && { backgroundColor: color.surface2, transform: [{ scale: 0.97 }] },
+        st.cbtn,
+        small ? st.cbtnSmall : null,
+        strong ? st.cbtnStrong : st.cbtnAccent,
+        pressed && (strong ? st.cbtnStrongPressed : st.cbtnPressed),
       ]}
     >
-      <Text style={[st.btnT, small && { fontSize: 13 }, accent && { color: color.amber }]}>{label}</Text>
+      <Text style={[st.cbtnGlyph, small && { fontSize: 20 }, strong && { color: color.onAmber }]}>{glyph}</Text>
+      <Text style={[st.cbtnLabel, strong && { color: color.onAmber }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -560,15 +625,33 @@ const st = StyleSheet.create({
   tickBR: { bottom: 2, right: 2, borderBottomWidth: 1.5, borderRightWidth: 1.5 },
   side: { width: SIDE - 8, alignItems: "stretch", gap: space.sm },
   panel: { backgroundColor: color.surface, borderRadius: radius.md, borderWidth: 1, borderColor: consoleUI.frameLine, padding: space.sm, alignItems: "center" },
-  panelLabel: { color: color.textMuted, alignSelf: "flex-start", marginBottom: space.xs },
-  statPanel: { flex: 1, backgroundColor: color.surface, borderRadius: radius.md, borderWidth: 1, borderColor: consoleUI.frameLine, paddingHorizontal: space.sm, paddingVertical: space.xs },
+  panelLabel: { fontFamily: font.mono, fontSize: 9, letterSpacing: 1, color: color.textMuted, alignSelf: "flex-start", marginBottom: space.xs },
+  statPanel: { flex: 1, backgroundColor: color.surface, borderRadius: radius.md, borderWidth: 1, borderColor: consoleUI.frameLine, paddingHorizontal: space.sm, paddingVertical: space.xs, overflow: "hidden" },
   statRow: { flexDirection: "row", gap: space.sm },
-  statValue: { color: color.text, fontSize: 15, fontWeight: "800", marginTop: 1 },
+  // big CRT numerals (VT323) for the values; mono caption for the label.
+  statLabel: { fontFamily: font.mono, fontSize: 9, letterSpacing: 1, color: color.textMuted },
+  statValue: { fontFamily: font.crt, fontSize: 30, lineHeight: 30, color: color.text, marginTop: 1, includeFontPadding: false },
+  statValueSm: { fontFamily: font.crt, fontSize: 24, lineHeight: 24, color: color.text, marginTop: 1, includeFontPadding: false },
   miniBox: { backgroundColor: "#0E141C", borderRadius: radius.sm, borderWidth: 1, borderColor: color.surfaceLine },
-  controls: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm },
-  ctrlRow: { flexDirection: "row", justifyContent: "space-between", gap: space.sm },
-  btn: { flex: 1, height: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: color.surfaceLine, backgroundColor: color.surface, alignItems: "center", justifyContent: "center" },
-  btnT: { color: color.text, fontSize: 22, fontWeight: "800" },
+
+  // controls deck
+  controls: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: space.lg, paddingTop: space.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  joyWrap: { alignItems: "center", gap: space.xs },
+  ctrlHint: { fontFamily: font.mono, fontSize: 8.5, letterSpacing: 0.5, color: color.textFaint },
+  btnStack: { alignItems: "stretch", gap: space.sm, minWidth: 128 },
+  // tactile console cap: amber accent, rounded, bordered, soft glow, >=48px hit
+  cbtn: {
+    minHeight: 54, minWidth: 128, paddingHorizontal: space.lg, paddingVertical: space.sm,
+    borderRadius: radius.md, borderWidth: 1.5, flexDirection: "row", alignItems: "center",
+    justifyContent: "center", gap: space.sm,
+  },
+  cbtnSmall: { minHeight: 48 },
+  cbtnAccent: { borderColor: color.amber, backgroundColor: color.amberGlowBg, boxShadow: glow.amberSoft } as any,
+  cbtnStrong: { borderColor: color.amber, backgroundColor: color.amber, boxShadow: glow.amber } as any,
+  cbtnPressed: { backgroundColor: color.surface2, transform: [{ scale: 0.96 }] },
+  cbtnStrongPressed: { backgroundColor: color.amberDim, transform: [{ scale: 0.96 }] },
+  cbtnGlyph: { fontSize: 24, color: color.amber, fontWeight: "800" },
+  cbtnLabel: { fontFamily: font.monoBold, fontSize: 13, letterSpacing: 1.5, color: color.text },
 });
 
 export const blockDropGame: GameModule = {

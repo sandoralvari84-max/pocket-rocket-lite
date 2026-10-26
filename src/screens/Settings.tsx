@@ -1,7 +1,9 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { color, space, radius, type as T, HIT } from "../design/tokens";
-import { PixelText, Body, Chip, Panel, Segmented } from "../design/ui";
+import { PixelText, Body, Chip, Panel, Segmented, ScreenHeader } from "../design/ui";
+
+const SETTINGS_ICON = require("../../assets/ui/nav/settings.png");
 import { useSettings, setSetting } from "../settings";
 import { LANGS, L, useLang } from "../i18n";
 import type { VoiceId } from "../settings";
@@ -26,7 +28,7 @@ export default function Settings({ onAbout, onModelSetup }: { onAbout: () => voi
 
   return (
     <ScrollView contentContainerStyle={cs.pad} showsVerticalScrollIndicator={false}>
-      <PixelText size="title" style={cs.screenTitle}>{L("SETTINGS")}</PixelText>
+      <ScreenHeader icon={SETTINGS_ICON} title={L("Settings")} subtitle={L("preferences · privacy · about")} />
 
       {/* ---- LANGUAGE ---- */}
       <Panel label={L("LANGUAGE")} tone="cyan">

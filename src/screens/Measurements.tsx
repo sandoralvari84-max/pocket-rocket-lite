@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -50,6 +50,10 @@ export default function Measurements({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Track body measurements — weight, waist and body fat — over time, with the change since your last reading worked out for you. Stored on-device.")}
+          setup={L("Pick a metric tab, type the value and tap Log. Add a reading whenever you want to update the trend.")}
+        />
         <View style={st.tabs}>
           {METRICS.map((m) => (
             <Pressable key={m.key} onPress={() => setMetric(m.key)} style={[st.tab, metric === m.key && st.tabOn]}>

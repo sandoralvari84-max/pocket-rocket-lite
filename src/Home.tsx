@@ -26,6 +26,7 @@ import Sleep from "./screens/Sleep";
 import Measurements from "./screens/Measurements";
 import Timers from "./screens/Timers";
 import Converter from "./screens/Converter";
+import Translate from "./screens/Translate";
 import Calendar from "./screens/Calendar";
 import Recipes from "./screens/Recipes";
 import MealPlanner from "./screens/MealPlanner";
@@ -34,21 +35,23 @@ import TravelRoutes from "./screens/TravelRoutes";
 
 type Tab = "chat" | "games" | "tools" | "library" | "settings";
 type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel";
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel" | "translate";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
 const CRT_SCANLINES = require("../assets/crt/scanlines.png");
 const CRT_VIGNETTE = require("../assets/crt/vignette.png");
 
-// Nav-bar icons (tools/art/gen_nav_icons.py) — same filled-gloss grammar as the
-// game icons, replacing the old Unicode glyph placeholders.
+// Nav-bar icons (tools/art/gen_nav_icons.py) — monochrome white line glyphs, tinted
+// per state (amber active / faint inactive) to match the approved mockup.
 const NAV_ICON = {
   chat: require("../assets/ui/nav/chat.png"),
   games: require("../assets/ui/nav/games.png"),
   tools: require("../assets/ui/nav/tools.png"),
   library: require("../assets/ui/nav/library.png"),
   settings: require("../assets/ui/nav/settings.png"),
+  radio: require("../assets/ui/nav/radio.png"),
+  dictaphone: require("../assets/ui/nav/dictaphone.png"),
 };
 
 // Honest one-line descriptions, keyed by frozen game id.
@@ -63,7 +66,7 @@ const BLURB: Record<string, string> = {
   "three-in-a-row": "Line up three against the on-device model.",
   "rock-paper-scissors": "Best the model in a quick battle of hands.",
   "four-up": "Drop discs and connect four in a row.",
-  "draughts": "Jump and capture across the checkerboard.",
+  "draughts": "Line up a mill of three to take a piece — Malom (Nine Men's Morris).",
   "fleet-hunt": "Hunt the hidden fleet one grid square at a time.",
   "word-gallows": "Guess the word one letter at a time.",
   "twenty-questions": "Think of something; the model guesses in twenty.",
@@ -75,7 +78,7 @@ const BLURB: Record<string, string> = {
 // Original per-game icons (tools/art/gen_game_icons.py) — the game's own motif,
 // not the monogram. Replaces the 2-letter tile.
 const ICON: Record<string, ReturnType<typeof require>> = {
-  "catch": require("../assets/arcade/icons/catch.png"),
+  "catch": require("../assets/arcade/catch/ship.png"),  // real in-game ship, not the old cabinet glyph
   "maze-muncher": require("../assets/arcade/icons/maze-muncher.png"),
   "nibbler": require("../assets/arcade/icons/nibbler.png"),
   "road-hopper": require("../assets/arcade/icons/road-hopper.png"),
@@ -102,7 +105,7 @@ const TAGLINE: Record<string, string> = {
   "three-in-a-row": "Line up three.",
   "rock-paper-scissors": "Choose. Beat. Win.",
   "four-up": "Stack. Connect. Win.",
-  "draughts": "Plan. Move. Capture.",
+  "draughts": "Mill three. Take one.",
   "fleet-hunt": "Find. Hit. Sink.",
   "word-gallows": "Think. Guess. Save him.",
 };
@@ -127,6 +130,25 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   // Shared destination-change motion (Stage 4): a subtle fade + small rise on every tab
   // switch. Reduced motion skips straight to the resting state. Native-driven.
   const navAnim = useRef(new Animated.Value(1)).current;
+  // Collapsible bottom nav: a handle slides the deck down to free the screen.
+  const HANDLE_H = 28;
+  const [navHidden, setNavHidden] = useState(false);
+  const deckHRef = useRef(0);
+  const navH = useRef(new Animated.Value(0)).current;
+  const [navMeasured, setNavMeasured] = useState(false);
+  const onDeckLayout = (e: { nativeEvent: { layout: { height: number } } }) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0 && Math.abs(h - deckHRef.current) > 1) {
+      deckHRef.current = h;
+      if (!navHidden) navH.setValue(h);
+      setNavMeasured(true);
+    }
+  };
+  const toggleNav = () => {
+    const full = deckHRef.current || 160;
+    Animated.timing(navH, { toValue: navHidden ? full : HANDLE_H, duration: 240, easing: ease.out, useNativeDriver: false }).start();
+    setNavHidden((v) => !v);
+  };
   // Immersive Arcade motion (Stage 5): content expands (scale + fade) and the control deck
   // recedes when the Arcade tab is active; contracts on leaving. 0 = contracted, 1 = full.
   const arcadeAnim = useRef(new Animated.Value(tab === "games" ? 1 : 0)).current;
@@ -211,6 +233,9 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   if (screen === "timer") {
     return <Timers onBack={() => setScreen(null)} />;
   }
+  if (screen === "translate") {
+    return <Translate onBack={() => setScreen(null)} />;
+  }
   if (screen === "convert") {
     return <Converter onBack={() => setScreen(null)} />;
   }
@@ -246,12 +271,15 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
           transform: [{ translateY: navAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
         }]}>
         {tab === "chat" && (
+          <View style={{ flex: 1, marginTop: -Math.max(insets.top, 24) }}>
           <VoiceChat
             seed={seed?.text} seedNonce={seed?.n}
             onOpenGames={() => setTab("games")}
             onOpenTools={() => setTab("tools")}
             onOpenNotes={() => setScreen("notes")}
+            onOpenTool={(r) => setScreen(r)}
           />
+          </View>
         )}
 
         {tab === "games" && (
@@ -305,45 +333,56 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
 
       <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>
 
-      {/* Console control deck: tactile illuminated hardware keys on a housing rail.
-          Recedes (slides down + dims, staying tappable) while Arcade is immersive. */}
-      <Animated.View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }, {
-        opacity: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }),
-        transform: [{ translateY: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) }],
-      }]}>
-        <View style={s.deckRail} pointerEvents="none" />
+      {/* Collapsible console deck — the handle slides the nav down to free the screen. */}
+      <Animated.View style={[{ overflow: "hidden" }, navMeasured ? { height: navH } : null]}>
+        <View onLayout={onDeckLayout}>
+          <Pressable onPress={toggleNav} style={s.navHandle} accessibilityRole="button" accessibilityLabel={navHidden ? "Show menu" : "Hide menu"}>
+            <View style={s.navHandleBar} />
+          </Pressable>
+          <Animated.View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 16) }, {
+            opacity: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }),
+            transform: [{ translateY: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) }],
+          }]}>
+            <View style={s.deckRail} pointerEvents="none" />
         <NavKey icon={NAV_ICON.chat} label="Buddy" active={tab === "chat"} onPress={() => setTab("chat")} />
         <NavKey icon={NAV_ICON.games} label="Arcade" active={tab === "games"} onPress={() => setTab("games")} />
         <NavKey icon={NAV_ICON.tools} label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
         <NavKey icon={NAV_ICON.library} label="Library" active={tab === "library"} onPress={() => setTab("library")} />
         <NavKey icon={NAV_ICON.settings} label="Settings" active={tab === "settings"} onPress={() => setTab("settings")} />
+        <NavKey icon={NAV_ICON.radio} label="Radio" soon active={false} onPress={() => {}} />
+            <NavKey icon={NAV_ICON.dictaphone} label="Dictaphone" soon active={false} onPress={() => {}} />
+          </Animated.View>
+        </View>
       </Animated.View>
     </View>
   );
 }
 
-function NavKey({ icon, glyph, label, active, onPress }: {
-  icon?: ReturnType<typeof require>; glyph?: string; label: string; active: boolean; onPress: () => void;
+function NavKey({ icon, glyph, label, active, onPress, soon }: {
+  icon?: ReturnType<typeof require>; glyph?: string; label: string; active: boolean; onPress: () => void; soon?: boolean;
 }) {
+  // Monochrome icon, tinted by state: amber when active, faint grey otherwise / SOON.
+  const tint = active ? color.amber : soon ? "#3A4650" : color.textFaint;
   return (
     <Pressable
-      onPress={onPress}
+      onPress={soon ? undefined : onPress}
+      disabled={soon}
       accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
+      accessibilityState={{ selected: active, disabled: soon }}
       accessibilityLabel={label}
       style={({ pressed }) => [
         s.key,
         active && s.keyOn,
-        pressed && s.keyPressed,
+        pressed && !soon && s.keyPressed,
       ]}
     >
       <View style={[s.led, active && s.ledOn]} />
       {icon ? (
-        <Image source={icon} style={[s.navImg, !active && { opacity: 0.5 }]} resizeMode="contain" />
+        <Image source={icon} style={[s.navImg, { tintColor: tint }]} resizeMode="contain" />
       ) : (
         <Text style={[s.navGlyph, active ? s.navGlyphOn : { opacity: 0.5 }]}>{glyph}</Text>
       )}
-      <Text style={[s.keyLabel, active && s.keyLabelOn]}>{L(label)}</Text>
+      <Text style={[s.keyLabel, active && s.keyLabelOn, soon && s.keyLabelSoon]}>{soon ? L("SOON") : L(label)}</Text>
     </Pressable>
   );
 }
@@ -363,7 +402,7 @@ function SectionHeader({ label, count, tone }: { label: string; count: number; t
 function GameCard({ game, onPress }: { game: GameModule; onPress: () => void }) {
   const arcade = game.kind === "arcade";
   const c = arcade ? color.amber : color.cyan;
-  const tileBg = arcade ? color.amberGlowBg : color.cyanGlowBg;
+  const tileBg = "#0A0E13"; // dark glyph well (mockup .cab .glyph), not a coloured glow
   return (
     <Pressable
       onPress={onPress}
@@ -381,13 +420,8 @@ function GameCard({ game, onPress }: { game: GameModule; onPress: () => void }) 
         )}
         <View style={[s.tileLed, { backgroundColor: c }]} pointerEvents="none" />
       </View>
-      <View style={s.cardBody}>
-        <View style={s.cardTop}>
-          <Text style={s.cardTitle} numberOfLines={1}>{game.title}</Text>
-          <Chip label={arcade ? "Arcade" : "Turn-based"} tone={arcade ? "amber" : "cyan"} />
-        </View>
-        <Text style={s.cardDesc} numberOfLines={1}>{TAGLINE[game.id] ?? BLURB[game.id] ?? ""}</Text>
-      </View>
+      <Text style={s.cardTitle} numberOfLines={1}>{game.title}</Text>
+      <Text style={s.cardDesc} numberOfLines={1}>{TAGLINE[game.id] ?? BLURB[game.id] ?? ""}</Text>
     </Pressable>
   );
 }
@@ -417,34 +451,32 @@ const s = StyleSheet.create({
   sectionRule: { flex: 1, borderBottomWidth: 1, marginHorizontal: space.xs, opacity: 0.8 },
   sectionCount: { ...T.small, color: color.textFaint },
 
-  grid: { gap: space.md },
+  // Mockup cabinet grid: two columns of vertical cabinets (glyph tile on top).
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: space.md },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.md,
+    width: "48%",
     backgroundColor: color.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: color.surfaceLine,
-    padding: space.md,
+    padding: space.sm,
   },
   cardPressed: { backgroundColor: color.surface2, borderColor: color.amber, transform: [{ scale: 0.99 }] },
   tile: {
-    width: 58,
-    height: 58,
+    width: "100%",
+    height: 64,
     borderRadius: radius.md,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    marginBottom: space.sm,
   },
   tileGloss: { position: "absolute", left: 0, right: 0, top: 0, height: "46%", backgroundColor: "rgba(255,255,255,0.07)" },
   tileLed: { position: "absolute", right: 5, bottom: 5, width: 5, height: 5, borderRadius: 3, opacity: 0.9 },
   tileMono: { fontSize: 15, letterSpacing: 1 },
-  cardBody: { flex: 1, gap: 6 },
-  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
-  cardTitle: { ...T.h2, flexShrink: 1 },
-  cardDesc: { ...T.bodyMuted },
+  cardTitle: { ...T.h2, fontSize: 14 },
+  cardDesc: { ...T.small, fontSize: 9.5, color: color.textFaint, marginTop: 2 },
 
   // Version tag
   ver: {
@@ -462,10 +494,12 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: consoleUI.deckRail,
     paddingTop: space.md,
-    paddingHorizontal: space.md,
-    gap: space.sm,
+    paddingHorizontal: space.sm,
+    gap: 3,
   },
   deckRail: { position: "absolute", left: 0, right: 0, top: 1, height: 1, backgroundColor: consoleUI.deckHi, opacity: 0.6 },
+  navHandle: { height: 28, alignItems: "center", justifyContent: "center", backgroundColor: consoleUI.deckBg, borderTopWidth: 1, borderColor: consoleUI.deckRail },
+  navHandleBar: { width: 46, height: 4, borderRadius: 2, backgroundColor: consoleUI.deckHi, opacity: 0.8 },
   key: {
     flex: 1,
     minHeight: HIT + 6,
@@ -484,9 +518,10 @@ const s = StyleSheet.create({
   ledOn: { backgroundColor: color.amber, shadowColor: color.amber, shadowOpacity: 0.9, shadowRadius: 5, elevation: 3 },
   keyIcon: { fontSize: 18, color: color.textMuted, lineHeight: 22 },
   keyIconOn: { color: color.amber },
-  navImg: { width: 26, height: 26 },
+  navImg: { width: 22, height: 22 },
   navGlyph: { fontSize: 22, lineHeight: 26, color: color.textMuted, textAlign: "center" },
   navGlyphOn: { color: color.amber },
-  keyLabel: { ...T.small, color: color.textMuted, fontSize: 11 },
-  keyLabelOn: { color: color.amber, fontWeight: "700" },
+  keyLabel: { ...T.small, color: color.textMuted, fontSize: 9, letterSpacing: 0.2 },
+  keyLabelOn: { color: color.amber },
+  keyLabelSoon: { color: "#3A4650", fontSize: 7.5, letterSpacing: 0.6 },
 });

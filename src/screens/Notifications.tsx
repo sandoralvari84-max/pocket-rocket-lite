@@ -7,7 +7,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Speech from "expo-speech";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { notif, type NotifItem } from "../notif";
 import { getSettings } from "../settings";
@@ -82,6 +82,10 @@ export default function Notifications({ onBack }: { onBack: () => void }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+          <ToolIntro
+            what={L("Reads your incoming notifications aloud on-device — new alerts are spoken while this screen is open, or tap any captured one to hear it. Nothing leaves your phone.")}
+            setup={L("Grant notification access when asked, then turn on 'Read new aloud' — or tap Read latest to hear the most recent one.")}
+          />
           <Pressable onPress={() => { sinceRef.current = Date.now(); setAutoRead((v) => !v); }}
             style={[st.toggle, autoRead && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg }]}>
             <View style={[st.knob, autoRead && st.knobOn]} />

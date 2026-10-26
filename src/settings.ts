@@ -12,9 +12,11 @@ export type Settings = {
   gameSound: boolean;
   language: AppLang;     // interface language (en/de/es)
   modelSetupSkipped: boolean; // core app opened without installing the optional local model
+  activeNiche: string | null; // the one active Experts knowledge pack (null = none; packs don't stack)
+  modelProfile: "auto" | "small" | "large"; // which local model to use; auto = by device RAM (0.5B on low-RAM)
 };
 
-const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true, language: "en", modelSetupSkipped: false };
+const DEFAULTS: Settings = { voice: "sentinel", speechRate: 0.96, reducedMotion: false, gameSound: true, language: "en", modelSetupSkipped: false, activeNiche: null, modelProfile: "auto" };
 const FILE = FileSystem.documentDirectory + "settings.json";
 
 let cache: Settings = { ...DEFAULTS };

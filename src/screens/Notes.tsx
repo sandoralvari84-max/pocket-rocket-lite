@@ -9,7 +9,9 @@ import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from 
 import * as FileSystem from "expo-file-system/legacy";
 import { ensureWhisper, transcribe } from "../stt";
 import { color, space, radius, type as T } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ScreenHeader, ToolIntro } from "../design/ui";
+
+const LIBRARY_ICON = require("../../assets/ui/nav/library.png");
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity, uid, DATA_DIR } from "../data/store";
 
@@ -88,10 +90,8 @@ export default function Notes({ onBack }: { onBack: () => void }) {
 
   return (
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
-      <View style={st.head}>
-        <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("DICTAPHONE")}</PixelText>
-        <View style={{ width: 44 }} />
+      <View style={{ paddingHorizontal: space.lg }}>
+        <ScreenHeader back={onBack} icon={LIBRARY_ICON} title={L("Library")} subtitle={L("recordings & notes · offline")} />
       </View>
 
       <View style={st.composer}>
@@ -118,6 +118,10 @@ export default function Notes({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={st.listPad} showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("A private notebook for quick text notes and voice memos. Voice notes are recorded and transcribed right on your phone, so nothing ever leaves the device.")}
+          setup={L("Type a note and tap Add note, or tap ● to record a voice memo (allow mic access the first time).")}
+        />
         {items.length === 0 && (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>
             {L("No notes yet. Type one above, or tap ● to record a voice note — it's saved and transcribed on your device.")}

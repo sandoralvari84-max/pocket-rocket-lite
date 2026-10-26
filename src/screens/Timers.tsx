@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Vibration } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, IconButton } from "../design/ui";
+import { PixelText, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 
 const PRESETS = [60, 180, 300, 600, 1200]; // seconds
@@ -39,6 +39,13 @@ export default function Timers({ onBack }: { onBack: () => void }) {
         <IconButton label="Back" glyph="‹" onPress={onBack} />
         <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("TIMER")}</PixelText>
         <View style={{ width: 44 }} />
+      </View>
+
+      <View style={{ paddingHorizontal: space.md }}>
+        <ToolIntro
+          what={L("A countdown timer that vibrates when it reaches zero. It counts down to a fixed end time, so it stays accurate even if the screen sleeps.")}
+          setup={L("Pick a preset or adjust with the ±10s / ±1m buttons, then tap Start.")}
+        />
       </View>
 
       <View style={st.center}>

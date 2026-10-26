@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -64,6 +64,10 @@ export default function Habits({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Track daily habits and build streaks. Each habit counts your consecutive days of check-ins using plain date math.")}
+          setup={L("Type a habit name and tap Add, then tap the circle each day you do it.")}
+        />
         {list.length === 0 ? (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>{L("Add a habit to start a streak.")}</Body>
         ) : (

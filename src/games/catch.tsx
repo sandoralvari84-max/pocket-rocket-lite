@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { View, StyleSheet, Dimensions, PanResponder, Image, Animated, Pressable } from "react-native";
+import { View, StyleSheet, Dimensions, PanResponder, Image, Animated, Pressable, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius } from "../design/tokens";
@@ -77,7 +77,7 @@ const BULLET_V = 17;
 const BOMB_CAP = 3;
 
 // Entity caps (low-end Android safety).
-const BOLT_CAP = 48, EBOLT_CAP = 80, ENEMY_CAP = 20, MINE_CAP = 10;
+const BOLT_CAP = 48, EBOLT_CAP = 80, ENEMY_CAP = 24, MINE_CAP = 10;
 
 const IFRAME_MS = 1500;       // invulnerability after a hit
 const RESPAWN_MS = 850;       // ship-dead beat before respawn
@@ -200,14 +200,45 @@ const norm = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -
 
 // Difficulty curves driven by the ABSOLUTE wave index (climbs across stages + NG+).
 const enemySpeed = (d: number) => Math.min(1.3 + (d - 1) * 0.16, 4.8);
-const spawnMs = (d: number) => Math.max(440, 1400 - (d - 1) * 70);
-const waveCount = (d: number) => Math.min(6 + (d - 1) * 2, 22);
+const spawnMs = (d: number) => Math.max(360, 1250 - (d - 1) * 72);   // denser spawns
+const waveCount = (d: number) => Math.min(8 + (d - 1) * 2, 26);       // bigger waves
 
-// Static star field (pure decoration, generated once).
-const STARS = Array.from({ length: 40 }, () => {
-  const z = Math.random();
-  return { x: Math.random() * W, y: Math.random() * H, sz: 1 + z * 3, op: 0.3 + z * 0.6 };
-});
+// Parallax starfield — 3 layers drift downward at different speeds so it reads as flying
+// through space. Native-driven (translateY loops) → smooth + cheap on low-end hardware.
+const STAR_FAR = require("../../assets/arcade/catch/star_far.png");
+const STAR_MID = require("../../assets/arcade/catch/star_mid.png");
+const STAR_NEAR = require("../../assets/arcade/catch/star_near.png");
+const STAR_TILE = 1000;
+
+function Starfield({ reduced }: { reduced?: boolean }) {
+  const far = useRef(new Animated.Value(0)).current;
+  const mid = useRef(new Animated.Value(0)).current;
+  const near = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced) return;
+    const mk = (v: Animated.Value, dur: number) =>
+      Animated.loop(Animated.timing(v, { toValue: 1, duration: dur, easing: Easing.linear, useNativeDriver: true }));
+    const loops = [mk(far, 32000), mk(mid, 18000), mk(near, 10000)];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [reduced]);
+  const rowOf = (img: any, v: Animated.Value) => {
+    const ty = v.interpolate({ inputRange: [0, 1], outputRange: [0, STAR_TILE] });
+    return (
+      <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, height: STAR_TILE * 2, transform: [{ translateY: ty }] }}>
+        <Image source={img} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", top: -STAR_TILE, left: 0, right: 0, height: STAR_TILE }} />
+        <Image source={img} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", top: 0, left: 0, right: 0, height: STAR_TILE }} />
+      </Animated.View>
+    );
+  };
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {rowOf(STAR_FAR, far)}
+      {rowOf(STAR_MID, mid)}
+      {rowOf(STAR_NEAR, near)}
+    </View>
+  );
+}
 
 function GameScreen({ onExit }: GameContext) {
   const insets = useSafeAreaInsets();
@@ -465,7 +496,7 @@ function GameScreen({ onExit }: GameContext) {
     const tier = upRef.current.weapon;
     const dmg = tier >= 3 ? 2 : 1;
     const push = (px: number, vx: number) => { if (boltsRef.current.length < BOLT_CAP) boltsRef.current.push({ x: px, y, vx, dmg }); };
-    if (tier === 0) push(s.x, 0);
+    if (tier === 0) { if (absWave() >= 10) { push(s.x - 8, 0); push(s.x + 8, 0); } else push(s.x, 0); }  // base scales to twin late so a post-death reset isn't squashed
     else if (tier === 1) { push(s.x - 10, 0); push(s.x + 10, 0); }
     else if (tier === 2) { push(s.x, 0); push(s.x - 7, -5); push(s.x + 7, 5); }
     else { push(s.x - 9, 0); push(s.x + 9, 0); }
@@ -475,8 +506,9 @@ function GameScreen({ onExit }: GameContext) {
   }
   const fireMs = (now: number) => {
     const tier = upRef.current.weapon;
-    let ms = tier >= 3 ? 150 : 280;
-    if (now < rapidUntilRef.current) ms = Math.min(ms, 120);
+    // Slightly slower than before (rocket was a bit OP); base fire quickens with progress.
+    let ms = tier >= 3 ? 190 : 340 - Math.min(absWave() * 5, 80);
+    if (now < rapidUntilRef.current) ms = Math.min(ms, 150);
     return ms;
   };
 
@@ -652,6 +684,10 @@ function GameScreen({ onExit }: GameContext) {
     } else {
       flowRef.current = "respawn";
       respawnAtRef.current = now + RESPAWN_MS;
+      // Death costs your upgrades (keeps the rocket from snowballing OP); base weapon
+      // scaling above keeps a reset player viable. Keep one panic bomb.
+      upRef.current = { weapon: 0, drones: 0, speed: 0, magnet: false, shieldMax: 0, bombs: 1 };
+      shieldRef.current = 0; spreadUntilRef.current = 0; rapidUntilRef.current = 0;
     }
   }
 
@@ -974,9 +1010,7 @@ function GameScreen({ onExit }: GameContext) {
 
   return (
     <View style={st.fill}>
-      {STARS.map((s, i) => (
-        <View key={i} pointerEvents="none" style={{ position: "absolute", left: s.x, top: s.y, width: s.sz, height: s.sz, borderRadius: s.sz / 2, backgroundColor: "#E8F0FF", opacity: s.op }} />
-      ))}
+      <Starfield reduced={reducedMotion} />
       {midline}
 
       {/* turret sweeping laser */}

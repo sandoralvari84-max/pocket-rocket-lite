@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 import { EXERCISES, type Exercise } from "../data/exercises";
@@ -68,6 +68,10 @@ export default function Fitness({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ToolIntro
+          what={L("Logs your workout sets from a built-in exercise list and totals today's training volume, keeping track of your best weight per exercise. Fully offline.")}
+          setup={L("Search an exercise, set your sets, reps, and weight, then tap Log set.")}
+        />
         <View style={st.card}>
           <Text style={st.volBig}>{volume.toLocaleString()}<Text style={st.volUnit}> {L("kg · today's volume")}</Text></Text>
           <Text style={st.volSub}>{todays.length} {L("sets logged")}</Text>

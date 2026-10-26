@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Animated, Easing } from "react-nativ
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius, type as T } from "../design/tokens";
-import { PixelText, Body, IconButton, Sprite } from "../design/ui";
+import { PixelText, Body, IconButton, Sprite, GameOverlay } from "../design/ui";
 import { useSettings } from "../settings";
 
 type Hand = "rock" | "paper" | "scissors";
@@ -73,6 +73,7 @@ function Screen({ ask, onExit }: GameContext) {
   const [result, setResult] = useState("Pick your throw");
   const [taunt, setTaunt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [started, setStarted] = useState(false); // pre-game "ready" gate
 
   // Decoration only — the shake + reveal never touch the deterministic resolve().
   const shake = useRef(new Animated.Value(0)).current;
@@ -82,7 +83,7 @@ function Screen({ ask, onExit }: GameContext) {
   useEffect(() => () => { shakeLoop.current?.stop(); }, []);
 
   const play = async (hand: Hand): Promise<void> => {
-    if (busy) return;
+    if (busy || !started) return;
     setBusy(true);
     setPlayerHand(hand);
     setModelHand(null);
@@ -169,8 +170,8 @@ function Screen({ ask, onExit }: GameContext) {
           {HANDS.map((h) => (
             <Pressable
               key={h}
-              style={({ pressed }) => [st.pick, busy && st.pickOff, pressed && !busy && st.pickPressed]}
-              disabled={busy}
+              style={({ pressed }) => [st.pick, (busy || !started) && st.pickOff, pressed && !busy && started && st.pickPressed]}
+              disabled={busy || !started}
               onPress={() => void play(h)}
               accessibilityRole="button"
               accessibilityLabel={`Throw ${h}`}
@@ -184,6 +185,20 @@ function Screen({ ask, onExit }: GameContext) {
 
       {/* subtle vignette for depth (never blocks taps) */}
       <View pointerEvents="none" style={st.vignette} />
+
+      <GameOverlay
+        visible={!started}
+        kind="pause"
+        title="HANDS"
+        primaryLabel="Play"
+        onPrimary={() => setStarted(true)}
+        onExit={onExit}
+      >
+        <Body muted style={{ textAlign: "center", marginTop: space.md }}>
+          Pick rock, paper, or scissors. Rock smashes scissors, scissors cut paper, paper
+          covers rock. Beat the machine.
+        </Body>
+      </GameOverlay>
     </View>
   );
 }

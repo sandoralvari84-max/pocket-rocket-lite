@@ -41,10 +41,17 @@ export const radius = { sm: 6, md: 10, lg: 14, pill: 999 } as const;
 
 // Pixel font (Press Start 2P) for arcade accents: titles, scores, HUD numerals.
 // Body/UI text uses the platform system font (brief: modern typography AROUND the canvas).
+// Console typography (matches the approved mockup): Chakra Petch = UI/body, JetBrains
+// Mono = technical labels/status/meta, VT323 = the CRT screen phrase, Press Start 2P =
+// arcade pixel accents. Custom families don't honour fontWeight on Android, so bold is
+// its own family. Applied here so EVERY page inherits the look.
 export const font = {
   pixel: "PressStart2P_400Regular",
-  // system default = undefined -> RN uses Roboto on Android
-  body: undefined as string | undefined,
+  body: "ChakraPetch_500Medium",
+  bodyBold: "ChakraPetch_700Bold",
+  mono: "JetBrainsMono_400Regular",
+  monoBold: "JetBrainsMono_700Bold",
+  crt: "VT323_400Regular",
 } as const;
 
 // Type scale. Pixel sizes are kept small — Press Start 2P renders ~1.6x visual size.
@@ -53,11 +60,11 @@ export const type = {
   pixelH2:    { fontFamily: font.pixel, fontSize: 13, color: color.text, letterSpacing: 0.5 },
   pixelLabel: { fontFamily: font.pixel, fontSize: 9, color: color.textMuted, letterSpacing: 0.5 },
   pixelScore: { fontFamily: font.pixel, fontSize: 16, color: color.amber },
-  title:   { fontFamily: font.body, fontSize: 26, fontWeight: "800" as const, color: color.text },
-  h2:      { fontFamily: font.body, fontSize: 18, fontWeight: "700" as const, color: color.text },
-  body:    { fontFamily: font.body, fontSize: 15, fontWeight: "400" as const, color: color.text, lineHeight: 22 },
-  bodyMuted: { fontFamily: font.body, fontSize: 14, fontWeight: "400" as const, color: color.textMuted, lineHeight: 20 },
-  small:   { fontFamily: font.body, fontSize: 12, fontWeight: "500" as const, color: color.textMuted },
+  title:   { fontFamily: font.bodyBold, fontSize: 26, color: color.text, letterSpacing: 0.3 },
+  h2:      { fontFamily: font.bodyBold, fontSize: 18, color: color.text, letterSpacing: 0.2 },
+  body:    { fontFamily: font.body, fontSize: 15, color: color.text, lineHeight: 22 },
+  bodyMuted: { fontFamily: font.body, fontSize: 14, color: color.textMuted, lineHeight: 20 },
+  small:   { fontFamily: font.mono, fontSize: 11.5, color: color.textMuted, letterSpacing: 0.3 },
 } as const;
 
 // Restrained elevation (brief §A/I: avoid heavy shadows on low-end devices).

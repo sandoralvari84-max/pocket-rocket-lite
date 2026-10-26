@@ -562,13 +562,26 @@ function Screen({ onExit }: GameContext) {
       }
       // dashed divider between adjacent road rows (classic lane marking)
       const below = lvl.lanes[r + 1];
+      const above = lvl.lanes[r - 1];
       if (lane.kind === "road" && below && below.kind === "road") {
         out.push(
           <View key={`ln${r}`} style={{ position: "absolute", left: 0, top: (r + 1) * CELL - 1, width: BOARD_W, height: 2, flexDirection: "row" }}>
             {Array.from({ length: COLS }).map((_, i) => (
-              <View key={i} style={{ width: CELL * 0.5, height: 3, marginRight: CELL * 0.5, borderRadius: 1.5, backgroundColor: "rgba(255,221,128,0.5)" }} />
+              <View key={i} style={{ width: CELL * 0.5, height: 3, marginRight: CELL * 0.5, borderRadius: 1.5, backgroundColor: "rgba(255,221,128,0.6)" }} />
             ))}
           </View>
+        );
+      }
+      // concrete curb where a road band meets a grass verge (depth between bands)
+      if (lane.kind === "road" && above && above.kind === "safe") {
+        out.push(
+          <View key={`curbT${r}`} pointerEvents="none" style={{ position: "absolute", left: 0, top: r * CELL, width: BOARD_W, height: 3, backgroundColor: "rgba(214,220,228,0.5)" }} />,
+          <View key={`curbTs${r}`} pointerEvents="none" style={{ position: "absolute", left: 0, top: r * CELL + 3, width: BOARD_W, height: 2, backgroundColor: "rgba(0,0,0,0.3)" }} />
+        );
+      }
+      if (lane.kind === "road" && below && below.kind === "safe") {
+        out.push(
+          <View key={`curbB${r}`} pointerEvents="none" style={{ position: "absolute", left: 0, top: (r + 1) * CELL - 3, width: BOARD_W, height: 3, backgroundColor: "rgba(214,220,228,0.5)" }} />
         );
       }
       // potholes (static death cells, clearly drawn)
@@ -578,10 +591,15 @@ function Screen({ onExit }: GameContext) {
         );
       }
     }
-    // goal pads on the finish row
+    // finish bank: a clear cyan shoreline + docking pads that read at a glance
+    out.push(
+      <View key="goalband" pointerEvents="none" style={{ position: "absolute", left: 0, top: (GOAL_ROW + 1) * CELL - 4, width: BOARD_W, height: 4, backgroundColor: "rgba(0,229,255,0.5)" }} />
+    );
     for (let c = 0; c < COLS; c++) {
       out.push(
-        <View key={`goal${c}`} style={{ position: "absolute", left: c * CELL + CELL * 0.2, top: GOAL_ROW * CELL + CELL * 0.2, width: CELL * 0.6, height: CELL * 0.6, borderRadius: CELL * 0.3, borderWidth: 2, borderColor: "rgba(0,229,255,0.6)", backgroundColor: "rgba(0,229,255,0.1)" }} />
+        <View key={`goal${c}`} pointerEvents="none" style={{ position: "absolute", left: c * CELL + CELL * 0.18, top: GOAL_ROW * CELL + CELL * 0.18, width: CELL * 0.64, height: CELL * 0.64, borderRadius: CELL * 0.32, borderWidth: 2, borderColor: "rgba(0,229,255,0.7)", backgroundColor: "rgba(0,229,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+          <View style={{ width: CELL * 0.22, height: CELL * 0.22, borderRadius: CELL * 0.11, backgroundColor: "rgba(0,229,255,0.35)" }} />
+        </View>
       );
     }
     return out;
@@ -721,8 +739,9 @@ function Screen({ onExit }: GameContext) {
         primaryLabel="Start" onPrimary={start} onExit={onExit}
       >
         <Body muted style={{ textAlign: "center", marginTop: space.md }}>
-          Cross city streets, rivers, rail yards and construction to the top. Varied stages
-          escalate and loop endlessly (NG+); boss crossings await at every 5th level.
+          Hop forward with the stick (or tap ahead) and reach the glowing pads at the top.
+          Dodge the traffic and ride logs across the water — one hit or a dunk ends the run.
+          Varied stages escalate and loop endlessly (NG+); boss crossings await at every 5th level.
         </Body>
         <Pressable onPress={toggleMode} style={{ marginTop: space.lg, alignSelf: "center", borderWidth: 1.5, borderColor: mode === "daily" ? color.cyan : color.surfaceLine, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm }}>
           <PixelText size="label" style={{ color: mode === "daily" ? color.cyan : color.textMuted }}>

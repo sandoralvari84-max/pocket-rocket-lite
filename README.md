@@ -6,6 +6,8 @@
 
 No cloud. No account. No data leaves the device.
 
+> **Status — early public preview.** Presentable and fully explorable today: the retro arcade, the on-device assistant, the tools and the live persona UI all work on-device. A handful of polish updates (voice tuning, a couple of game passes, UX refinements) still land before the final release. Look around and poke at it.
+
 ![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
 ![Runs offline](https://img.shields.io/badge/runs-100%25%20offline-FF9800)
 ![On-device LLM](https://img.shields.io/badge/LLM-on--device%201.5B-00E5FF)

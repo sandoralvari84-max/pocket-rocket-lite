@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, IconButton } from "../design/ui";
+import { PixelText, Body, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -36,6 +36,13 @@ export default function Water({ onBack }: { onBack: () => void }) {
         <IconButton label="Back" glyph="‹" onPress={onBack} />
         <PixelText size="h2" style={{ color: color.cyan, flex: 1, textAlign: "center" }}>{L("WATER")}</PixelText>
         <View style={{ width: 44 }} />
+      </View>
+
+      <View style={{ paddingHorizontal: space.md }}>
+        <ToolIntro
+          what={L("A quick daily water tracker — tap to count the cups you drink and see how close you are to your goal. The count resets each day.")}
+          setup={L("Tap ＋ for each cup (− to undo). Use the − / + by 'daily goal' to set how many cups you're aiming for.")}
+        />
       </View>
 
       <View style={st.center}>

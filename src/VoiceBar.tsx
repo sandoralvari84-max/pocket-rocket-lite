@@ -1,138 +1,143 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { View, Animated, StyleSheet, Easing, Image } from "react-native";
-import { color, radius, space } from "./design/tokens";
+import { color } from "./design/tokens";
 
-// KITT / HAL voice meter — the AI's "face" (no avatar). Two instruments by persona:
-//   Sentinel → the segment scanner (amber, a tight bright beam sweeps) — the original.
-//   Nova     → a smooth EKG heartbeat in a round scope (cyan), scrolling continuously.
-// Persona-aware, reacts to voice, static under reduced motion. Compact.
+// The companion's "face" — no avatar, a living voice instrument. Three seamless wave
+// strips scroll at different speeds (parallax depth) behind the CRT glass; the motion
+// carries the feeling, not a static picture:
+//   idle      → slow, low, breathing    (calm, waiting)
+//   listening → lifts and steadies       (leaning in, hearing you)
+//   thinking  → quick flutter            (working)
+//   speaking  → full surge + talk-pulse  (alive, talking)
+//   error     → flat, red, slow          (stalled)
+// Two personalities share one engine, distinct waveform + palette + tempo:
+//   Sentinel → crisp oscilloscope, amber, a touch faster (the analyst)
+//   Nova     → soft flowing swell, cyan, slower + deeper breath (the companion)
+// Everything animates on the native thread (translateX / scaleY / opacity) so it stays
+// smooth on low-end phones. Hue shifts with the task; tintColor recolours one white asset.
 export type VoiceBarState = "idle" | "listening" | "thinking" | "speaking" | "error";
 export type Persona = "sentinel" | "nova";
 
-const EKG = require("../assets/ui/ekg_cyan.png");
-const COPY_W = 520; // rendered width of one strip copy (two scroll seamlessly)
-const N = 22;
+const SCOPE_BG = require("../assets/ui/scope_bg.png");
+const DEPTH = require("../assets/ui/wv_depth.png");
+const MAIN: Record<Persona, any> = {
+  sentinel: require("../assets/ui/wv_main_sentinel.png"),
+  nova: require("../assets/ui/wv_main_nova.png"),
+};
+const CORE: Record<Persona, any> = {
+  sentinel: require("../assets/ui/wv_core_sentinel.png"),
+  nova: require("../assets/ui/wv_core_nova.png"),
+};
 
-export default function VoiceBar(props: { state: VoiceBarState; persona?: Persona; reducedMotion?: boolean; height?: number }) {
-  return props.persona === "nova" ? <EkgBar {...props} /> : <SegmentBar {...props} />;
+const COPY_W = 560; // rendered width of one strip copy (two scroll seamlessly)
+
+const PALETTE: Record<Persona, { base: string; tempo: number }> = {
+  sentinel: { base: color.amber, tempo: 0.82 }, // amber, a little quicker
+  nova: { base: color.cyan, tempo: 1.12 }, //       cyan, calmer / slower
+};
+
+// The dominant hue reads the task at a glance.
+function stateColor(persona: Persona, state: VoiceBarState): string {
+  switch (state) {
+    case "error": return "#FF5A5A";
+    case "listening": return "#2BD4FF"; // bright cyan — "I hear you"
+    case "thinking": return "#B98CF0"; //  violet — "working"
+    case "speaking": return persona === "sentinel" ? "#FFC14D" : "#38E6FF"; // gold / bright cyan
+    default: return PALETTE[persona].base; // idle — persona's own colour
+  }
 }
 
-// ---- Nova: smooth EKG heartbeat, round scope, continuous scroll ----
-function EkgBar({ state, reducedMotion = false, height = 84 }: { state: VoiceBarState; reducedMotion?: boolean; height?: number }) {
-  const scroll = useRef(new Animated.Value(0)).current;
-  const amp = useRef(new Animated.Value(0.6)).current;
-  const voiceActive = state === "listening" || state === "thinking" || state === "speaking";
-  const col = color.cyan;
+// Scroll speed (ms per cycle), amplitude breathe range, and glow strength per state.
+function profile(state: VoiceBarState) {
+  switch (state) {
+    case "listening": return { scroll: 3600, amp: [0.72, 0.98] as const, ampDur: 1300 };
+    case "thinking": return { scroll: 2300, amp: [0.50, 1.06] as const, ampDur: 440 };
+    case "speaking": return { scroll: 2800, amp: [0.56, 1.20] as const, ampDur: 370 }; // full surge
+    case "error": return { scroll: 8200, amp: [0.40, 0.46] as const, ampDur: 1300 };
+    default: return { scroll: 6000, amp: [0.50, 0.72] as const, ampDur: 2400 }; // idle
+  }
+}
 
-  useEffect(() => {
-    scroll.setValue(0);
+export default function VoiceBar({ state, persona = "sentinel", reducedMotion = false, height = 84 }:
+  { state: VoiceBarState; persona?: Persona; reducedMotion?: boolean; height?: number }) {
+  const scroll = React.useRef(new Animated.Value(0)).current;  // main + core (shared → aligned)
+  const dscroll = React.useRef(new Animated.Value(0)).current; // depth layer (parallax, slower)
+  const amp = React.useRef(new Animated.Value(0.6)).current;   // live amplitude (scaleY)
+
+  const pal = PALETTE[persona];
+  const prof = profile(state);
+  const col = stateColor(persona, state);
+
+  // Horizontal scroll — two continuous native loops at different speeds for depth.
+  React.useEffect(() => {
+    scroll.setValue(0); dscroll.setValue(0);
     if (reducedMotion) return;
-    const dur = voiceActive ? 2600 : 6200;
-    const loop = Animated.loop(Animated.timing(scroll, { toValue: 1, duration: dur, easing: Easing.linear, useNativeDriver: true }));
+    const main = Animated.loop(Animated.timing(scroll, { toValue: 1, duration: prof.scroll * pal.tempo, easing: Easing.linear, useNativeDriver: true }));
+    const deep = Animated.loop(Animated.timing(dscroll, { toValue: 1, duration: prof.scroll * pal.tempo * 1.9, easing: Easing.linear, useNativeDriver: true }));
+    main.start(); deep.start();
+    return () => { main.stop(); deep.stop(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, persona, reducedMotion]);
+
+  // Amplitude — the breath/pulse. Its range + speed is the emotion of each state.
+  React.useEffect(() => {
+    const [lo, hi] = prof.amp;
+    if (reducedMotion) { amp.setValue((lo + hi) / 2); return; }
+    amp.setValue(lo);
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(amp, { toValue: hi, duration: prof.ampDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(amp, { toValue: lo, duration: prof.ampDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
     loop.start();
     return () => loop.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, reducedMotion]);
 
-  useEffect(() => {
-    Animated.timing(amp, { toValue: voiceActive ? 1 : 0.6, duration: 340, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
-
-  const inner = height - 16;
-  const translateX = scroll.interpolate({ inputRange: [0, 1], outputRange: [0, -COPY_W] });
-  const scaleY = amp.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] });
-  const glow = voiceActive && !reducedMotion;
+  const inner = height - 14;
+  const tx = scroll.interpolate({ inputRange: [0, 1], outputRange: [0, -COPY_W] });
+  const dtx = dscroll.interpolate({ inputRange: [0, 1], outputRange: [0, -COPY_W] });
+  const depthScale = amp.interpolate({ inputRange: [0.4, 1.08], outputRange: [0.92, 1.06] });
+  // Reactive light tied to the live amplitude: a wave-hugging glow that pulses with the
+  // breath, and a core that blazes brighter at the peaks → the screen feels alive.
+  const glowOpacity = amp.interpolate({ inputRange: [0.4, 1.2], outputRange: [0.04, 0.14], extrapolate: "clamp" });
+  const coreOpacity = amp.interpolate({ inputRange: [0.4, 1.2], outputRange: [0.6, 0.98], extrapolate: "clamp" });
 
   return (
     <View style={[s.wrap, { height }]}>
-      <View style={[s.scope, { borderColor: col + "66", borderRadius: height / 2 }]}>
-        <View pointerEvents="none" style={[s.scopeBloom, { backgroundColor: col, opacity: glow ? 0.16 : 0.07 }]} />
-        {/* Two copies, overlapped 1px so the seam between them is seamless (no hairline). */}
-        <Animated.View style={{ width: COPY_W * 2, height: inner, transform: [{ translateX }, { scaleY }] }}>
-          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: 0, width: COPY_W + 1, height: inner }} />
-          <Image source={EKG} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: COPY_W, width: COPY_W + 1, height: inner }} />
-        </Animated.View>
+      <View style={[s.scope, { borderColor: col + "40" }]}>
+        <Image source={SCOPE_BG} resizeMode="stretch" fadeDuration={0} style={StyleSheet.absoluteFill} />
+        <Animated.View pointerEvents="none" style={[s.glow, { backgroundColor: col, opacity: glowOpacity }]} />
+        <WaveLayer img={DEPTH} tint={pal.base} opacity={0.34} tx={dtx} scaleY={depthScale} inner={inner} />
+        <WaveLayer img={MAIN[persona]} tint={col} opacity={0.97} tx={tx} scaleY={amp} inner={inner} />
+        <WaveLayer img={CORE[persona]} tint="#EAF6FF" opacity={coreOpacity} tx={tx} scaleY={amp} inner={inner} />
         <View pointerEvents="none" style={s.gloss} />
       </View>
     </View>
   );
 }
 
-// ---- Sentinel (and error/default): the original segment scanner ----
-function SegmentBar({ state, persona = "sentinel", reducedMotion = false, height = 84 }: { state: VoiceBarState; persona?: Persona; reducedMotion?: boolean; height?: number }) {
-  const anim = useRef(new Animated.Value(0.5)).current;
-  const col = state === "error" ? color.danger : state === "listening" ? color.cyan : color.amber;
-  const idle = state === "idle";
-  const bw = 0.12;
-  const baseIdle = 0.2;
-  const segW = 5, cap = 1, gapW = 3;
-  const sweep = state === "listening" || state === "thinking" || idle;
-  const voiceActive = state === "listening" || state === "thinking" || state === "speaking";
-  const breathe = state === "speaking";
-  const animated = !reducedMotion && (sweep || breathe);
-
-  useEffect(() => {
-    anim.stopAnimation();
-    if (!animated) { Animated.timing(anim, { toValue: 0.5, duration: 220, useNativeDriver: false }).start(); return; }
-    const dur = voiceActive ? (sweep ? 600 : 540) : 1400;
-    const ease = sweep ? Easing.inOut(Easing.quad) : Easing.inOut(Easing.sin);
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(anim, { toValue: 1, duration: dur, easing: ease, useNativeDriver: false }),
-      Animated.timing(anim, { toValue: 0, duration: dur, easing: ease, useNativeDriver: false }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, persona, reducedMotion]);
-
-  const glow = voiceActive && !reducedMotion;
-  const segMax = height - 34;
-
+// One scrolling strip = two copies LEFT-ALIGNED (never centered) so the loop is truly
+// seamless: translateX runs 0 → -COPY_W and resets; with copies at [0..W] and [W..2W]
+// the visible scope ([t .. t+scopeWidth], scopeWidth ≤ COPY_W) is always fully covered —
+// no empty gap sweeping across. Vertically centered; scaleY = live amplitude.
+function WaveLayer({ img, tint, opacity, tx, scaleY, inner }:
+  { img: any; tint: string; opacity: any; tx: any; scaleY: any; inner: number }) {
   return (
-    <View style={[s.wrap, { height }]}>
-      <View style={[s.housing, { borderColor: col + "4D" }]}>
-        <View pointerEvents="none" style={[s.bloom, { backgroundColor: col, opacity: glow ? 0.15 : idle ? 0.06 : 0.1 }]} />
-        <View style={[s.segs, { gap: gapW }]}>
-          {[...Array(N)].map((_, i) => {
-            const x = i / (N - 1);
-            const hMul = 0.42 + 0.58 * Math.sin(x * Math.PI);
-            let opacity: Animated.Value | Animated.AnimatedInterpolation<number> | number;
-            let coreOp: Animated.AnimatedInterpolation<number> | number = 0;
-            if (!animated) {
-              opacity = idle ? baseIdle : 0.55;
-            } else if (sweep) {
-              opacity = anim.interpolate({ inputRange: [x - bw, x, x + bw], outputRange: [idle ? 0.08 : 0.1, idle ? 0.62 : 1, idle ? 0.08 : 0.1], extrapolate: "clamp" });
-              coreOp = anim.interpolate({ inputRange: [x - 0.05, x, x + 0.05], outputRange: [0, idle ? 0.5 : 0.95, 0], extrapolate: "clamp" });
-            } else {
-              opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [idle ? 0.2 : 0.32, idle ? 0.52 : 1] });
-              coreOp = anim.interpolate({ inputRange: [0, 1], outputRange: [0, idle ? 0.25 : 0.7 * hMul] });
-            }
-            return (
-              <View key={i} style={[s.segWrap, { height: segMax, width: segW }]}>
-                <Animated.View style={[s.seg, { width: segW, borderRadius: cap, height: segMax * hMul, backgroundColor: col, opacity, shadowColor: col, shadowOpacity: glow ? 0.8 : 0, shadowRadius: glow ? 7 : 0, elevation: glow ? 4 : 0 }]} />
-                <Animated.View pointerEvents="none" style={[s.core, { height: segMax * hMul * 0.5, opacity: coreOp }]} />
-              </View>
-            );
-          })}
-        </View>
-        <View pointerEvents="none" style={s.gloss} />
+    <Animated.View pointerEvents="none"
+      style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: COPY_W * 2, justifyContent: "center", opacity, transform: [{ translateX: tx }, { scaleY }] }}>
+      <View style={{ width: COPY_W * 2, height: inner }}>
+        <Image source={img} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: 0, width: COPY_W + 1, height: inner, tintColor: tint }} />
+        <Image source={img} resizeMode="stretch" fadeDuration={0} style={{ position: "absolute", left: COPY_W, width: COPY_W + 1, height: inner, tintColor: tint }} />
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
   wrap: { alignItems: "center", justifyContent: "center", width: "100%" },
-  // Sentinel segment housing
-  housing: { width: "100%", maxWidth: 420, flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: space.md, paddingHorizontal: space.lg, borderRadius: radius.lg, backgroundColor: "#070A0F", borderWidth: 1, overflow: "hidden" },
-  bloom: { position: "absolute", left: "12%", right: "12%", top: "26%", bottom: "26%", borderRadius: 999 },
-  segs: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  segWrap: { width: 6, alignItems: "center", justifyContent: "center" },
-  seg: { width: 6, borderRadius: 3, shadowOffset: { width: 0, height: 0 } },
-  core: { position: "absolute", width: 2, borderRadius: 0, backgroundColor: "#FFFFFF" },
-  // Nova EKG scope
-  scope: { width: "100%", maxWidth: 420, flex: 1, backgroundColor: "#070A0F", borderWidth: 1, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  scopeBloom: { position: "absolute", left: "6%", right: "6%", top: "22%", bottom: "22%", borderRadius: 999 },
+  // Rounded-rect monitor (radius 12), near-black screen, hairline border — the mockup look.
+  scope: { width: "100%", maxWidth: 420, flex: 1, backgroundColor: "#090D11", borderWidth: 1, borderRadius: 12, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  // Reactive wave-hugging glow — a thin central phosphor halo, NOT a solid pill.
+  glow: { position: "absolute", left: "7%", right: "7%", top: "32%", bottom: "32%", borderRadius: 999 },
   gloss: { position: "absolute", left: 12, right: 12, top: 6, height: 10, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.05)" },
 });

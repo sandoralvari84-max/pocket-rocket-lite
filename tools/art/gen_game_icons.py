@@ -255,31 +255,56 @@ def fourup():
     return finish(im)
 
 
-def draughts():
-    im, d = canvas(); glow(im, C, 300, 150, AMBER, 46)
-    g = Image.new("RGBA", (WS, WS), (0, 0, 0, 0)); ImageDraw.Draw(g).ellipse([108, 170, 372, 392], fill=(0, 0, 0, 90))
+def draughts():  # now MALOM (Nine Men's Morris) — a mill board with a few men
+    im, d = canvas(); glow(im, C, C, 150, AMBER, 44)
+    g = Image.new("RGBA", (WS, WS), (0, 0, 0, 0)); ImageDraw.Draw(g).rounded_rectangle([98, 112, 386, 400], 34, fill=(0, 0, 0, 90))
     im.alpha_composite(g.filter(ImageFilter.GaussianBlur(10)))
-    ell_grad(im, [112, 150, 368, 360], AMBER_HI, AMBER_DK)
-    d.ellipse([160, 186, 320, 324], outline=AMBER_DK + (255,), width=10)
-    gloss(im, [112, 150, 368, 300])
-    band = 232
-    d.rectangle([176, band, 304, band + 28], fill=AMBER_HI + (255,))
-    for px in (200, 240, 280):
-        d.polygon([(px - 24, band), (px, band - 56), (px + 24, band)], fill=AMBER_HI + (255,), outline=AMBER_DK + (255,))
+    rr_grad(im, [100, 100, 380, 380], 28, AMBER_HI, AMBER_DK)
+    gloss(im, [100, 100, 380, 240])
+    ink = (120, 72, 24, 255); lw = 9
+    for box in ([120, 120, 360, 360], [168, 168, 312, 312], [216, 216, 264, 264]):  # 3 nested squares
+        d.rectangle(box, outline=ink, width=lw)
+    d.line([(240, 120), (240, 216)], fill=ink, width=lw); d.line([(240, 264), (240, 360)], fill=ink, width=lw)  # connectors
+    d.line([(120, 240), (216, 240)], fill=ink, width=lw); d.line([(264, 240), (360, 240)], fill=ink, width=lw)
+
+    def man(x, y, hi, dk):
+        ell_grad(im, [x - 25, y - 25, x + 25, y + 25], hi, dk); spec(im, x - 8, y - 10, 8, 6)
+    man(120, 120, (255, 236, 202), AMBER_DK)   # player (ivory)
+    man(360, 120, (92, 70, 74), (40, 28, 32))  # machine (dark)
+    man(240, 360, (255, 236, 202), AMBER_DK)
+    man(360, 360, (92, 70, 74), (40, 28, 32))
     return finish(im)
 
 
 def fleet():
-    # Filled-gloss battleship on water (was line arcs + flat ship).
-    im, d = canvas(); glow(im, C, 300, 150, CYAN, 36)
-    rr_grad(im, [64, 300, 416, 400], 24, (40, 120, 180), (12, 48, 92)); gloss(im, [64, 300, 416, 360])  # water
-    poly_grad(im, [(104, 236), (360, 236), (404, 300), (76, 300)], STEEL_HI, STEEL_DK)    # hull
-    d.line([(112, 244), (352, 244)], fill=(236, 242, 248, 255), width=10)                 # deck shine
-    rr_grad(im, [196, 162, 272, 236], 10, STEEL_HI, STEEL_DK)                             # bridge
-    rr_grad(im, [164, 194, 196, 236], 6, STEEL, STEEL_DK)                                 # funnel
-    ell_grad(im, [214, 146, 264, 196], STEEL, STEEL_DK)                                   # turret
-    d.rectangle([236, 118, 252, 158], fill=(60, 70, 86, 255))                             # gun barrel
-    glow(im, 332, 330, 26, AMBER, 150); d.ellipse([320, 318, 344, 342], fill=AMBER + (255,))  # hit marker
+    # Side-profile battleship silhouette — long hull, bridge tower, funnel, gun turrets.
+    im, d = canvas(); glow(im, C, 300, 165, CYAN, 34)
+    # sea
+    rr_grad(im, [36, 332, 444, 424], 22, (40, 120, 180), (12, 48, 92)); gloss(im, [36, 332, 444, 378])
+    d.line([(60, 336), (420, 336)], fill=(150, 200, 230, 90), width=4)                    # wavelet
+    # long side-profile hull (pointed bow to the RIGHT, squared stern left)
+    hull = [(60, 266), (300, 262), (410, 266), (456, 302), (438, 340), (80, 340), (50, 302)]
+    poly_grad(im, hull, STEEL_HI, STEEL_DK)
+    d.line([(74, 274), (432, 270)], fill=(236, 242, 248, 255), width=9)                   # deck shine
+    d.line([(72, 332), (442, 332)], fill=(18, 28, 42, 210), width=7)                      # waterline stripe
+    # superstructure: forward deckhouse, tall bridge tower, aft deckhouse
+    rr_grad(im, [150, 202, 208, 262], 8, STEEL_HI, STEEL_DK)
+    rr_grad(im, [214, 150, 262, 262], 8, STEEL_HI, STEEL_DK)                              # bridge tower
+    rr_grad(im, [300, 210, 348, 262], 8, STEEL_HI, STEEL_DK)
+    rr_grad(im, [270, 182, 298, 262], 6, STEEL, STEEL_DK)                                 # funnel
+    # mast + radar yard on the bridge
+    d.line([(238, 150), (238, 92)], fill=(74, 86, 104, 255), width=6)
+    d.line([(222, 108), (254, 108)], fill=(74, 86, 104, 255), width=5)
+    spec(im, 232, 120, 7, 5)
+    # two main gun turrets with twin barrels raised toward the bow
+    def turret(cx, cy):
+        ell_grad(im, [cx - 26, cy - 18, cx + 26, cy + 22], STEEL, STEEL_DK)
+        for off in (-6, 7):
+            d.line([(cx + off, cy - 4), (cx + off + 40, cy - 30)], fill=(58, 68, 84, 255), width=7)
+    turret(122, 254)                                                                      # aft turret
+    turret(360, 256)                                                                      # forward turret
+    # a little amber hit marker (nods to the targeting game)
+    glow(im, 412, 300, 22, AMBER, 150); d.ellipse([402, 290, 422, 310], fill=AMBER + (255,))
     return finish(im)
 
 

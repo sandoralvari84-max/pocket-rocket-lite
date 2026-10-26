@@ -1,114 +1,148 @@
 #!/usr/bin/env python3
 """
-Rock-Paper-Scissors — HAND GESTURE tokens (rock = fist, paper = flat hand,
-scissors = two-finger V). Chunky, stylised, readable cartoon hands with the shared
-"Pocket Rocket nostalgia" finish (soft skin gradient, warm glow, glossy highlight,
-amber wrist cuff for brand). Supersampled 2x -> 1x LANCZOS. Same filenames/sizes
-(120px) so the game needs no asset-path change. Pillow, 100% owned.
+Rock-Paper-Scissors HAND tokens (rock = fist, paper = open hand, scissors = V).
+Drawn PROPERLY as a single UNIFIED silhouette: palm + fingers + thumb are unioned
+into one mask (ImageChops.lighter), filled with a warm skin gradient, then given ONE
+continuous outline (dilate − mask). No stacked capsules with visible seams, so the
+thumb reads as part of the hand instead of a broken add-on. Rounded fingertips come
+from capsule masks. Soft inner shade + gloss + crease lines + amber wrist cuff.
+Supersampled (240) → 120 LANCZOS. Pillow, 100% owned.
 
 Regenerate: python tools/art/gen_rps_art.py
 """
 import os
 import sys
-from PIL import Image, ImageDraw, ImageFilter
+import math
+from PIL import Image, ImageDraw, ImageChops, ImageFilter
 sys.path.insert(0, os.path.dirname(__file__))
-from polish import P  # noqa: E402
+from polish import P  # noqa: E402 (glow/spec/cuff finish helpers)
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "arcade", "rps")
+W = 240
 
-# Warm cartoon skin ramp + brand amber wrist cuff.
 SKIN_HI = (255, 227, 196)
-SKIN = (241, 193, 150)
-SKIN_DK = (198, 146, 108)
-CREASE = (196, 142, 104, 170)
+SKIN = (238, 190, 148)
+SKIN_DK = (196, 142, 104)
+CREASE = (176, 120, 86, 150)
 AMBER_HI = (255, 196, 110)
-AMBER = (255, 152, 0)          # brand amber EXACTLY #FF9800
-OUT_C = (20, 26, 38, 255)
+AMBER = (255, 152, 0)            # brand amber EXACTLY #FF9800
+OUT_C = (22, 28, 40, 255)
 
 
-def shadow(im, box, a=95):
-    g = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    ImageDraw.Draw(g).ellipse(box, fill=(0, 0, 0, a))
-    im.alpha_composite(g.filter(ImageFilter.GaussianBlur(10)))
+# ---- silhouette machinery -------------------------------------------------
+def _blank():
+    return Image.new("L", (W, W), 0)
 
 
-def capsule(w, h, angle, hi=SKIN_HI, base=SKIN):
-    """A vertical stadium (rounded both ends) with skin gradient + outline, rotated."""
-    cap = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    P.rr_grad(cap, [0, 0, w - 1, h - 1], w // 2, hi, base, outline=OUT_C, ow=5)
+def rr_mask(box, r):
+    m = _blank(); ImageDraw.Draw(m).rounded_rectangle(box, radius=r, fill=255); return m
+
+
+def cap_mask(w, h, angle, cx, cy):
+    """A rounded capsule (stadium), rotated, placed centred at (cx,cy)."""
+    c = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(c).rounded_rectangle([0, 0, w - 1, h - 1], radius=w // 2, fill=255)
     if angle:
-        cap = cap.rotate(angle, expand=True, resample=Image.BICUBIC)
-    return cap
+        c = c.rotate(angle, expand=True, resample=Image.BICUBIC)
+    m = _blank(); m.paste(c, (int(cx - c.width / 2), int(cy - c.height / 2)), c); return m
 
 
-def place(im, sprite, cx, cy):
-    """alpha-composite `sprite` centred at (cx, cy) on `im`."""
-    im.alpha_composite(sprite, (int(cx - sprite.width / 2), int(cy - sprite.height / 2)))
+def union(masks):
+    m = _blank()
+    for x in masks:
+        m = ImageChops.lighter(m, x)
+    return m
+
+
+def vgrad(top, bot):
+    g = Image.new("RGBA", (W, W)); px = g.load()
+    for y in range(W):
+        t = y / (W - 1)
+        c = (int(top[0] + (bot[0] - top[0]) * t), int(top[1] + (bot[1] - top[1]) * t),
+             int(top[2] + (bot[2] - top[2]) * t), 255)
+        for x in range(W):
+            px[x, y] = c
+    return g
+
+
+def render(mask, creases=()):
+    """Fill the unified silhouette with skin + one clean outline + shade + gloss."""
+    im, d = P.canvas(W)
+    P.glow(im, 120, 120, 84, (255, 180, 90), 26)
+    # contact shadow on the surface
+    sh = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).ellipse([52, 198, 188, 226], fill=(0, 0, 0, 95))
+    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(10)))
+    cuff(im)
+    # fill with gradient through the silhouette mask
+    im.alpha_composite(Image.composite(vgrad(SKIN_HI, SKIN), Image.new("RGBA", (W, W), (0, 0, 0, 0)), mask))
+    # soft bottom inner-shade for volume
+    shade = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    ImageDraw.Draw(shade).ellipse([40, 150, 200, 260], fill=SKIN_DK + (120,))
+    im.alpha_composite(Image.composite(shade.filter(ImageFilter.GaussianBlur(14)), Image.new("RGBA", (W, W), (0, 0, 0, 0)), mask))
+    # single continuous outline = dilate(mask) − mask
+    outer = mask.filter(ImageFilter.MaxFilter(7))
+    ring = ImageChops.subtract(outer, mask)
+    oc = Image.new("RGBA", (W, W), OUT_C[:3] + (0,)); oc.putalpha(ring)
+    im.alpha_composite(oc)
+    # crease lines (finger separations / folds), clipped to the silhouette
+    if creases:
+        cl = Image.new("RGBA", (W, W), (0, 0, 0, 0)); cd = ImageDraw.Draw(cl)
+        for (x0, y0, x1, y1) in creases:
+            cd.line([(x0, y0), (x1, y1)], fill=CREASE, width=4)
+        im.alpha_composite(Image.composite(cl, Image.new("RGBA", (W, W), (0, 0, 0, 0)), mask))
+    # subtle sheen high on the knuckles (small + soft, not a bright smudge)
+    P.spec(im, 102, 96, 13, 8, 110)
+    return P.finish(im, 120)
 
 
 def cuff(im):
-    """Amber wrist band at the bottom — brand accent, shared by both hands."""
-    P.rr_grad(im, [70, 196, 170, 226], 12, AMBER_HI, AMBER, outline=OUT_C, ow=5)
+    P.rr_grad(im, [70, 198, 170, 228], 13, AMBER_HI, AMBER, outline=OUT_C, ow=5)
+
+
+# ---- ONE hand, three poses: shared palm + thumb; only the fingers change -----
+# Palm is a rounded block; fingers are vertical rounded capsules whose bases tuck
+# BEHIND the palm (hidden) so extended fingers rise cleanly from the top edge, and
+# curled fingers read as knuckle bumps. The thumb is ONE shape in every pose: a short
+# capsule on the UPPER-LEFT of the palm, tip pointing up-and-out (never hanging down).
+PALM_BOX = [80, 128, 172, 206]
+PALM_TOP = 128
+PALM_BASE = 150   # finger/knuckle bases live here, tucked under the palm
+
+def _palm():
+    return rr_mask(PALM_BOX, 30)
+
+def _thumb():
+    # short capsule, rotated CCW so the tip points up-left; base sits inside the palm
+    return cap_mask(30, 66, 36, 72, 133)
+
+def _finger(cx, topy, w=27):
+    h = PALM_BASE - topy
+    return cap_mask(w, h, 0, cx, (topy + PALM_BASE) / 2)
+
+def _knuckle(cx):
+    # a short curled-finger bump that peeks just above the palm's top edge
+    return cap_mask(27, 52, 0, cx, PALM_TOP - 4)
 
 
 def rock():
-    """A fist seen from the back — four curled knuckles, thumb across the front."""
-    W = 240
-    im, d = P.canvas(W)
-    P.glow(im, 120, 130, 78, (255, 180, 90), 30)
-    shadow(im, [52, 198, 188, 224])
-    cuff(im)
-    # back of the hand
-    P.rr_grad(im, [60, 104, 180, 206], 34, SKIN_HI, SKIN, outline=OUT_C, ow=6)
-    # four curled fingers along the top edge
-    for x in (66, 94, 122, 150):
-        P.rr_grad(im, [x, 84, x + 26, 132], 13, SKIN_HI, SKIN, outline=OUT_C, ow=4)
-        d.line([(x + 3, 112), (x + 23, 112)], fill=CREASE, width=3)
-    # thumb folded across the front (lower-left)
-    place(im, capsule(40, 96, 62), 92, 158)
-    P.spec(im, 96, 118, 20, 12)
-    return P.finish(im, 120)
+    m = union([_palm(), _thumb()] + [_knuckle(x) for x in (92, 118, 144, 168)])
+    creases = [(105, 110, 105, 128), (131, 110, 131, 128), (157, 110, 157, 128)]
+    return render(m, creases)
 
 
 def paper():
-    """A flat open hand, four fingers up + thumb out."""
-    W = 240
-    im, d = P.canvas(W)
-    P.glow(im, 120, 120, 80, (255, 180, 90), 28)
-    shadow(im, [54, 198, 186, 224])
-    cuff(im)
-    # palm
-    P.rr_grad(im, [70, 116, 170, 206], 30, SKIN_HI, SKIN, outline=OUT_C, ow=6)
-    # thumb out to the left
-    place(im, capsule(34, 96, -58), 70, 150)
-    # four fingers, gently fanned (index .. pinky); middle tallest
-    place(im, capsule(28, 128, 7), 92, 92)
-    place(im, capsule(30, 150, 2), 118, 74)
-    place(im, capsule(28, 134, -4), 144, 86)
-    place(im, capsule(24, 108, -13), 166, 104)
-    P.spec(im, 104, 140, 22, 13)
-    return P.finish(im, 120)
+    fingers = [_finger(94, 66, 27), _finger(120, 50, 29), _finger(146, 64, 27), _finger(168, 82, 23)]
+    m = union([_palm(), _thumb(), *fingers])
+    creases = [(107, 128, 107, 150), (133, 128, 133, 150), (157, 128, 157, 150)]
+    return render(m, creases)
 
 
 def scissors():
-    """A fist with index + middle fingers extended in a V."""
-    W = 240
-    im, d = P.canvas(W)
-    P.glow(im, 120, 120, 80, (255, 180, 90), 28)
-    shadow(im, [56, 198, 184, 224])
-    cuff(im)
-    # fist / palm base
-    P.rr_grad(im, [72, 126, 168, 206], 30, SKIN_HI, SKIN, outline=OUT_C, ow=6)
-    # curled ring + pinky knuckles across the front
-    for x in (120, 146):
-        P.rr_grad(im, [x, 120, x + 24, 150], 10, SKIN_HI, SKIN, outline=OUT_C, ow=4)
-    # thumb holding the folded fingers
-    place(im, capsule(30, 70, 70), 150, 150)
-    # the two extended fingers, splayed into a V
-    place(im, capsule(28, 140, 19), 100, 92)
-    place(im, capsule(28, 150, -17), 134, 86)
-    P.spec(im, 108, 150, 20, 12)
-    return P.finish(im, 120)
+    # index + middle extended in a tighter V; ring + pinky curled (knuckle bumps)
+    m = union([_palm(), _thumb(), _finger(113, 56, 26), _finger(135, 52, 26), _knuckle(152), _knuckle(171)])
+    creases = [(124, 128, 124, 150)]
+    return render(m, creases)
 
 
 def main():
@@ -116,7 +150,7 @@ def main():
     rock().save(os.path.join(OUT, "rock.png"))
     paper().save(os.path.join(OUT, "paper.png"))
     scissors().save(os.path.join(OUT, "scissors.png"))
-    print("wrote hand-gesture rock, paper, scissors to", os.path.normpath(OUT))
+    print("wrote unified-silhouette rock, paper, scissors to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":

@@ -1,24 +1,37 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  View, Text, Pressable, ScrollView, StyleSheet,
+  View, Text, Pressable, ScrollView, StyleSheet, Image,
   KeyboardAvoidingView, Platform, ActivityIndicator, Animated, Easing, Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Speech from "expo-speech";
+import { resolveVoices, voiceId } from "./voices";
 import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from "expo-audio";
-import { chat } from "./model";
+import { chat, activeModelLabel } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings, setSetting } from "./settings";
 import { L, useLang } from "./i18n";
-import { color, space, radius, type as T, HIT, glow } from "./design/tokens";
+import { color, space, radius, type as T, HIT, glow, font } from "./design/tokens";
 import { Body, PixelText, Input, Banner, Sprite } from "./design/ui";
 import { CrtDisplay } from "./design/console";
 import VoiceBar, { VoiceBarState } from "./VoiceBar";
 import { appMeta } from "./appMeta";
+import type { FeatureRoute } from "./screens/Tools";
+import { detectTool, type ToolHit } from "./toolIntent";
 
 const EMBLEM = require("../assets/brand/emblem.png");
 
+// Quick-launch tools on the home, in the games-cabinet style.
+const TOOL4: { route: FeatureRoute; title: string; icon: any }[] = [
+  { route: "notes", title: "Dictaphone", icon: require("../assets/ui/tools/notes.png") },
+  { route: "memory", title: "Memory", icon: require("../assets/ui/tools/memory.png") },
+  { route: "experts", title: "Experts", icon: require("../assets/ui/tools/experts.png") },
+  { route: "notifs", title: "Reader", icon: require("../assets/ui/tools/notifs.png") },
+];
+
 const { width: SW, height: SH } = Dimensions.get("window");
+const HOME_BG = require("../assets/ui/home_bg.jpg");        // Sentinel (amber HUD)
+const HOME_BG_NOVA = require("../assets/ui/home_bg_nova.jpg"); // Nova (cosmic / cyan)
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Restrained starfield for the home hero depth (static; a handful of dots).
@@ -83,33 +96,31 @@ const NOVA_STARS = Array.from({ length: 22 }, () => ({ x: Math.random() * SW, y:
 function PersonaBackdrop({ np, breathe, scan, reduced }: {
   np: Animated.Value; breathe: Animated.Value; scan: Animated.Value; reduced: boolean;
 }) {
-  const sentinelOp = np.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* SENTINEL — angular grid, sharp star-points, a slow scanline sweep */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: sentinelOp }]}>
-        {GRID_V.map((x) => (
-          <View key={`v${x}`} style={{ position: "absolute", left: x, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,152,0,0.045)" }} />
-        ))}
-        {GRID_H.map((y) => (
-          <View key={`h${y}`} style={{ position: "absolute", top: y, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,152,0,0.04)" }} />
-        ))}
-        {SENTINEL_STARS.map((st, i) => (
-          <View key={i} style={{ position: "absolute", left: st.x, top: st.y, width: st.s, height: st.s, backgroundColor: "#FFD9A6", opacity: 0.5 }} />
-        ))}
-        {!reduced && (
-          <Animated.View style={{ position: "absolute", left: 0, right: 0, height: 2, backgroundColor: "rgba(255,152,0,0.16)", transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-30, SH] }) }] }} />
-        )}
+      {/* Live art backdrop — a gentle parallax drift makes the static scene breathe. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [
+        { scale: 1.08 },
+        { translateX: breathe.interpolate({ inputRange: [0, 1], outputRange: [-7, 7] }) },
+        { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [5, -5] }) },
+      ] }]}>
+        <Animated.Image source={HOME_BG} resizeMode="cover" fadeDuration={0} style={[StyleSheet.absoluteFill, { opacity: np.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]} />
+        <Animated.Image source={HOME_BG_NOVA} resizeMode="cover" fadeDuration={0} style={[StyleSheet.absoluteFill, { opacity: np }]} />
       </Animated.View>
-      {/* NOVA — soft aurora glow blobs that breathe, sparse round stars */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: np }]}>
-        <Animated.View style={{ position: "absolute", left: -SW * 0.25, top: SH * 0.04, width: SW * 0.9, height: SW * 0.9, borderRadius: SW, backgroundColor: "#00E5FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.17] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] }) }] }} />
-        <Animated.View style={{ position: "absolute", right: -SW * 0.3, top: SH * 0.3, width: SW, height: SW, borderRadius: SW, backgroundColor: "#8A63FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.14, 0.08] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [1.1, 0.96] }) }] }} />
-        <Animated.View style={{ position: "absolute", left: SW * 0.1, bottom: SH * 0.06, width: SW * 0.7, height: SW * 0.7, borderRadius: SW, backgroundColor: "#00E5FF", opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.06, 0.12] }), transform: [{ scale: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.1] }) }] }} />
-        {NOVA_STARS.map((st, i) => (
-          <View key={i} style={{ position: "absolute", left: st.x, top: st.y, width: st.s, height: st.s, borderRadius: st.s / 2, backgroundColor: "#BBF0FF", opacity: 0.45 }} />
-        ))}
-      </Animated.View>
+      {/* soft dark scrim so UI text stays readable over the art */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(11,15,20,0.18)" }]} />
+      {/* bottom scrim so the tool labels stay readable over the art */}
+      <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: SH * 0.5, backgroundColor: "rgba(11,15,20,0.30)" }} />
+      {/* twinkling motes for life */}
+      {!reduced && SENTINEL_STARS.slice(0, 20).map((st, i) => (
+        <Animated.View key={i} style={{ position: "absolute", left: st.x, top: st.y, width: st.s + 0.5, height: st.s + 0.5, borderRadius: st.s,
+          backgroundColor: "#FFD9A6",
+          opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [i % 2 ? 0.12 : 0.5, i % 2 ? 0.5 : 0.12] }) }} />
+      ))}
+      {/* slow scanline sweep */}
+      {!reduced && (
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, height: 2, backgroundColor: "rgba(255,152,0,0.12)", transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-30, SH] }) }] }} />
+      )}
     </View>
   );
 }
@@ -142,13 +153,14 @@ function speakable(t: string): string {
     .slice(0, 600);
 }
 
-export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, onOpenNotes }: {
+export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, onOpenNotes, onOpenTool }: {
   seed?: string; seedNonce?: number;
-  onOpenGames?: () => void; onOpenTools?: () => void; onOpenNotes?: () => void;
+  onOpenGames?: () => void; onOpenTools?: () => void; onOpenNotes?: () => void; onOpenTool?: (route: FeatureRoute) => void;
 } = {}) {
   const settings = useSettings();
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [toolHint, setToolHint] = useState<ToolHit | null>(null); // main-chat tool designation
   const [busy, setBusy] = useState(false);          // model answering (ask)
   const [speaking, setSpeaking] = useState(false);  // TTS playing
   const [recording, setRecording] = useState(false); // mic actively capturing
@@ -160,6 +172,24 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   useLang(); // re-render on language change
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const radar = useAudioPlayer(require("../assets/radar.wav"));
+  // Persona UI sounds (tools/art/gen_sounds.py): Sentinel = square blips, Nova = sine chimes.
+  const sfxWakeS = useAudioPlayer(require("../assets/audio/sentinel_wake.wav"));
+  const sfxWakeN = useAudioPlayer(require("../assets/audio/nova_wake.wav"));
+  const sfxListenS = useAudioPlayer(require("../assets/audio/sentinel_listen.wav"));
+  const sfxListenN = useAudioPlayer(require("../assets/audio/nova_listen.wav"));
+  const sfxSendS = useAudioPlayer(require("../assets/audio/sentinel_send.wav"));
+  const sfxSendN = useAudioPlayer(require("../assets/audio/nova_send.wav"));
+  const sfxErr = useAudioPlayer(require("../assets/audio/ui_error.wav"));
+  const playSfx = (p: any, vol = 0.55) => {
+    if (!getSettings().gameSound) return;
+    try { p.seekTo(0); p.volume = vol; p.play(); } catch {}
+  };
+  const uiSfx = (kind: "wake" | "listen" | "send") => {
+    const nova = getSettings().voice === "nova";
+    playSfx(kind === "wake" ? (nova ? sfxWakeN : sfxWakeS)
+      : kind === "listen" ? (nova ? sfxListenN : sfxListenS)
+      : (nova ? sfxSendN : sfxSendS));
+  };
   const scrollRef = useRef<ScrollView>(null);
   const errTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendLock = useRef(false);
@@ -183,6 +213,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     if (settings.reducedMotion) { np.setValue(persona === "nova" ? 1 : 0); prevPersona.current = persona; return; }
     Animated.timing(np, { toValue: persona === "nova" ? 1 : 0, duration: 580, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }).start();
     if (prevPersona.current !== persona) {
+      uiSfx("wake");
       sweepAnim.setValue(0);
       Animated.timing(sweepAnim, { toValue: 1, duration: 640, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
     }
@@ -217,15 +248,19 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     const st = getSettings();
     // Spoken locale follows the saved interface language so TTS is pronounced correctly.
     const locale = st.language === "de" ? "de-DE" : st.language === "es" ? "es-ES" : "en-US";
+    const vid = voiceId(st.voice === "nova" ? "nova" : "sentinel"); // concrete male/female device voice
     return {
       language: locale,
-      rate: st.speechRate ?? 0.96,
-      pitch: st.voice === "nova" ? 1.0 : 0.75,  // persona: nova = natural, sentinel = low
+      ...(vid ? { voice: vid } : {}),
+      // Sentinel = male, DEEP + slower = robotic/KITT (not a tincan); Nova = female, natural.
+      rate: (st.speechRate ?? 0.96) * (st.voice === "nova" ? 1.0 : 0.9),
+      pitch: st.voice === "nova" ? 1.0 : 0.78,
     };
   }
 
   function flagError(msg: string) {
     setError(msg);
+    playSfx(sfxErr, 0.5);
     if (errTimer.current) clearTimeout(errTimer.current);
     errTimer.current = setTimeout(() => setError(""), 4500);
   }
@@ -261,10 +296,13 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
 
   // Onboard-computer startup greeting, once. Reads live settings at speak time.
   useEffect(() => {
-    const id = setTimeout(() => {
-      speakText(L("I am online and ready."));
-    }, 900);
-    return () => clearTimeout(id);
+    let cancelled = false;
+    // Resolve the concrete male/female device voices first, then greet in-character.
+    resolveVoices(getSettings().language).finally(() => {
+      if (cancelled) return;
+      setTimeout(() => { if (!cancelled) speakText(L("I am online and ready.")); }, 500);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Radar sweep loops softly only while the model is thinking (preserved behavior).
@@ -291,6 +329,8 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   async function send(text?: string) {
     const q = (text ?? input).trim(); if (!q || busy || sendLock.current) return;
     sendLock.current = true;
+    uiSfx("send");
+    setToolHint(detectTool(q)); // designate a tool if the message is tool-shaped
     clearError();
     setInput(""); setBusy(true);
     // Pass the running conversation so the buddy follows context (owner memory is
@@ -334,6 +374,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
         await recorder.prepareToRecordAsync();
         recorder.record();
         setRecording(true);
+        uiSfx("listen");
       } catch (e: any) {
         setSttBusy(false); setSttStatus("");
         flagError("Mic error: " + String(e?.message ?? e));
@@ -375,7 +416,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     speaking ? color.amber : color.textMuted;
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+    <View style={s.safe}>
       <PersonaBackdrop np={np} breathe={breathe} scan={scan} reduced={settings.reducedMotion} />
       {!settings.reducedMotion && (
         <Animated.View pointerEvents="none" style={[s.sweep, {
@@ -384,6 +425,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
           transform: [{ translateY: sweepAnim.interpolate({ inputRange: [0, 1], outputRange: [-40, SH] }) }],
         }]} />
       )}
+      <SafeAreaView style={s.fill} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={[s.fill, { backgroundColor: "transparent" }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -420,11 +462,12 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
             so it reads as the machine's screen. Rim glow follows the active persona. */}
         <View style={s.meterWrap}>
           <CrtDisplay accent={PERSONA[persona].accent} glowOn style={s.meterDisplay}>
-            <VoiceBar state={voiceState} persona={settings.voice} reducedMotion={settings.reducedMotion} height={82} />
+            <VoiceBar state={voiceState} persona={settings.voice} reducedMotion={settings.reducedMotion} height={108} />
           </CrtDisplay>
           <View style={s.statusRow}>
             <View style={[s.dot, { backgroundColor: statusColor }]} />
             <Text style={[s.status, { color: statusColor }]}>{statusText}</Text>
+            {!speaking && msgs.length === 0 && <Text style={s.meta}>{activeModelLabel()} · LOCAL · YOURS</Text>}
             {speaking && (
               <Pressable onPress={stopSpeak} accessibilityRole="button" accessibilityLabel="Stop speaking"
                 style={({ pressed }) => [s.stopBtn, pressed && { backgroundColor: "rgba(255,82,71,0.15)" }]}>
@@ -457,24 +500,30 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
             <View style={s.composerHero}>
               <Pressable onPress={micPress} disabled={busy} accessibilityRole="button"
                 accessibilityLabel={recording ? "Stop recording" : "Record voice"}
-                style={({ pressed }) => [s.mic, recording && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg }, pressed && { backgroundColor: color.surface2 }, busy && { opacity: 0.4 }]}>
+                style={({ pressed }) => [s.mic, { borderColor: PERSONA[persona].accent }, recording && { borderColor: color.cyan, backgroundColor: color.cyanGlowBg }, pressed && { backgroundColor: color.surface2 }, busy && { opacity: 0.4 }]}>
                 <Text style={{ fontSize: 20, color: recording ? color.cyan : color.text }}>{recording ? "■" : "🎤"}</Text>
               </Pressable>
               <Input style={s.input} value={input} onChangeText={setInput} placeholder={L("Ask or tap the mic…")}
                 editable={!busy} onSubmitEditing={() => send()} returnKeyType="send" multiline={false} />
               <Pressable onPress={() => send()} disabled={!canSend} accessibilityRole="button" accessibilityLabel="Send message"
-                style={({ pressed }) => [s.send, !canSend && { opacity: 0.4 }, pressed && canSend && { backgroundColor: color.amberDim }]}>
+                style={({ pressed }) => [s.send, { backgroundColor: PERSONA[persona].accent }, !canSend && { opacity: 0.4 }, pressed && canSend && { backgroundColor: color.amberDim }]}>
                 <Text style={s.sendT}>{L("Send")}</Text>
               </Pressable>
             </View>
 
             <Text style={[s.chipHint, { color: PERSONA[persona].accent }]}>
-              {persona === "nova" ? "try one — I'll take it from there" : "QUICK START"}
+              {persona === "nova" ? "quick tools" : "QUICK TOOLS"}
             </Text>
-            <View style={s.chipRow}>
-              {CHIPS[persona].map((c) => (
-                <SuggestChip key={c.label} label={c.label} np={np} accent={PERSONA[persona].accent}
-                  onPress={() => setInput(c.seed)} />
+            <View style={s.toolGrid}>
+              {TOOL4.map((t) => (
+                <Pressable key={t.route} onPress={() => onOpenTool?.(t.route)} accessibilityRole="button" accessibilityLabel={t.title}
+                  style={({ pressed }) => [s.toolTile, pressed && { borderColor: PERSONA[persona].accent, backgroundColor: color.surface2 }]}>
+                  <View style={[s.toolWell, { borderColor: PERSONA[persona].accent }]}>
+                    <Image source={t.icon} style={{ width: 30, height: 30, tintColor: PERSONA[persona].accent }} resizeMode="contain" />
+                    <View style={[s.toolLed, { backgroundColor: PERSONA[persona].accent }]} pointerEvents="none" />
+                  </View>
+                  <Text style={s.toolTitle} numberOfLines={1}>{t.title}</Text>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -514,6 +563,18 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
               </View>
             )}
           </ScrollView>
+        )}
+
+        {/* Tool designation — the buddy answered; here's a shortcut into the matching tool. */}
+        {toolHint && onOpenTool && msgs.length > 0 && (
+          <View style={{ paddingHorizontal: space.md }}>
+            <Pressable onPress={() => { const r = toolHint.route; setToolHint(null); onOpenTool(r); }}
+              accessibilityRole="button" accessibilityLabel={`Open ${toolHint.title}`}
+              style={({ pressed }) => [s.toolDesig, { borderColor: PERSONA[persona].accent }, pressed && { backgroundColor: color.surface2 }]}>
+              <Text style={[s.toolDesigT, { color: PERSONA[persona].accent }]}>⬚  {L("Open")} {toolHint.title}</Text>
+              <Text style={[s.toolDesigArrow, { color: PERSONA[persona].accent }]}>→</Text>
+            </Pressable>
+          </View>
         )}
 
         {permDenied && (
@@ -573,7 +634,8 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
           </View>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -598,19 +660,27 @@ const s = StyleSheet.create({
 
   // Mission Bay home
   personaWrap: { flexDirection: "row", gap: 6 },
-  personaBtn: { borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.pill, paddingHorizontal: 10, height: 30, justifyContent: "center" },
+  personaBtn: { borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.pill, paddingHorizontal: 13, height: 38, justifyContent: "center" },
   personaT: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   meterWrap: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs, alignItems: "center" },
   meterDisplay: { width: "100%", maxWidth: 440 },
   heroWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
   star: { position: "absolute", backgroundColor: "#E8F0FF" },
-  greeting: { fontSize: 30, fontWeight: "800", color: color.text, textAlign: "center", letterSpacing: 0.2, paddingHorizontal: space.md },
-  greetSentinel: { fontSize: 23, fontWeight: "800", letterSpacing: 1.3, textTransform: "uppercase" },
-  greetNova: { fontSize: 31, fontWeight: "500", letterSpacing: 0.2, lineHeight: 40 },
+  greeting: { fontFamily: font.crt, fontSize: 20, color: color.textMuted, textAlign: "center", paddingHorizontal: space.md, textShadowColor: "rgba(255,152,0,0.18)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } },
+  greetSentinel: { fontSize: 20, letterSpacing: 1.2, textTransform: "uppercase" },
+  greetNova: { fontSize: 21, letterSpacing: 0.5, lineHeight: 26 },
   heroSub: { ...T.small, color: color.textMuted, textAlign: "center", marginBottom: space.md },
-  composerHero: { flexDirection: "row", gap: space.sm, alignItems: "center", alignSelf: "stretch", maxWidth: 440, width: "100%", backgroundColor: color.surface, borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.lg, padding: space.sm },
-  chipHint: { fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: space.lg, opacity: 0.85 },
+  composerHero: { flexDirection: "row", gap: space.sm, alignItems: "center", alignSelf: "stretch", maxWidth: 440, width: "100%", backgroundColor: "#0F141B", borderWidth: 1, borderColor: "#2A333E", borderTopColor: "#3A485A", borderRadius: radius.lg, padding: space.sm, boxShadow: "0 6px 18px rgba(0,0,0,0.35)" },
+  chipHint: { fontFamily: font.mono, fontSize: 10.5, letterSpacing: 2, marginTop: space.lg, opacity: 0.9 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.sm, marginTop: space.sm, alignSelf: "stretch", maxWidth: 440, width: "100%" },
+  toolGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: space.sm, marginTop: space.sm, alignSelf: "stretch", maxWidth: 440, width: "100%" },
+  toolTile: { width: "48%", backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.sm },
+  toolWell: { width: "100%", height: 54, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "#0A0E13", overflow: "hidden", marginBottom: space.xs },
+  toolLed: { position: "absolute", right: 5, bottom: 5, width: 5, height: 5, borderRadius: 3, opacity: 0.9 },
+  toolTitle: { fontFamily: font.bodyBold, fontSize: 13, color: color.text },
+  toolDesig: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", backgroundColor: color.surface, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 14, height: 38, marginBottom: space.sm },
+  toolDesigT: { fontFamily: font.bodyBold, fontSize: 13, letterSpacing: 0.3 },
+  toolDesigArrow: { fontSize: 15, fontWeight: "900" },
   chip: { borderWidth: 1.5, borderColor: color.surfaceLine, backgroundColor: "rgba(20,26,34,0.55)", paddingHorizontal: 16, paddingVertical: 11 },
   chipT: { fontSize: 13, fontWeight: "700" },
   sweep: { position: "absolute", left: 0, right: 0, height: 3, zIndex: 20, shadowColor: "#FFFFFF", shadowOpacity: 0.6, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
@@ -620,7 +690,7 @@ const s = StyleSheet.create({
     paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm,
     borderBottomWidth: 1, borderBottomColor: color.surfaceLine,
   },
-  sub: { ...T.small, color: color.textMuted, marginTop: 4 },
+  sub: { ...T.small, fontFamily: font.mono, color: color.textMuted, marginTop: 4 },
   clearBtn: {
     borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.md,
     paddingHorizontal: space.md, height: 44, justifyContent: "center",
@@ -628,9 +698,10 @@ const s = StyleSheet.create({
   clearT: { color: color.textMuted, fontSize: 13, fontWeight: "700" },
 
   hud: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, alignItems: "center" },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.sm },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.sm, width: "100%", maxWidth: 440, paddingHorizontal: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  status: { fontSize: 14, fontWeight: "700", letterSpacing: 0.4 },
+  status: { fontFamily: font.mono, fontSize: 12.5, letterSpacing: 0.5 },
+  meta: { fontFamily: font.mono, fontSize: 10.5, color: color.textFaint, letterSpacing: 0.8, marginLeft: "auto" },
   hudControls: { flexDirection: "row", gap: space.sm, marginTop: space.md, alignItems: "center", justifyContent: "center", flexWrap: "wrap" },
   voiceBtn: {
     borderWidth: 1, borderColor: color.cyanDim, borderRadius: radius.md,
@@ -673,8 +744,9 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: color.surfaceLine, backgroundColor: color.bg,
   },
   mic: {
-    width: HIT, height: HIT, borderRadius: radius.md, borderWidth: 1, borderColor: color.surfaceLine,
-    backgroundColor: color.surface, alignItems: "center", justifyContent: "center",
+    width: HIT, height: HIT, borderRadius: HIT / 2, borderWidth: 2, borderColor: "#B86B07",
+    backgroundColor: color.surface2, alignItems: "center", justifyContent: "center",
+    boxShadow: glow.amberSoft,
   },
   input: { flex: 1 },
   send: {

@@ -453,12 +453,30 @@ def main():
     barrier().save(os.path.join(OUT, "barrier.png"))
 
     def grass_fx(im, d):
-        for (x, y) in ((24, 36), (80, 54), (52, 92), (104, 24), (34, 108), (100, 104)):
+        # sunlit mown verge along the top edge (reads as a tidy bank)
+        d.rectangle([0, 0, 128, 7], fill=(98, 186, 108, 255))
+        d.rectangle([0, 7, 128, 10], fill=(74, 160, 86, 160))
+        # turf flecks for texture
+        for (x, y) in ((40, 60), (70, 30), (90, 80), (20, 100), (110, 92), (60, 116)):
+            d.ellipse([x, y, x + 3, y + 3], fill=(58, 140, 70, 180))
+        # blades
+        for (x, y) in ((24, 36), (80, 54), (52, 92), (104, 24), (34, 108), (100, 104), (14, 72), (120, 58)):
             d.line([(x, y), (x, y - 12)], fill=(150, 220, 150, 255), width=3)
+        # soft shadowed bottom edge
+        d.rectangle([0, 122, 128, 128], fill=(32, 92, 44, 150))
     tile((62, 150, 78), (40, 110, 54), grass_fx).save(os.path.join(OUT, "grass.png"))
 
     def road_fx(im, d):
-        d.rectangle([0, 0, 128, 6], fill=(26, 29, 35, 255))
+        # subtle asphalt grain (baked, zero runtime cost): a few light + dark flecks
+        for (x, y) in ((18, 40), (54, 22), (92, 60), (30, 96), (108, 34), (72, 104), (44, 70), (120, 86)):
+            d.rectangle([x, y, x + 3, y + 3], fill=(74, 80, 92, 90))
+        for (x, y) in ((26, 64), (82, 44), (100, 100), (14, 20), (60, 86), (116, 52)):
+            d.rectangle([x, y, x + 3, y + 3], fill=(30, 33, 40, 110))
+        # crisp lane seam at the top: dark shadow + thin light highlight below it
+        d.rectangle([0, 0, 128, 7], fill=(24, 27, 33, 255))
+        d.rectangle([0, 7, 128, 9], fill=(78, 84, 96, 120))
+        # subtle shade at the bottom so stacked road lanes read as banded
+        d.rectangle([0, 122, 128, 128], fill=(30, 33, 40, 120))
     tile((58, 63, 74), (40, 44, 52), road_fx).save(os.path.join(OUT, "road.png"))
 
     def line_fx(im, d):
@@ -466,11 +484,22 @@ def main():
     tile((58, 63, 74), (40, 44, 52), line_fx).save(os.path.join(OUT, "road_line.png"))
 
     def water_fx(im, d):
-        for (x, y) in ((16, 34), (70, 54), (36, 86), (92, 104)):
-            d.line([(x, y), (x + 20, y)], fill=(150, 210, 245, 220), width=3)
+        # top sheen line
+        d.rectangle([0, 0, 128, 5], fill=(120, 196, 240, 120))
+        # calm ripples (varied alpha, each with a faint shadow stroke) — kept subtle so
+        # logs/turtles stay the brightest things on the row and read clearly
+        for (x, y), a in (((12, 30), 220), ((70, 50), 150), ((34, 84), 190),
+                          ((92, 102), 150), ((54, 22), 120), ((100, 66), 170), ((20, 110), 130)):
+            d.line([(x, y), (x + 22, y)], fill=(150, 210, 245, a), width=3)
+            d.line([(x + 4, y + 4), (x + 18, y + 4)], fill=(60, 120, 180, 120), width=2)
+        # darker depth at the bottom edge
+        d.rectangle([0, 122, 128, 128], fill=(26, 70, 128, 120))
     tile((70, 150, 220), (32, 86, 150), water_fx).save(os.path.join(OUT, "water.png"))
 
     def rail_fx(im, d):
+        # ballast gravel speckle between the ties
+        for (x, y) in ((16, 60), (50, 30), (90, 100), (120, 70), (36, 108), (72, 20)):
+            d.rectangle([x, y, x + 3, y + 3], fill=(120, 112, 96, 150))
         # trains run left<->right, so steel rails are HORIZONTAL; ties are vertical bars
         for tx in range(8, 128, 26):
             d.rectangle([tx, 10, tx + 13, 118], fill=(96, 70, 40, 255))      # wooden ties

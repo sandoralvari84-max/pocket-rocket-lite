@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
+  Text,
   StyleSheet,
   useWindowDimensions,
   PanResponder,
@@ -9,7 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, font, glow, consoleUI } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay, Sprite, Body } from "../design/ui";
 import { ScoreboardOverlay } from "../design/Scoreboard";
 import { ArcadeJoystick } from "../design/Joystick";
@@ -225,6 +226,103 @@ const RIGHT: Dir = { dx: 1, dy: 0 };
 const DIRS: Dir[] = [UP, LEFT, DOWN, RIGHT]; // classic tie-break order
 
 const key = (r: number, c: number): string => `${r},${c}`;
+
+/* ----------------------------------------------------------------------------
+ * Drawn-vector console restyle (2026-10): the board is composed from token-
+ * driven Views instead of PNG sprites — neon-tube maze walls, a vector muncher
+ * with an open/closed mouth, dome+skirt ghosts, and glossy pellets — so the
+ * game folds into the app's dark retro-console aesthetic (amber #FF9800 / cyan
+ * #00E5FF on a near-black field). Pure Views: offline, no deps, low-end safe.
+ * Gameplay logic is untouched; only the render layer changed.
+ * ------------------------------------------------------------------------- */
+const BOARD_BG = "#070C14";            // near-black playfield
+const WALL_FILL = "#102039";           // cool deep-blue tube body
+const WALL_EDGE = "rgba(0,229,255,0.55)"; // cyan neon edge
+const PELLET_COLOR = "#DCEBFA";        // glossy pale dot
+const GHOST_HEX: Record<string, string> = {
+  rose: "#FF4D8D", teal: "#00E5FF", lime: "#5BD16B", amber: "#FF9800",
+};
+const HUNTER_HEX = "#FF5247";
+const FRIGHT_BODY = "#2B3BE0";         // frightened blue
+const FRIGHT_FLASH = "#EAF2FF";        // frightened near-end flash
+const EYE_WHITE = "#F3EFE6";
+const EYE_PUPIL = "#0B1830";
+const GATE_FILL = "rgba(255,152,0,0.85)";
+
+const faceAngle: Record<Facing, string> = { r: "0deg", d: "90deg", l: "180deg", u: "270deg" };
+
+// Vector ghost: dome body + scalloped skirt + eyes that look toward travel.
+// Eaten ghosts render as floating eyes only (matches the "eyes return home" rule).
+function GhostSprite({ size, body, eaten, dx, dy }: {
+  size: number; body: string; eaten: boolean; dx: number; dy: number;
+}) {
+  const bodyW = size * 0.78;
+  const bodyLeft = (size - bodyW) / 2;
+  const bodyTop = size * 0.06;
+  const skirtY = size * 0.70;          // body bottom / skirt centre line
+  const bump = bodyW / 3;
+  const eyeD = size * 0.24;
+  const eyeY = size * 0.32;
+  const eyeLX = bodyLeft + bodyW * 0.30 - eyeD / 2;
+  const eyeRX = bodyLeft + bodyW * 0.70 - eyeD / 2;
+  const pup = eyeD * 0.5;
+  const ox = Math.sign(dx) * eyeD * 0.18;
+  const oy = Math.sign(dy) * eyeD * 0.18;
+  return (
+    <View style={{ width: size, height: size }}>
+      {!eaten && (
+        <>
+          <View
+            style={{
+              position: "absolute", left: bodyLeft, right: bodyLeft, top: bodyTop,
+              height: skirtY - bodyTop, backgroundColor: body,
+              borderTopLeftRadius: bodyW / 2, borderTopRightRadius: bodyW / 2,
+              borderBottomLeftRadius: size * 0.12, borderBottomRightRadius: size * 0.12,
+              boxShadow: `0 0 ${Math.round(size * 0.26)}px ${body}59`,
+            }}
+          />
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={{
+                position: "absolute", left: bodyLeft + i * bump, top: skirtY - bump / 2,
+                width: bump, height: bump, borderRadius: bump / 2, backgroundColor: body,
+              }}
+            />
+          ))}
+        </>
+      )}
+      <View style={{ position: "absolute", left: eyeLX, top: eyeY, width: eyeD, height: eyeD, borderRadius: eyeD / 2, backgroundColor: EYE_WHITE }}>
+        <View style={{ position: "absolute", left: eyeD / 2 - pup / 2 + ox, top: eyeD / 2 - pup / 2 + oy, width: pup, height: pup, borderRadius: pup / 2, backgroundColor: EYE_PUPIL }} />
+      </View>
+      <View style={{ position: "absolute", left: eyeRX, top: eyeY, width: eyeD, height: eyeD, borderRadius: eyeD / 2, backgroundColor: EYE_WHITE }}>
+        <View style={{ position: "absolute", left: eyeD / 2 - pup / 2 + ox, top: eyeD / 2 - pup / 2 + oy, width: pup, height: pup, borderRadius: pup / 2, backgroundColor: EYE_PUPIL }} />
+      </View>
+    </View>
+  );
+}
+
+// Vector muncher: amber disc with an open/closed mouth wedge, rotated to face travel.
+function MuncherSprite({ size, facing, open }: { size: number; facing: Facing; open: boolean }) {
+  return (
+    <View
+      style={{
+        width: size, height: size, borderRadius: size / 2, backgroundColor: color.amber,
+        transform: [{ rotate: faceAngle[facing] }], boxShadow: glow.amber, overflow: "hidden",
+      }}
+    >
+      {open && (
+        <View
+          style={{
+            position: "absolute", right: 0, top: 0, width: 0, height: 0,
+            borderTopWidth: size / 2, borderBottomWidth: size / 2, borderRightWidth: size * 0.52,
+            borderTopColor: "transparent", borderBottomColor: "transparent", borderRightColor: BOARD_BG,
+          }}
+        />
+      )}
+    </View>
+  );
+}
 
 // Structural wall only ('#'), used for the autotile mask so gates/tunnels read
 // as openings in the wall ribbon.
@@ -831,34 +929,52 @@ function Screen({ onExit }: GameContext) {
   const start = () => { phaseRef.current = "playing"; setPhase("playing"); bump(); };
 
   // static floor + wall layers — rebuilt only when CELL or the level changes
-  const floorLayer = useMemo(() => {
-    const cells: React.ReactNode[] = [];
-    for (let r = 0; r < ROWS; r++)
-      for (let c = 0; c < COLS; c++)
-        cells.push(
-          <View key={`f${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-            <Sprite source={FLOOR_IMGS[(r * 7 + c * 3) % FLOOR_IMGS.length]} size={CELL} />
-          </View>
-        );
-    return cells;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [CELL]);
+  // Field is a plain near-black board (bezel + board background handle the look),
+  // so no per-cell floor sprites are drawn — lighter on low-end hardware.
+  const floorLayer = null;
 
+  // Neon-tube walls: one View per wall cell. The autotile mask keeps the tube
+  // continuous — faces are only outlined (cyan edge) and corners only rounded
+  // where the wall is exposed to open floor, so corridors read as smooth tubes.
   const wallLayer = useMemo(() => {
     const grid = mazeRef.current.grid;
+    const gap = Math.max(1, Math.round(CELL * 0.13));   // inset on exposed faces
+    const R = Math.round(CELL * 0.34);                  // exposed-corner rounding
+    const bw = Math.max(1, Math.round(CELL * 0.07));    // neon edge thickness
     const cells: React.ReactNode[] = [];
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++)
         if (grid[r][c] === "#") {
-          let m = 0;
-          if (isWall(grid, r - 1, c)) m |= 1; // N
-          if (isWall(grid, r, c + 1)) m |= 2; // E
-          if (isWall(grid, r + 1, c)) m |= 4; // S
-          if (isWall(grid, r, c - 1)) m |= 8; // W
+          const openN = !isWall(grid, r - 1, c);
+          const openE = !isWall(grid, r, c + 1);
+          const openS = !isWall(grid, r + 1, c);
+          const openW = !isWall(grid, r, c - 1);
+          const left = openW ? gap : 0;
+          const top = openN ? gap : 0;
+          const right = openE ? gap : 0;
+          const bottom = openS ? gap : 0;
           cells.push(
-            <View key={`w${r}-${c}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-              <Sprite source={WALL_IMGS[m]} size={CELL} />
-            </View>
+            <View
+              key={`w${r}-${c}`}
+              style={{
+                position: "absolute",
+                left: c * CELL + left,
+                top: r * CELL + top,
+                width: CELL - left - right,
+                height: CELL - top - bottom,
+                backgroundColor: WALL_FILL,
+                borderColor: WALL_EDGE,
+                borderTopWidth: openN ? bw : 0,
+                borderRightWidth: openE ? bw : 0,
+                borderBottomWidth: openS ? bw : 0,
+                borderLeftWidth: openW ? bw : 0,
+                borderTopLeftRadius: openN && openW ? R : 0,
+                borderTopRightRadius: openN && openE ? R : 0,
+                borderBottomRightRadius: openS && openE ? R : 0,
+                borderBottomLeftRadius: openS && openW ? R : 0,
+                boxShadow: `0 0 ${Math.max(3, Math.round(CELL * 0.22))}px rgba(0,229,255,0.28)`,
+              }}
+            />
           );
         }
     return cells;
@@ -869,14 +985,16 @@ function Screen({ onExit }: GameContext) {
   const theme = themeFor(level);
   const p = playerRef.current;
   const enemies = enemiesRef.current;
-  const pelletSize = Math.round(CELL * 0.4);
-  const powerSize = Math.round(CELL * 0.9);
+  const pelletSize = Math.max(3, Math.round(CELL * 0.3));
+  const powerSize = Math.round(CELL * 0.5);
   const itemSize = Math.round(CELL * 0.9);
   const animF = stepRef.current % 2;
   const moving = dirRef.current.dx !== 0 || dirRef.current.dy !== 0;
   const dying = deathTimerRef.current > 0;
-  const munchImg = dying ? MUNCH.closed : moving && animF === 0 ? MUNCH.closed : MUNCH[facingRef.current];
-  const powerPulse = reducedMotion ? powerSize : powerSize + (animF === 0 ? 0 : Math.round(CELL * 0.08));
+  const munchOpen = !dying && !(moving && animF === 0);
+  const munchSize = Math.round(CELL * 0.82);
+  const powerPulse = reducedMotion ? powerSize : powerSize + (animF === 0 ? 0 : Math.round(CELL * 0.1));
+  const frightEnding = frightRef.current > 0 && frightRef.current <= Math.ceil(frightMaxRef.current * 0.33);
   const gatesOpen = gateOpenRef.current;
 
   // active-effect / modifier HUD line
@@ -913,8 +1031,16 @@ function Screen({ onExit }: GameContext) {
         <View style={st.hudPanel}>
           <PixelText size="score">{String(score).padStart(6, "0")}</PixelText>
           <PixelText size="label" style={{ marginTop: 3 }}>
-            {rushRef.current ? `RUSH  ${Math.ceil(rushTimerRef.current / 6)}` : `LV ${level}  ${theme.name}`}  ♥{Math.max(0, lives)}
+            {rushRef.current ? `RUSH  ${Math.ceil(rushTimerRef.current / 6)}` : `LV ${level}  ${theme.name}`}
           </PixelText>
+          <View style={st.livesRow}>
+            <Text style={st.heart}>
+              {Math.max(0, lives) > 0 ? "♥".repeat(Math.min(5, Math.max(0, lives))) : "·"}
+            </Text>
+            {Math.max(0, lives) > 5 && (
+              <PixelText size="label" style={{ color: color.danger }}>{`x${lives}`}</PixelText>
+            )}
+          </View>
           {(mods.length > 0 || effBadges.length > 0) && (
             <PixelText size="label" style={{ marginTop: 3, color: theme.accent }}>
               {[...effBadges, ...mods].join(" ")}
@@ -928,34 +1054,68 @@ function Screen({ onExit }: GameContext) {
       </View>
 
       <View style={st.center}>
-        <View style={[st.board, { width: BOARD_W, height: BOARD_H }]} {...pan.panHandlers}>
+        <View style={st.bezel}>
+          <View style={[st.board, { width: BOARD_W, height: BOARD_H }]} {...pan.panHandlers}>
           {floorLayer}
           {wallLayer}
 
-          {/* moving gates (closed only) */}
+          {/* moving gates (closed only) — amber neon bar */}
           {maze.gates.map((kk) => {
             if (gatesOpen) return null;
             const [r, c] = kk.split(",").map(Number);
             return (
-              <View key={`g${kk}`} style={{ position: "absolute", left: c * CELL, top: r * CELL }}>
-                <Sprite source={GATE_IMG} size={CELL} />
-              </View>
+              <View
+                key={`g${kk}`}
+                style={{
+                  position: "absolute",
+                  left: c * CELL + Math.round(CELL * 0.08),
+                  top: r * CELL + Math.round(CELL * 0.32),
+                  width: CELL - Math.round(CELL * 0.16),
+                  height: CELL - Math.round(CELL * 0.64),
+                  borderRadius: radius.sm,
+                  backgroundColor: GATE_FILL,
+                  boxShadow: glow.amberSoft,
+                }}
+              />
             );
           })}
 
           {Array.from(pelletsRef.current).map((kk) => {
             const [r, c] = kk.split(",").map(Number);
             return (
-              <View key={`p${kk}`} style={{ position: "absolute", left: c * CELL + (CELL - pelletSize) / 2, top: r * CELL + (CELL - pelletSize) / 2 }}>
-                <Sprite source={PELLET_IMG} size={pelletSize} />
-              </View>
+              <View
+                key={`p${kk}`}
+                style={{
+                  position: "absolute",
+                  left: c * CELL + (CELL - pelletSize) / 2,
+                  top: r * CELL + (CELL - pelletSize) / 2,
+                  width: pelletSize, height: pelletSize, borderRadius: pelletSize / 2,
+                  backgroundColor: PELLET_COLOR,
+                }}
+              />
             );
           })}
           {Array.from(powersRef.current).map((kk) => {
             const [r, c] = kk.split(",").map(Number);
             return (
-              <View key={`pw${kk}`} style={{ position: "absolute", left: c * CELL + (CELL - powerPulse) / 2, top: r * CELL + (CELL - powerPulse) / 2 }}>
-                <Sprite source={POWER_IMGS[animF]} size={powerPulse} />
+              <View
+                key={`pw${kk}`}
+                style={{
+                  position: "absolute",
+                  left: c * CELL + (CELL - powerPulse) / 2,
+                  top: r * CELL + (CELL - powerPulse) / 2,
+                  width: powerPulse, height: powerPulse, borderRadius: powerPulse / 2,
+                  backgroundColor: theme.accent,
+                  boxShadow: `0 0 ${Math.round(CELL * 0.45)}px ${theme.accent}`,
+                }}
+              >
+                <View
+                  style={{
+                    position: "absolute", left: powerPulse * 0.22, top: powerPulse * 0.18,
+                    width: powerPulse * 0.3, height: powerPulse * 0.3, borderRadius: powerPulse * 0.15,
+                    backgroundColor: "rgba(255,255,255,0.75)",
+                  }}
+                />
               </View>
             );
           })}
@@ -970,22 +1130,21 @@ function Screen({ onExit }: GameContext) {
             </View>
           )}
 
-          {enemies.map((e, i) => (
-            <View key={`e${i}`} style={{ position: "absolute", left: e.c * CELL, top: e.r * CELL }}>
-              <Sprite
-                source={
-                  e.eaten ? EYES_IMG
-                    : e.frightened ? FRIGHT_IMGS[animF]
-                    : e.kind === "hunter" ? HUNTER_IMGS[animF]
-                    : GHOST_IMGS[GHOST_COLORS[e.idx % 4]][animF]
-                }
-                size={CELL}
-              />
-            </View>
-          ))}
+          {enemies.map((e, i) => {
+            const body = e.frightened
+              ? (frightEnding && animF === 1 ? FRIGHT_FLASH : FRIGHT_BODY)
+              : e.kind === "hunter" ? HUNTER_HEX : GHOST_HEX[GHOST_COLORS[e.idx % 4]];
+            // tiny vertical bob between frames for a "floating" feel (skip if reduced)
+            const bob = reducedMotion ? 0 : (animF === 0 ? 0 : -Math.round(CELL * 0.05));
+            return (
+              <View key={`e${i}`} style={{ position: "absolute", left: e.c * CELL, top: e.r * CELL + bob }}>
+                <GhostSprite size={CELL} body={body} eaten={e.eaten} dx={e.dx} dy={e.dy} />
+              </View>
+            );
+          })}
 
-          <View style={{ position: "absolute", left: p.c * CELL, top: p.r * CELL }}>
-            <Sprite source={munchImg} size={CELL} />
+          <View style={{ position: "absolute", left: p.c * CELL + (CELL - munchSize) / 2, top: p.r * CELL + (CELL - munchSize) / 2 }}>
+            <MuncherSprite size={munchSize} facing={facingRef.current} open={munchOpen} />
           </View>
 
           {darkOverlay}
@@ -1003,6 +1162,7 @@ function Screen({ onExit }: GameContext) {
           )}
 
           <EffectsLayer ref={fx} reduced={reducedMotion} />
+          </View>
         </View>
       </View>
 
@@ -1053,16 +1213,34 @@ function Screen({ onExit }: GameContext) {
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  board: { backgroundColor: "#090d14", borderRadius: radius.md, overflow: "hidden" },
+  // console display bezel around the playfield — matches the app's screen frame
+  bezel: {
+    padding: space.sm,
+    backgroundColor: consoleUI.frame,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: consoleUI.frameLine,
+    boxShadow: glow.cyanSoft,
+  },
+  board: {
+    backgroundColor: BOARD_BG,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,229,255,0.12)",
+  },
   hud: {
     position: "absolute", left: 0, right: 0, zIndex: 10, paddingHorizontal: space.lg,
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
   },
   hudPanel: {
-    backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md,
+    backgroundColor: "rgba(10,14,20,0.82)", borderRadius: radius.md,
     paddingHorizontal: space.md, paddingVertical: space.sm,
-    borderWidth: 1, borderColor: color.surfaceLine,
+    borderWidth: 1, borderColor: consoleUI.frameLine,
+    borderLeftWidth: 3, borderLeftColor: color.amber,
   },
+  livesRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: 4 },
+  heart: { color: color.danger, fontFamily: font.mono, fontSize: 12, letterSpacing: 1 },
   dpad: { position: "absolute", bottom: 24, left: 0, right: 0, alignItems: "center" },
 });
 

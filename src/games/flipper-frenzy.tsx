@@ -14,7 +14,7 @@ import { useSettings } from "../settings";
 const BUMPER_IDLE = require("../../assets/arcade/flipper/bumper_idle.png");
 const BUMPER_LIT = require("../../assets/arcade/flipper/bumper_lit.png");
 const BALL_IMG = require("../../assets/arcade/flipper/ball.png");
-const PLAYFIELD = require("../../assets/arcade/flipper/playfield.png");
+const PLAYFIELD = require("../../assets/arcade/flipper/tables/haunted_keep.jpg");
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -37,8 +37,8 @@ const LANE_TOP = TOP + 92;          // shooter wall runs down from here; the bal
 const FLIP_LEN = Math.min(playW * 0.25, 140);
 const FLIP_HALF = 11;
 const PIVOT_Y = H - 172;
-const PIVOT_LX = playL + playW * 0.19;
-const PIVOT_RX = playL + playW * 0.81;
+const PIVOT_LX = playL + playW * 0.25;   // aligned onto the art's painted left flipper
+const PIVOT_RX = playL + playW * 0.87;   // aligned onto the art's painted right flipper
 
 // ============================================================================
 // FEEL CONSTANTS — TUNE ON-DEVICE. These govern how the table "feels" (weight,
@@ -81,12 +81,12 @@ interface Ball { x: number; y: number; vx: number; vy: number; }
 interface Flip { angle: number; omega: number; }
 
 // Pop-bumper cluster (a proper triangle + two upper kickers).
+// Pop bumpers = the three painted GHOSTS. Physics circles sit on them; drawn as a
+// faint violet ring at rest that flashes bright on a hit (the art is the star).
 const BUMPERS = [
-  { x: CX, y: TOP + 112 },
-  { x: CX - playW * 0.26, y: TOP + 196 },
-  { x: CX + playW * 0.26, y: TOP + 196 },
-  { x: CX - playW * 0.31, y: TOP + 104 },
-  { x: CX + playW * 0.31, y: TOP + 104 },
+  { x: W * 0.36, y: TOP + 122 },
+  { x: W * 0.47, y: TOP + 126 },
+  { x: W * 0.58, y: TOP + 126 },
 ];
 
 // Static table segments. kind 'sling' kicks the ball + scores; 'wall' just bounces.
@@ -108,18 +108,23 @@ const LANES = LANE_WORD.map((ch, i) => ({ ch, x: playL + playW * (0.22 + 0.187 *
 const LANE_HW = 17, LANE_HH = 15; // rollover zone half-extents
 
 // Drop-target bank (left mid) — clearing all 3 lights the LOCK.
-const DROP_X = playL + playW * 0.16;
-const DROPS = [0, 1, 2].map((i) => ({ x: DROP_X, y: TOP + 150 + i * 34 }));
-const DROP_HH = 13; // half-height of a standup target
+// "Bell" standups — ring all three to light the LOCK. On the art: the two gold
+// bells (right) and the portcullis gate (top-centre).
+const DROPS = [
+  { x: W * 0.74, y: TOP + 140 },  // upper bell
+  { x: W * 0.74, y: TOP + 192 },  // lower bell
+  { x: W * 0.50, y: TOP + 40 },   // portcullis gate
+];
+const DROP_HH = 15; // half-height of a standup target
 
 // Lock saucer (right mid) — capture balls for multiball.
-const LOCK_X = playL + playW * 0.82;
-const LOCK_Y = TOP + (H - TOP) * 0.40;
+const LOCK_X = W * 0.50;                 // the centre slime-cave scoop (risky dead-centre)
+const LOCK_Y = TOP + (H - TOP) * 0.41;
 const LOCK_R = 19;
 
 // Ramp / right orbit — a shot up the right channel (ball moving up, in-zone) scores.
-const RAMP_X0 = SH_X - 46, RAMP_X1 = SH_X - 8;
-const RAMP_Y0 = TOP + 60, RAMP_Y1 = TOP + 210;
+const RAMP_X0 = playL + 6, RAMP_X1 = playL + 50;   // the left spiral tower ramp
+const RAMP_Y0 = TOP + 44, RAMP_Y1 = TOP + 220;
 
 function servedBall(): Ball {
   return { x: (SH_X + laneR) / 2, y: H - 34, vx: 0, vy: 0 };
@@ -602,17 +607,17 @@ function GameScreen({ onExit }: GameContext) {
         );
       })}
 
-      {/* drop-target bank */}
+      {/* "bell" standups — gold ring over each painted bell / the gate; dims when rung */}
       {DROPS.map((dt, i) => {
-        const down = dropsRef.current[i]; // knocked-down targets re-raise when dropRaiseRef elapses
+        const down = dropsRef.current[i];
+        const SZ = 32;
         return (
-          <View key={`drop${i}`} pointerEvents="none" style={[st.drop, {
-            left: dt.x - 8, top: dt.y - DROP_HH,
-            height: DROP_HH * 2,
-            opacity: down ? 0.25 : 1,
-            backgroundColor: down ? color.surface2 : color.cyan,
-            borderColor: down ? color.surfaceLine : color.cyanDim,
-          }, !down && { boxShadow: "0 0 8px rgba(0,229,255,0.45)" } as any]} />
+          <View key={`drop${i}`} pointerEvents="none" style={[{
+            position: "absolute", left: dt.x - SZ / 2, top: dt.y - SZ / 2, width: SZ, height: SZ, borderRadius: SZ / 2,
+            borderWidth: 2,
+            borderColor: down ? "rgba(130,130,150,0.25)" : "rgba(255,205,80,0.78)",
+            backgroundColor: down ? "transparent" : "rgba(255,195,70,0.16)",
+          }, !down && { boxShadow: "0 0 12px rgba(255,195,70,0.6)" } as any]} />
         );
       })}
 
@@ -659,28 +664,30 @@ function GameScreen({ onExit }: GameContext) {
         );
       })}
 
-      {/* bumpers */}
+      {/* bumpers — the painted ghosts; faint ring at rest, bright glow on a hit */}
       {BUMPERS.map((bu, i) => {
         const hot = flashRef.current[i] > 0;
-        const SZ = BUMP_R * 2 + 16;
+        const SZ = BUMP_R * 2 + 8;
         return (
-          <View key={`bump${i}`} pointerEvents="none" style={{ position: "absolute", left: bu.x - SZ / 2, top: bu.y - SZ / 2 }}>
-            <Sprite source={hot ? BUMPER_LIT : BUMPER_IDLE} size={SZ} />
-          </View>
+          <View key={`bump${i}`} pointerEvents="none" style={[{
+            position: "absolute", left: bu.x - SZ / 2, top: bu.y - SZ / 2, width: SZ, height: SZ, borderRadius: SZ / 2,
+            borderWidth: 2, borderColor: hot ? "#FFFFFF" : "rgba(190,150,255,0.32)",
+            backgroundColor: hot ? "rgba(190,150,255,0.33)" : "transparent",
+          }, hot && { boxShadow: "0 0 18px rgba(190,150,255,0.85)" } as any]} />
         );
       })}
 
       {/* flippers */}
       <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_LX, top: PIVOT_Y, transform: [{ rotate: `${lf.angle * 180 / Math.PI}deg` }] }}>
-        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: color.amber }]} />
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: "#9B6DD6" }]} />
         <View style={[st.flipHi, { width: FLIP_LEN - 8 }]} />
       </View>
       <View pointerEvents="none" style={{ position: "absolute", left: PIVOT_RX, top: PIVOT_Y, transform: [{ rotate: `${rf.angle * 180 / Math.PI}deg` }] }}>
-        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: color.cyan }]} />
+        <View style={[st.flip, { left: 0, top: -FLIP_HALF, width: FLIP_LEN, height: FLIP_HALF * 2, backgroundColor: "#9B6DD6" }]} />
         <View style={[st.flipHi, { width: FLIP_LEN - 8 }]} />
       </View>
       {[{ x: PIVOT_LX }, { x: PIVOT_RX }].map((pv, i) => (
-        <View key={`piv${i}`} pointerEvents="none" style={{ position: "absolute", left: pv.x - 7, top: PIVOT_Y - 7, width: 14, height: 14, borderRadius: 7, backgroundColor: color.surface2, borderWidth: 2, borderColor: color.cyan }} />
+        <View key={`piv${i}`} pointerEvents="none" style={{ position: "absolute", left: pv.x - 7, top: PIVOT_Y - 7, width: 14, height: 14, borderRadius: 7, backgroundColor: color.surface2, borderWidth: 2, borderColor: "#C9A24B" }} />
       ))}
 
       {/* balls (live + the one waiting in the lane) */}

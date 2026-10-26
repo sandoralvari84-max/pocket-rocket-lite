@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -45,6 +45,10 @@ export default function Sleep({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Log how many hours you sleep each night and see your average over the last 7 nights. Everything stays on your phone.")}
+          setup={L("Set the hours with − and +, then tap Last night (or Night before) to save. Logging the same night again just updates it.")}
+        />
         <View style={st.card}>
           <Text style={st.avgBig}>{avg ? avg.toFixed(1) : "—"}<Text style={st.avgUnit}> h {L("avg")}</Text></Text>
           <Text style={st.avgSub}>{L("over the last")} {recent.length} {L("nights")}</Text>

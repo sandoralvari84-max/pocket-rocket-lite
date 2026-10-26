@@ -1,12 +1,37 @@
 import React from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, Image, ImageSourcePropType } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
-import { PixelText, Body } from "../design/ui";
+import { color, space, radius, type as T } from "../design/tokens";
+import { PixelText, Body, ScreenHeader } from "../design/ui";
+
+const TOOLS_ICON = require("../../assets/ui/nav/tools.png");
+
+// Monochrome line icons (tools/art/gen_tool_icons.py), tinted by section accent.
+const TOOL_ICON: Partial<Record<FeatureRoute, ImageSourcePropType>> = {
+  notes: require("../../assets/ui/tools/notes.png"),
+  memory: require("../../assets/ui/tools/memory.png"),
+  experts: require("../../assets/ui/tools/experts.png"),
+  notifs: require("../../assets/ui/tools/notifs.png"),
+  diet: require("../../assets/ui/tools/diet.png"),
+  fitness: require("../../assets/ui/tools/fitness.png"),
+  water: require("../../assets/ui/tools/water.png"),
+  sleep: require("../../assets/ui/tools/sleep.png"),
+  measure: require("../../assets/ui/tools/measure.png"),
+  budget: require("../../assets/ui/tools/budget.png"),
+  grocery: require("../../assets/ui/tools/grocery.png"),
+  meals: require("../../assets/ui/tools/meals.png"),
+  recipes: require("../../assets/ui/tools/recipes.png"),
+  calendar: require("../../assets/ui/tools/calendar.png"),
+  habits: require("../../assets/ui/tools/habits.png"),
+  timer: require("../../assets/ui/tools/timer.png"),
+  convert: require("../../assets/ui/tools/convert.png"),
+  travel: require("../../assets/ui/tools/travel.png"),
+  translate: require("../../assets/ui/tools/translate.png"),
+};
 import { L, useLang } from "../i18n";
 
 export type FeatureRoute = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel";
+  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel" | "translate";
 
 type Feat = { route: FeatureRoute; glyph: string; title: string };
 type Section = { label: string; accent: "amber" | "cyan"; items: Feat[] };
@@ -18,6 +43,7 @@ const SECTIONS: Section[] = [
     { route: "memory", glyph: "🧠", title: "Memory" },
     { route: "experts", glyph: "📚", title: "Experts" },
     { route: "notifs", glyph: "🔔", title: "Reader" },
+    { route: "translate", glyph: "🌐", title: "Translate" },
   ] },
   { label: "Health & body", accent: "amber", items: [
     { route: "diet", glyph: "🥗", title: "Diet" },
@@ -61,14 +87,19 @@ function SectionHeader({ label, accent }: { label: string; accent: string }) {
   );
 }
 
-function Tile({ glyph, title, accent, bg, onPress }: { glyph: string; title: string; accent: string; bg: string; onPress: () => void }) {
+function Tile({ glyph, icon, title, accent, bg, onPress }: { glyph?: string; icon?: ImageSourcePropType; title: string; accent: string; bg: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
       style={({ pressed }) => [st.tile, pressed && { borderColor: accent, backgroundColor: color.surface2 }]}>
-      <View style={[st.iconBox, { backgroundColor: bg, borderColor: accent }]}>
-        <Text style={[st.glyph, { color: accent }]}>{glyph}</Text>
+      <View style={[st.iconBox, { borderColor: accent }]}>
+        {icon ? (
+          <Image source={icon} style={[st.iconImg, { tintColor: accent }]} resizeMode="contain" />
+        ) : (
+          <Text style={[st.glyph, { color: accent }]}>{glyph}</Text>
+        )}
+        <View style={[st.tileLed, { backgroundColor: accent }]} pointerEvents="none" />
       </View>
-      <Text style={st.title} numberOfLines={2}>{L(title)}</Text>
+      <Text style={st.title} numberOfLines={1}>{L(title)}</Text>
     </Pressable>
   );
 }
@@ -78,10 +109,7 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
   useLang();
   return (
     <ScrollView contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]} showsVerticalScrollIndicator={false}>
-      <View style={st.head}>
-        <PixelText size="title" style={{ color: color.amber }}>{L("TOOLS")}</PixelText>
-        <Body muted style={{ marginTop: space.xs }}>{L("Your on-device toolkit — everything here runs offline, nothing leaves the phone.")}</Body>
-      </View>
+      <ScreenHeader icon={TOOLS_ICON} title={L("Tools")} subtitle={L("on-device toolkit · offline")} />
 
       {SECTIONS.map((sec) => {
         const accent = sec.accent === "amber" ? color.amber : color.cyan;
@@ -91,7 +119,7 @@ export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => vo
             <SectionHeader label={sec.label} accent={accent} />
             <View style={st.grid}>
               {sec.items.map((f) => (
-                <Tile key={f.route} glyph={f.glyph} title={f.title} accent={accent} bg={bg} onPress={() => onOpen(f.route)} />
+                <Tile key={f.route} icon={TOOL_ICON[f.route]} glyph={f.glyph} title={f.title} accent={accent} bg={bg} onPress={() => onOpen(f.route)} />
               ))}
             </View>
           </View>
@@ -117,14 +145,16 @@ const st = StyleSheet.create({
   secRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: space.sm },
   secTick: { width: 14, height: 4, borderRadius: 2 },
   secRule: { flex: 1, height: 1, backgroundColor: color.surfaceLine },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  // Cabinet grid — same style as the Arcade games (dark glyph well on top, title below).
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: space.md },
   tile: {
-    flexGrow: 1, flexBasis: "45%", minWidth: 150,
-    flexDirection: "row", alignItems: "center", gap: space.sm,
+    width: "48%",
     backgroundColor: color.surface, borderRadius: radius.lg,
     borderWidth: 1, borderColor: color.surfaceLine, padding: space.sm,
   },
-  iconBox: { width: 42, height: 42, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  glyph: { fontSize: 20, fontWeight: "900" },
-  title: { flex: 1, color: color.text, fontSize: 14, fontWeight: "700" },
+  iconBox: { width: "100%", height: 64, borderRadius: radius.md, borderWidth: 2, alignItems: "center", justifyContent: "center", overflow: "hidden", marginBottom: space.sm, backgroundColor: "#0A0E13" },
+  iconImg: { width: 34, height: 34 },
+  glyph: { fontSize: 28, fontWeight: "900" },
+  tileLed: { position: "absolute", right: 6, bottom: 6, width: 5, height: 5, borderRadius: 3, opacity: 0.9 },
+  title: { ...T.h2, fontSize: 14 },
 });

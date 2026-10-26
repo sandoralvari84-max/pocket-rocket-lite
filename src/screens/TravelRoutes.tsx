@@ -5,7 +5,7 @@ import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -53,6 +53,10 @@ export default function TravelRoutes({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Save trips you make often and open them in Google Maps directions with one tap, in your chosen travel mode. Routes are stored on-device.")}
+          setup={L("Enter a destination (and optionally a start point and a name), pick a mode, then tap Save route. Tap Go to launch it in Maps.")}
+        />
         <View style={st.card}>
           <Input value={label} onChangeText={setLabel} placeholder={L("Name (e.g. To work)")} placeholderTextColor={color.textFaint} style={st.input} />
           <Input value={from} onChangeText={setFrom} placeholder={L("From (blank = my location)")} placeholderTextColor={color.textFaint} style={[st.input, { marginTop: space.sm }]} />

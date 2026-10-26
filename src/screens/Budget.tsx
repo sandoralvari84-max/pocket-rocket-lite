@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -62,6 +62,10 @@ export default function Budget({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Tracks your income and expenses for the month, with a running balance and a breakdown of spending by category. Every total is plain math, in euros.")}
+          setup={L("Choose Expense or Income, enter an amount, pick a category, then tap Add.")}
+        />
         {/* Month summary */}
         <View style={st.card}>
           <Text style={st.monthLabel}>{L("THIS MONTH")}</Text>

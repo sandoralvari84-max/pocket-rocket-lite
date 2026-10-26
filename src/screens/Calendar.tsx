@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Body, Input, Button, IconButton } from "../design/ui";
+import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
 
@@ -85,6 +85,10 @@ export default function Calendar({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Keep a simple agenda of upcoming events, grouped into Today, Tomorrow, This week and Later. Runs fully on-device.")}
+          setup={L("Type an event above, set a date with the arrows or quick buttons, add a time if you like, then tap Add. Reminder notifications come in a later update.")}
+        />
         {upcoming.length === 0 ? (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>{L("No upcoming events.")}</Body>
         ) : groups.map((g) => (

@@ -3,9 +3,13 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { useFonts, PressStart2P_400Regular } from "@expo-google-fonts/press-start-2p";
+import { VT323_400Regular } from "@expo-google-fonts/vt323";
+import { JetBrainsMono_400Regular, JetBrainsMono_700Bold } from "@expo-google-fonts/jetbrains-mono";
+import { ChakraPetch_400Regular, ChakraPetch_500Medium, ChakraPetch_700Bold } from "@expo-google-fonts/chakra-petch";
 import { DISCLAIMER } from "./src/preset";
-import { modelExists, downloadModel, importModel, loadModel } from "./src/model";
+import { modelExists, downloadModel, importModel, loadModel, activeProfile } from "./src/model";
 import Home from "./src/Home";
+import { ErrorBoundary } from "./src/ErrorBoundary";
 import { color, space, radius, type as T } from "./src/design/tokens";
 import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar, Sprite } from "./src/design/ui";
 import { appMeta } from "./src/appMeta";
@@ -17,8 +21,11 @@ const EMBLEM = require("./assets/brand/emblem.png");
 type Phase = "onboard" | "need-model" | "downloading" | "loading" | "ready" | "ready-no-model" | "error";
 
 export default function App() {
-  const [fontsLoaded] = useFonts({ PressStart2P_400Regular });
-  const [phase, setPhase] = useState<Phase>("onboard");
+  const [fontsLoaded] = useFonts({ PressStart2P_400Regular, VT323_400Regular, JetBrainsMono_400Regular, JetBrainsMono_700Bold, ChakraPetch_400Regular, ChakraPetch_500Medium, ChakraPetch_700Bold });
+  // TEMP design-iteration switch — boots straight to Home (no onboarding/model gate).
+  // MUST be false for shipping builds.
+  const DEV_HOME = false;
+  const [phase, setPhase] = useState<Phase>(DEV_HOME ? "ready-no-model" : "onboard");
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState("");
 
@@ -58,9 +65,11 @@ export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style="light" />
-      {ready ? <Home onModelSetup={() => setPhase("need-model")} /> : <SetupGate
-        phase={phase} progress={progress} err={err}
-        onContinue={begin} onContinueOffline={continueOffline} onImport={importFromFile} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
+      <ErrorBoundary>
+        {ready ? <Home onModelSetup={() => setPhase("need-model")} /> : <SetupGate
+          phase={phase} progress={progress} err={err}
+          onContinue={begin} onContinueOffline={continueOffline} onImport={importFromFile} onGetModel={getModel} fontsLoaded={fontsLoaded} />}
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
@@ -98,14 +107,14 @@ function SetupGate({ phase, progress, err, onContinue, onContinueOffline, onImpo
               <Sprite source={EMBLEM} size={72} />
               <PixelText size="h2" style={{ color: color.amber, textAlign: "center" }}>{L("CHOOSE A START")}</PixelText>
               <Body muted style={{ textAlign: "center" }}>
-                {L("Add the on-device AI once (~1 GB) — or jump straight into the games and add it later.")}
+                {L("Add the on-device AI once") + " (~" + (activeProfile().bytes / 1e9).toFixed(1) + " GB · " + activeProfile().label + ") — " + L("or jump straight into the games and add it later.")}
               </Body>
             </View>
             <View style={{ gap: space.md }}>
               <SetupOption glyph="📁" tint={color.amber} title={L("Import model file")}
                 sub={L("Pick the qwen…q4_k_m.gguf shared to your phone.")} onPress={onImport} />
               <SetupOption glyph="⬇" tint={color.cyan} title={L("Download over Wi-Fi")}
-                sub={L("About 1 GB, once — then fully offline forever.")} onPress={onGetModel} />
+                sub={"~" + (activeProfile().bytes / 1e9).toFixed(1) + " GB over Wi-Fi, once — then offline forever."} onPress={onGetModel} />
               <SetupOption glyph="▶" tint={color.textMuted} title={L("Continue without AI")}
                 sub={L("Play games & tools now; add the AI later in Settings.")} onPress={onContinueOffline} />
             </View>

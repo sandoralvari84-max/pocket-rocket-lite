@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
-import { PixelText, Input, IconButton } from "../design/ui";
+import { PixelText, Input, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 
 // factors are "how many base units in 1 of this unit" (base: m / kg / L).
@@ -73,6 +73,10 @@ export default function Converter({ onBack }: { onBack: () => void }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ToolIntro
+          what={L("Convert between units of length, weight, volume and temperature using exact factors. All the math runs offline on your phone.")}
+          setup={L("Choose a category, type a value, and pick the From and To units. Tap ⇅ to swap them.")}
+        />
         <View style={st.tabs}>
           {CAT_KEYS.map((c) => (
             <Pressable key={c} onPress={() => switchCat(c)} style={[st.tab, cat === c && st.tabOn]}>
