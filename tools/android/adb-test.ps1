@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $ADB = 'D:\android\platform-tools\adb.exe'
-$PKG = 'com.asandor.skepticlite'   # android.package (unchanged); NOT the brand name
+$PKG = 'com.asandor.pocketrocketlite'   # android.package (unchanged); NOT the brand name
 $root  = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $shots = Join-Path $root 'artifacts\screenshots'
 $logs  = Join-Path $root 'artifacts\logs'

@@ -1,5 +1,5 @@
 // Single source of truth for the user-facing app identity.
-// NOTE: the EAS slug ("skeptic-lite") is an internal build id and stays as-is;
+// NOTE: the EAS slug ("pocket-rocket-lite") is an internal build id;
 // this is the brand shown to users. Keep `version` in sync with app.json.
 // Bump `build` on every shared build so testers can confirm which one they have.
 export const appMeta = {

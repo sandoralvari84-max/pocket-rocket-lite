@@ -50,3 +50,4 @@ android/keystore.properties
 .keystore-env
 assets/model/
 *.gguf
+__pycache__/
