@@ -142,7 +142,19 @@ def settings():
     return finish(im)
 
 
-ICONS = {"chat": chat, "games": games, "tools": tools, "settings": settings}
+def library():
+    im, d = canvas(); glow(im, C, C, 130, AMBER, 38)
+    # a stack of three slabs (books / saved material) in the console grammar
+    rr_grad(im, [86, 224, 300, 292], 16, STEEL_HI, STEEL_DK)       # bottom book
+    rr_grad(im, [96, 168, 290, 232], 16, AMBER_HI, AMBER_DK)       # middle book (amber)
+    rr_grad(im, [110, 110, 276, 176], 16, CYAN_HI, CYAN_DK)        # top book (cyan)
+    gloss(im, [110, 110, 276, 176])
+    for x in (126, 158, 190, 222):                                 # spine ticks
+        d.line([(x, 182), (x, 226)], fill=(90, 50, 8, 210), width=5)
+    return finish(im)
+
+
+ICONS = {"chat": chat, "games": games, "tools": tools, "library": library, "settings": settings}
 
 
 def main():

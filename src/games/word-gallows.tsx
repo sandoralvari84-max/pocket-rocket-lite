@@ -32,10 +32,17 @@ const GALLOWS_STAGES = [
   require("../../assets/arcade/gallows/stage6.png"),
 ];
 const WIN_SPRITE = require("../../assets/arcade/gallows/win.png");
+// Two pencil run-frames (gen_gallows_notebook.py:win_run) alternated to animate
+// the freed stickman bolting off the page on a win.
+const WIN_RUN = [
+  require("../../assets/arcade/gallows/win_run1.png"),
+  require("../../assets/arcade/gallows/win_run2.png"),
+];
 
 // Hi-res gallows art (600x720, 5:6). Shown at ~34% height so it stays crisp.
 const SPRITE_H = Math.round(Dimensions.get("window").height * 0.34);
 const SPRITE_W = Math.round((SPRITE_H * 5) / 6);
+const SCREEN_W = Dimensions.get("window").width;
 
 interface Secret {
   word: string;
@@ -104,6 +111,10 @@ function Screen({ onExit }: GameContext) {
   const [guessed, setGuessed] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [solved, setSolved] = useState(0);
+  // Holds the win/lose overlay back until the sprite's outcome animation (run-away
+  // / dangle) has played, so the opaque GameOverlay scrim doesn't hide it. Pure
+  // presentation — the game result itself (won/lost/scoring) is decided above.
+  const [overlayReady, setOverlayReady] = useState(false);
   const mounted = useRef(true);
   const scored = useRef(false);
 
@@ -118,8 +129,13 @@ function Screen({ onExit }: GameContext) {
   const newGame = useCallback((): void => {
     setGuessed([]);
     scored.current = false;
+    setOverlayReady(false);
     setSecret(randomFallback());
     setLoading(false);
+  }, []);
+
+  const handleOutcomeDone = useCallback((): void => {
+    if (mounted.current) setOverlayReady(true);
   }, []);
 
   useEffect(() => { newGame(); }, [newGame]);
@@ -164,7 +180,7 @@ function Screen({ onExit }: GameContext) {
         </View>
       ) : (
         <View style={st.body}>
-          <Hangman wrong={wrongCount} won={won} lost={lost} />
+          <Hangman wrong={wrongCount} won={won} lost={lost} onOutcomeDone={handleOutcomeDone} />
 
           <View style={st.catPill}>
             <PixelText size="label" style={{ color: INK }}>CATEGORY</PixelText>
@@ -215,7 +231,7 @@ function Screen({ onExit }: GameContext) {
       )}
 
       <GameOverlay
-        visible={over && !loading}
+        visible={over && !loading && overlayReady}
         kind={won ? "win" : "over"}
         title={won ? "YOU GOT IT!" : "GAME OVER"}
         score={won ? secret?.word : `WORD: ${secret?.word ?? ""}`}
@@ -230,36 +246,111 @@ function Screen({ onExit }: GameContext) {
 /* ------------------------------------------------------------------ *
  * "Getting worse" indicator — the visual signature of this genre.
  *
- * An owned cartoon HANGMAN sprite: stage0 is the empty amber gallows,
- * and each wrong guess adds one body part (stage1..stage6). The sprite
- * shown is stageN where N = min(wrongCount, 6). A win shows the escaped
- * stickman (win.png); a loss shows the fully-hanged figure (stage6).
- * Honours reduced-motion: no bounce/drop, just the still sprite.
+ * An owned cartoon HANGMAN sprite: stage0 is the empty gallows, and each
+ * wrong guess adds one body part (stage1..stage6). The sprite shown is
+ * stageN where N = min(wrongCount, 6).
+ *
+ * Outcome animations (all honour settings.reducedMotion — when reduced,
+ * just the still win/loss sprite, no motion):
+ *  - WIN:  the freed stickman RUNS off the page. Two pencil run-frames
+ *    (win_run1/2) alternate while the sprite slides off the right edge
+ *    with a little run-bob + forward lean, leaving the page clear.
+ *  - LOSE: the hanged stickman (stage6) DANGLES — a gentle pendulum sway
+ *    pivoting from the noose, amplitude easing out to rest over ~2s.
+ * onOutcomeDone() fires once the beat finishes so the caller can reveal
+ * the result overlay (whose opaque scrim would otherwise hide the motion).
  * ------------------------------------------------------------------ */
-function Hangman({ wrong, won, lost }: { wrong: number; won: boolean; lost: boolean }): React.ReactElement {
+const SWING_PIVOT = Math.round(SPRITE_H * 0.36); // noose/beam: above the figure's centre
+
+function Hangman({ wrong, won, lost, onOutcomeDone }: {
+  wrong: number; won: boolean; lost: boolean; onOutcomeDone: () => void;
+}): React.ReactElement {
   const { reducedMotion } = useSettings();
-  const shift = useRef(new Animated.Value(0)).current;
+  const runX = useRef(new Animated.Value(0)).current;   // WIN: slide off-screen
+  const gait = useRef(new Animated.Value(0)).current;   // WIN: run-bob + lean loop
+  const swing = useRef(new Animated.Value(0)).current;  // LOSE: pendulum, [-1..1]
+
+  const [runFrame, setRunFrame] = useState(0);          // alternating run-frame index
+  const [ranOff, setRanOff] = useState(false);          // WIN done -> page is clear
+  const doneRef = useRef(false);                         // fire onOutcomeDone once/round
 
   const stage = Math.min(wrong, MAX_WRONG);
-  const source = won ? WIN_SPRITE : lost ? GALLOWS_STAGES[MAX_WRONG] : GALLOWS_STAGES[stage];
+  const inPlay = !won && !lost;
 
-  // Light win/lose beat only; the sprite is fully legible with no motion.
   useEffect(() => {
+    doneRef.current = false;
+    let frameTimer: ReturnType<typeof setInterval> | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    let gaitLoop: Animated.CompositeAnimation | undefined;
+
+    const finish = (): void => {
+      if (doneRef.current) return;
+      doneRef.current = true;
+      onOutcomeDone();
+    };
+
+    // Fresh round: reset every animated value and run-state.
+    runX.setValue(0); gait.setValue(0); swing.setValue(0);
+    setRunFrame(0); setRanOff(false);
+
+    if (inPlay) return; // round still live — nothing to animate
+
     if (reducedMotion) {
-      shift.setValue(0);
-      return;
+      // No motion: hold on the static win/loss sprite, then reveal the overlay.
+      settle = setTimeout(finish, 450);
+      return () => { if (settle) clearTimeout(settle); };
     }
+
     if (won) {
-      Animated.sequence([
-        Animated.timing(shift, { toValue: -18, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.spring(shift, { toValue: 0, friction: 4, tension: 120, useNativeDriver: true }),
-      ]).start();
-    } else if (lost) {
-      Animated.timing(shift, { toValue: 12, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }).start();
-    } else {
-      shift.setValue(0);
+      frameTimer = setInterval(() => setRunFrame((f) => (f === 0 ? 1 : 0)), 110);
+      gaitLoop = Animated.loop(
+        Animated.timing(gait, { toValue: 1, duration: 230, easing: Easing.linear, useNativeDriver: true }),
+      );
+      gaitLoop.start();
+      Animated.timing(runX, {
+        toValue: SCREEN_W * 0.9,
+        duration: 1050,
+        easing: Easing.in(Easing.quad), // accelerate as he bolts
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (frameTimer) clearInterval(frameTimer);
+        gaitLoop?.stop();
+        if (finished) setRanOff(true); // off the page -> stickman is gone
+        finish();
+      });
+      return () => { if (frameTimer) clearInterval(frameTimer); gaitLoop?.stop(); };
     }
-  }, [won, lost, reducedMotion, shift]);
+
+    // lost: gentle pendulum dangle from the noose, amplitude decaying to rest.
+    Animated.sequence([
+      Animated.timing(swing, { toValue: 1,     duration: 300, easing: Easing.out(Easing.quad),  useNativeDriver: true }),
+      Animated.timing(swing, { toValue: -0.62, duration: 520, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: 0.38,  duration: 470, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: -0.2,  duration: 430, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: 0.08,  duration: 380, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(swing, { toValue: 0,     duration: 340, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]).start(() => finish());
+    return;
+  }, [won, lost, inPlay, reducedMotion, runX, gait, swing, onOutcomeDone]);
+
+  // Derived transforms for each beat.
+  const bob = gait.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -9, 0] });
+  const lean = gait.interpolate({ inputRange: [0, 0.5, 1], outputRange: ["5deg", "9deg", "5deg"] });
+  const swingDeg = swing.interpolate({ inputRange: [-1, 1], outputRange: ["-7deg", "7deg"] });
+
+  const source = won
+    ? (reducedMotion ? WIN_SPRITE : WIN_RUN[runFrame])
+    : lost ? GALLOWS_STAGES[MAX_WRONG] : GALLOWS_STAGES[stage];
+
+  // RN transform entries mix Animated values and rotate strings; the precise
+  // union is unwieldy, so this presentation-only array is loosely typed.
+  let transform: any[] = [];
+  if (won && !reducedMotion) {
+    transform = [{ translateX: runX }, { translateY: bob }, { rotate: lean }];
+  } else if (lost && !reducedMotion) {
+    // Rotate about the noose (top of the sprite), not its centre.
+    transform = [{ translateY: -SWING_PIVOT }, { rotate: swingDeg }, { translateY: SWING_PIVOT }];
+  }
 
   const label = won
     ? "You escaped the gallows!"
@@ -268,13 +359,13 @@ function Hangman({ wrong, won, lost }: { wrong: number; won: boolean; lost: bool
     : `Hangman: ${wrong} of ${MAX_WRONG} wrong guesses.`;
 
   return (
-    <Animated.View
-      style={[st.hangWrap, { transform: [{ translateY: shift }] }]}
-      accessible
-      accessibilityLabel={label}
-    >
-      <Image source={source} style={st.sprite} resizeMode="contain" fadeDuration={0} />
-    </Animated.View>
+    <View style={st.hangWrap} accessible accessibilityLabel={label}>
+      {won && ranOff ? (
+        <View style={st.sprite} /> // runner has left the page — kept clear
+      ) : (
+        <Animated.Image source={source} style={[st.sprite, { transform }]} resizeMode="contain" fadeDuration={0} />
+      )}
+    </View>
   );
 }
 

@@ -2,6 +2,8 @@
 // Brief §A: deep charcoal/navy base, amber-orange primary, cyan secondary.
 // Every screen and component reads from here. No one-off colors in screens.
 
+import { Easing } from "react-native";
+
 export const color = {
   // base / surfaces
   bg: "#0B0F14",          // app background (deep charcoal-navy)
@@ -86,6 +88,41 @@ export const consoleUI = {
 } as const;
 
 // Motion tokens — deliberate, restrained (honor reduced motion at call sites).
+// Semantic durations from CRT_CONSOLE_DESIGN.md nav-motion brief (ms); tune on-device.
 export const motion = {
   fast: 120, base: 200, slow: 320,
+  press: 130,      // tactile key / button feedback (brief 100–160)
+  nav: 240,        // standard destination change (200–280)
+  immersive: 400,  // entering an immersive display e.g. Arcade (300–450)
+  back: 260,       // returning from immersive (200–300)
+} as const;
+
+// Shared easing curves — restrained ease-out entering, ease-in leaving (no bounce/spring).
+export const ease = {
+  out: Easing.bezier(0.16, 0.84, 0.3, 1),
+  in: Easing.bezier(0.5, 0, 0.84, 0.3),
+  inOut: Easing.inOut(Easing.cubic),
+} as const;
+
+// CRT display treatment — kept LOW intensity (brief: must not reduce contrast or block touch).
+export const crt = {
+  scanlineOpacity: 0.06,         // fine scanline overlay
+  bezelRadius: radius.lg,
+  vignette: "rgba(0,0,0,0.45)",  // inner edge darkening
+  phosphorHi: "rgba(255,255,255,0.06)", // top gloss highlight
+} as const;
+
+// Colored glow presets — New Arch (RN 0.81) boxShadow. Applied via style={{ boxShadow: glow.x }}.
+export const glow = {
+  amber: "0 0 16px rgba(255,152,0,0.35)",
+  amberSoft: "0 0 12px rgba(255,152,0,0.16)",
+  cyan: "0 0 16px rgba(0,229,255,0.35)",
+  cyanSoft: "0 0 12px rgba(0,229,255,0.16)",
+} as const;
+
+// Interactive control states (pressed / focused / disabled). Reused across buttons & nav keys.
+export const state = {
+  pressedOpacity: 0.72,
+  disabledOpacity: 0.4,
+  focusRingWidth: 2,
 } as const;

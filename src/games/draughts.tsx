@@ -298,7 +298,13 @@ function Screen({ ask, onExit }: GameContext) {
       </View>
       <Body style={st.msg}>{msg}</Body>
 
+      {/* table surface behind the board */}
+      <View pointerEvents="none" style={st.felt} />
+
       <View style={st.boardWrap}>
+        {/* gentle mock-3D tilt; slab gives the board a thick edge */}
+        <View style={st.boardTilt}>
+        <View style={st.slab}>
         <View style={[st.board, { width: BOARD, height: BOARD }]}>
           {board.map((row, r) =>
             row.map((v, c) => {
@@ -324,7 +330,12 @@ function Screen({ ask, onExit }: GameContext) {
           )}
           <EffectsLayer ref={fx} reduced={reducedMotion} />
         </View>
+        </View>
+        </View>
       </View>
+
+      {/* subtle vignette for depth (never blocks taps) */}
+      <View pointerEvents="none" style={st.vignette} />
 
       <GameOverlay
         visible={phase === "ready"}
@@ -366,10 +377,16 @@ function hasCapture(b: Board, side: 1 | 2): boolean {
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
+  fill: { flex: 1, backgroundColor: "#0A1018" },
+  felt: { position: "absolute", left: 0, right: 0, top: "28%", bottom: 0, backgroundColor: "#15321F", opacity: 0.5 },
+  vignette: { ...StyleSheet.absoluteFillObject, boxShadow: "inset 0 0 130px 26px rgba(0,0,0,0.5)" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   msg: { color: color.text, textAlign: "center", paddingHorizontal: space.lg, marginBottom: space.sm, minHeight: 40 },
   boardWrap: { alignItems: "center" },
+  // mock-3D: gentle tilt + the board's drop shadow on the table
+  boardTilt: { transform: [{ perspective: 900 }, { rotateX: "15deg" }], boxShadow: "0 24px 32px rgba(0,0,0,0.6)" },
+  // slab = the board's wooden thickness (darker rim, deeper front lip)
+  slab: { backgroundColor: "#2A1A0E", borderRadius: radius.md + 3, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 15, borderWidth: 1, borderColor: "#3C2A1A" },
   board: { position: "relative", borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: color.surfaceLine },
   sq: { position: "absolute", alignItems: "center", justifyContent: "center" },
   sqImg: { position: "absolute", left: 0, top: 0 },

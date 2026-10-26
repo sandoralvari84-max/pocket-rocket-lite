@@ -22,7 +22,10 @@ type Pair = { de: string; es: string };
 const TR: Record<string, Pair> = {
   // ---- nav / shell ----
   "Chat": { de: "Chat", es: "Chat" },
+  "Buddy": { de: "Buddy", es: "Buddy" },
   "Games": { de: "Spiele", es: "Juegos" },
+  "Arcade": { de: "Arcade", es: "Arcade" },
+  "Library": { de: "Bibliothek", es: "Biblioteca" },
   "Tools": { de: "Werkzeuge", es: "Herramientas" },
   "Settings": { de: "Einstellungen", es: "Ajustes" },
   "ARCADE": { de: "ARCADE", es: "ARCADE" },

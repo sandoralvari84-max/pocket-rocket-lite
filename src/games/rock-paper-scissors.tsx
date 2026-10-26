@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, StyleSheet, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
 import { color, space, radius, type as T } from "../design/tokens";
 import { PixelText, Body, IconButton, Sprite } from "../design/ui";
+import { useSettings } from "../settings";
 
 type Hand = "rock" | "paper" | "scissors";
 const HANDS: readonly Hand[] = ["rock", "paper", "scissors"];
@@ -33,12 +34,28 @@ function resolve(player: Hand, model: Hand): Outcome {
   return BEATS[player] === model ? "win" : "lose";
 }
 
-function DuelCard({ label, accent, hand, pending }: { label: string; accent: string; hand: Hand | null; pending: boolean }) {
+function DuelCard({ label, accent, hand, shaking, bob, scale }: {
+  label: string; accent: string; hand: Hand | null; shaking: boolean;
+  bob: Animated.AnimatedInterpolation<number> | number; scale: Animated.Value | number;
+}) {
   return (
     <View style={[st.duel, { borderColor: accent }]}>
       <PixelText size="label" style={{ color: accent }}>{label}</PixelText>
       <View style={st.well}>
-        {hand ? <Sprite source={HAND_IMG[hand]} size={84} /> : <Text style={[st.qmark, pending && { color: accent }]}>?</Text>}
+        {/* soft contact shadow on the surface under the hand */}
+        <View pointerEvents="none" style={st.handShadow} />
+        {shaking ? (
+          // during the countdown both players pump a fist, then reveal
+          <Animated.View style={{ transform: [{ translateY: bob }] }}>
+            <Sprite source={HAND_IMG.rock} size={84} />
+          </Animated.View>
+        ) : hand ? (
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <Sprite source={HAND_IMG[hand]} size={84} />
+          </Animated.View>
+        ) : (
+          <Text style={st.qmark}>?</Text>
+        )}
       </View>
     </View>
   );
@@ -46,6 +63,7 @@ function DuelCard({ label, accent, hand, pending }: { label: string; accent: str
 
 function Screen({ ask, onExit }: GameContext) {
   const insets = useSafeAreaInsets();
+  const { reducedMotion } = useSettings();
   const [wins, setWins] = useState(0);
   const [losses, setLosses] = useState(0);
   const [ties, setTies] = useState(0);
@@ -56,6 +74,13 @@ function Screen({ ask, onExit }: GameContext) {
   const [taunt, setTaunt] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Decoration only — the shake + reveal never touch the deterministic resolve().
+  const shake = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(1)).current;
+  const shakeLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const bob = shake.interpolate({ inputRange: [-1, 1], outputRange: [-9, 9] });
+  useEffect(() => () => { shakeLoop.current?.stop(); }, []);
+
   const play = async (hand: Hand): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -64,6 +89,17 @@ function Screen({ ask, onExit }: GameContext) {
     setOutcome(null);
     setResult("Opponent throwing…");
     setTaunt("");
+
+    // start the fist-pump shake while we wait for the throw
+    if (!reducedMotion) {
+      shake.setValue(0);
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(shake, { toValue: 1, duration: 110, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(shake, { toValue: -1, duration: 110, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]));
+      shakeLoop.current = loop;
+      loop.start();
+    }
 
     let mHand = randomHand();
     try {
@@ -77,6 +113,17 @@ function Screen({ ask, onExit }: GameContext) {
       const t = reply.replace(/rock|paper|scissors/gi, "").replace(/[^\p{L}\p{N}\s!?'.,-]/gu, "").trim().slice(0, 80);
       if (t) setTaunt(t);
     } catch { /* keep random throw */ }
+
+    // stop the shake and pop the revealed hands in
+    shakeLoop.current?.stop();
+    shakeLoop.current = null;
+    shake.setValue(0);
+    if (!reducedMotion) {
+      pop.setValue(0.62);
+      Animated.timing(pop, { toValue: 1, duration: 170, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    } else {
+      pop.setValue(1);
+    }
 
     setModelHand(mHand);
     const o = resolve(hand, mHand);
@@ -104,11 +151,14 @@ function Screen({ ask, onExit }: GameContext) {
           <Score label="TIED" value={ties} tint={color.textMuted} />
         </View>
 
-        {/* duel */}
-        <View style={st.arena}>
-          <DuelCard label="YOU" accent={color.amber} hand={playerHand} pending={false} />
-          <View style={st.vsWrap}><PixelText size="label" style={st.vs}>VS</PixelText></View>
-          <DuelCard label="MACHINE" accent={color.cyan} hand={modelHand} pending={busy} />
+        {/* duel — hands on a tilted surface */}
+        <View style={st.stage}>
+          <View pointerEvents="none" style={st.platform} />
+          <View style={st.arena}>
+            <DuelCard label="YOU" accent={color.amber} hand={playerHand} shaking={busy} bob={bob} scale={pop} />
+            <View style={st.vsWrap}><PixelText size="label" style={st.vs}>VS</PixelText></View>
+            <DuelCard label="MACHINE" accent={color.cyan} hand={modelHand} shaking={busy} bob={bob} scale={pop} />
+          </View>
         </View>
 
         <PixelText size="label" style={[st.result, { color: resultColor }]}>{result}</PixelText>
@@ -131,6 +181,9 @@ function Screen({ ask, onExit }: GameContext) {
           ))}
         </View>
       </View>
+
+      {/* subtle vignette for depth (never blocks taps) */}
+      <View pointerEvents="none" style={st.vignette} />
     </View>
   );
 }
@@ -146,17 +199,28 @@ function Score({ label, value, tint }: { label: string; value: number; tint: str
 
 const st = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
+  vignette: { ...StyleSheet.absoluteFillObject, boxShadow: "inset 0 0 130px 26px rgba(0,0,0,0.5)" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg, paddingHorizontal: space.lg },
   scoreRow: { flexDirection: "row", gap: space.xl },
   scoreBox: { alignItems: "center" },
 
+  // the hands stand on a gently-tilted surface
+  stage: { alignItems: "center", justifyContent: "center", paddingVertical: space.sm },
+  platform: {
+    position: "absolute", left: -8, right: -8, top: 22, bottom: 14,
+    backgroundColor: color.surface2, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: color.surfaceLine,
+    transform: [{ perspective: 900 }, { rotateX: "18deg" }],
+    boxShadow: "0 18px 26px rgba(0,0,0,0.5)",
+  },
   arena: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.md },
   duel: {
     width: 128, height: 150, borderRadius: radius.lg, borderWidth: 2,
     backgroundColor: color.surface, alignItems: "center", paddingTop: space.md, gap: space.sm,
   },
   well: { flex: 1, alignItems: "center", justifyContent: "center" },
+  handShadow: { position: "absolute", bottom: 10, width: 64, height: 12, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.35)", boxShadow: "0 2px 9px 3px rgba(0,0,0,0.4)" },
   qmark: { fontSize: 56, fontWeight: "900", color: color.textFaint },
   vsWrap: { width: 40, alignItems: "center" },
   vs: { color: color.textMuted },

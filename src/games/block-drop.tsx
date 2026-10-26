@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { View, Text, Pressable, StyleSheet, Dimensions, Animated, ImageBackground } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { GameModule, GameContext } from "./contract";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, consoleUI, crt, glow } from "../design/tokens";
 import { PixelText, IconButton, GameOverlay } from "../design/ui";
 import { ScoreboardOverlay } from "../design/Scoreboard";
 import { EffectsLayer, type EffectsHandle } from "../design/effects";
 import { useSettings } from "../settings";
+
+const SCANLINES = require("../../assets/crt/scanlines.png");
 
 const { width: W, height: H } = Dimensions.get("window");
 const COLS = 10;
@@ -89,21 +91,82 @@ function pieceFrom(id: number): Piece {
 }
 
 // ---- cell renderers -------------------------------------------------------
+// Glossy arcade cell: bevelled rim + a top phosphor highlight + a soft lower
+// shade band so locked blocks read as chrome, not flat fills. Per-piece token
+// colour is untouched; the gloss is pure overlay.
 function BevelCell({ left, top, size, c }: { left: number; top: number; size: number; c: string }) {
+  const s = size - 1;
   return (
     <View
       style={{
-        position: "absolute", left, top, width: size - 1, height: size - 1, borderRadius: 2,
-        backgroundColor: c, borderWidth: 2,
+        position: "absolute", left, top, width: s, height: s, borderRadius: 2,
+        backgroundColor: c, borderWidth: 2, overflow: "hidden",
         borderTopColor: shade(c, 55), borderLeftColor: shade(c, 30),
         borderRightColor: shade(c, -48), borderBottomColor: shade(c, -62),
       }}
-    />
+    >
+      {/* top gloss highlight */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute", left: 0, right: 0, top: 0, height: Math.round(s * 0.46),
+          backgroundColor: "rgba(255,255,255,0.22)",
+        }}
+      />
+      {/* crisp specular line along the very top */}
+      <View
+        pointerEvents="none"
+        style={{ position: "absolute", left: 0, right: 0, top: 0, height: 1, backgroundColor: "rgba(255,255,255,0.4)" }}
+      />
+      {/* lower inner shade for depth */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute", left: 0, right: 0, bottom: 0, height: Math.round(s * 0.3),
+          backgroundColor: "rgba(0,0,0,0.2)",
+        }}
+      />
+    </View>
   );
 }
 function GhostCell({ left, top, size, c }: { left: number; top: number; size: number; c: string }) {
   return (
     <View style={{ position: "absolute", left, top, width: size - 1, height: size - 1, borderRadius: 2, borderWidth: 2, borderColor: c, opacity: 0.45 }} />
+  );
+}
+
+// Faint cell gridlines so the empty well reads as a playfield (very low alpha).
+function WellGrid() {
+  const lines: React.ReactNode[] = [];
+  for (let x = 1; x < COLS; x++)
+    lines.push(
+      <View key={`v${x}`} pointerEvents="none" style={{ position: "absolute", left: x * CELL, top: 0, width: 1, height: BOARD_H, backgroundColor: "rgba(255,255,255,0.055)" }} />
+    );
+  for (let y = 1; y < ROWS; y++)
+    lines.push(
+      <View key={`h${y}`} pointerEvents="none" style={{ position: "absolute", left: 0, top: y * CELL, width: BOARD_W, height: 1, backgroundColor: "rgba(255,255,255,0.045)" }} />
+    );
+  return <>{lines}</>;
+}
+
+// Ambient backdrop: coarse console grid + low ambient amber/cyan glow + scanlines.
+// All LOW intensity and static — never reduces block contrast, costs nothing per frame.
+function Backdrop() {
+  const grid: React.ReactNode[] = [];
+  const GS = 44;
+  for (let x = GS; x < W; x += GS)
+    grid.push(<View key={`bv${x}`} style={{ position: "absolute", left: x, top: 0, width: 1, height: H, backgroundColor: "rgba(120,150,180,0.035)" }} />);
+  for (let y = GS; y < H; y += GS)
+    grid.push(<View key={`bh${y}`} style={{ position: "absolute", left: 0, top: y, width: W, height: 1, backgroundColor: "rgba(120,150,180,0.03)" }} />);
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color.bg }]}>
+      {/* soft ambient amber glow, upper area */}
+      <View style={{ position: "absolute", top: H * 0.12, alignSelf: "center", width: 220, height: 140, borderRadius: 999, boxShadow: "0 0 180px 70px rgba(255,152,0,0.055)" } as any} />
+      {/* soft ambient cyan glow, lower area */}
+      <View style={{ position: "absolute", bottom: H * 0.1, alignSelf: "center", width: 220, height: 140, borderRadius: 999, boxShadow: "0 0 180px 70px rgba(0,229,255,0.045)" } as any} />
+      {grid}
+      <ImageBackground source={SCANLINES} resizeMode="repeat" style={StyleSheet.absoluteFill} imageStyle={{ opacity: 0.05 }} />
+    </View>
   );
 }
 
@@ -122,6 +185,24 @@ function MiniPiece({ id }: { id: number | null }) {
       {s.cells.map(([cx, cy], i) => (
         <BevelCell key={i} left={4 + (cx + ox) * PCELL} top={4 + (cy + oy) * PCELL} size={PCELL} c={s.color} />
       ))}
+    </View>
+  );
+}
+
+// Console-panel wrapper for the side column (surface + border + mono label).
+function SidePanel({ label, children, accent }: { label: string; children?: React.ReactNode; accent?: string }) {
+  return (
+    <View style={st.panel}>
+      <PixelText size="label" style={[st.panelLabel, accent ? { color: accent } : null]}>{label}</PixelText>
+      {children}
+    </View>
+  );
+}
+function StatPanel({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <View style={st.statPanel}>
+      <PixelText size="label" style={st.panelLabel}>{label}</PixelText>
+      <Text style={[st.statValue, accent ? { color: accent } : null]}>{value}</Text>
     </View>
   );
 }
@@ -150,6 +231,16 @@ function GameScreen({ onExit }: GameContext) {
   const [over, setOver] = useState(false);
   const [, setNextTick] = useState(0); // force preview refresh
   const bump = () => setTick((t) => (t + 1) % 1000000);
+
+  // Visual-only: full-well flash for tetris / level-up (never affects logic).
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const [flashColor, setFlashColor] = useState<string>(color.amber);
+  const triggerFlash = (col: string, peak: number) => {
+    if (reducedMotion) return; // decoration only
+    setFlashColor(col);
+    flashAnim.setValue(peak);
+    Animated.timing(flashAnim, { toValue: 0, duration: 260, useNativeDriver: true }).start();
+  };
 
   const dropMs = () => Math.max(85, 800 - (levelRef.current - 1) * 65);
 
@@ -194,10 +285,17 @@ function GameScreen({ onExit }: GameContext) {
       for (let x = 0; x < COLS; x += 2)
         fx.current?.burst(x * CELL + CELL / 2, y * CELL + CELL / 2, { count: 2, color: popCol, speed: 95, size: 4 });
     fx.current?.popScore(BOARD_W / 2, full[0] * CELL + CELL / 2, `+${pts}`, popCol);
+    // juice: a bigger central burst + brighter full-well flash on a Tetris.
+    if (n >= 4) {
+      fx.current?.burst(BOARD_W / 2, full[0] * CELL + CELL / 2, { count: 18, color: color.amber, speed: 150, size: 5, rise: 20 });
+      triggerFlash(color.amber, 0.5);
+    }
+    const prevLvl = levelRef.current;
     const nl = linesRef.current + n;
     linesRef.current = nl; setLines(nl);
     const lvl = Math.floor(nl / 10) + 1;
     levelRef.current = lvl; setLevel(lvl);
+    if (lvl > prevLvl) triggerFlash(color.cyan, 0.32); // subtle level-up flash
     phaseRef.current = "play";
     spawnNext();
     bump();
@@ -319,6 +417,8 @@ function GameScreen({ onExit }: GameContext) {
   const p = pieceRef.current;
   const clearing = phaseRef.current === "clear";
   const clearSet = new Set(clearRowsRef.current);
+  const tetrisClear = clearRowsRef.current.length >= 4;
+  const flashCellColor = tetrisClear ? color.amber : color.text;
 
   // ghost landing position
   let ghostY = p.y;
@@ -328,6 +428,8 @@ function GameScreen({ onExit }: GameContext) {
 
   return (
     <View style={st.fill}>
+      <Backdrop />
+
       {/* HUD */}
       <View style={[st.hud, { top: Math.max(insets.top, 24) + 8 }]} pointerEvents="box-none">
         <View style={st.hudPanel}>
@@ -339,41 +441,64 @@ function GameScreen({ onExit }: GameContext) {
 
       {/* play area */}
       <View style={[st.playRow, { marginTop: Math.max(insets.top, 24) + 70 }]}>
-        <View style={[st.board, { width: BOARD_W, height: BOARD_H }]}>
-          {/* grid cells */}
-          {b.map((row, y) =>
-            row.map((c, x) => {
-              if (c === "") return null;
-              const flash = clearing && clearSet.has(y);
-              return flash
-                ? <View key={`${x}-${y}`} style={{ position: "absolute", left: x * CELL, top: y * CELL, width: CELL - 1, height: CELL - 1, borderRadius: 2, backgroundColor: color.text }} />
-                : <BevelCell key={`${x}-${y}`} left={x * CELL} top={y * CELL} size={CELL} c={c} />;
-            })
-          )}
-          {/* ghost */}
-          {phaseRef.current === "play" && ghostY !== p.y
-            ? p.cells.map(([cx, cy], i) => {
-                const gy = ghostY + cy;
-                return gy >= 0 ? <GhostCell key={`g${i}`} left={(p.x + cx) * CELL} top={gy * CELL} size={CELL} c={p.color} /> : null;
-              })
-            : null}
-          {/* active piece */}
-          {phaseRef.current !== "over"
-            ? p.cells.map(([cx, cy], i) => {
-                const y = p.y + cy;
-                return y >= 0 ? <BevelCell key={`a${i}`} left={(p.x + cx) * CELL} top={y * CELL} size={CELL} c={p.color} /> : null;
-              })
-            : null}
+        {/* console bezel housing the well — reads as an inset screen */}
+        <View style={st.bezel}>
+          <View style={[st.board, { width: BOARD_W, height: BOARD_H }]}>
+            {/* faint playfield gridlines (behind everything) */}
+            <WellGrid />
+            {/* top phosphor gloss on the screen */}
+            <View pointerEvents="none" style={st.wellGloss} />
 
-          <EffectsLayer ref={fx} reduced={reducedMotion} />
+            {/* grid cells */}
+            {b.map((row, y) =>
+              row.map((c, x) => {
+                if (c === "") return null;
+                const flash = clearing && clearSet.has(y);
+                return flash
+                  ? <View key={`${x}-${y}`} style={[{ position: "absolute", left: x * CELL, top: y * CELL, width: CELL - 1, height: CELL - 1, borderRadius: 2, backgroundColor: flashCellColor }, !reducedMotion ? ({ boxShadow: tetrisClear ? glow.amber : glow.cyanSoft } as any) : null]} />
+                  : <BevelCell key={`${x}-${y}`} left={x * CELL} top={y * CELL} size={CELL} c={c} />;
+              })
+            )}
+            {/* ghost */}
+            {phaseRef.current === "play" && ghostY !== p.y
+              ? p.cells.map(([cx, cy], i) => {
+                  const gy = ghostY + cy;
+                  return gy >= 0 ? <GhostCell key={`g${i}`} left={(p.x + cx) * CELL} top={gy * CELL} size={CELL} c={p.color} /> : null;
+                })
+              : null}
+            {/* active piece */}
+            {phaseRef.current !== "over"
+              ? p.cells.map(([cx, cy], i) => {
+                  const y = p.y + cy;
+                  return y >= 0 ? <BevelCell key={`a${i}`} left={(p.x + cx) * CELL} top={y * CELL} size={CELL} c={p.color} /> : null;
+                })
+              : null}
+
+            {/* full-well flash overlay (tetris / level-up) */}
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: flashColor, opacity: flashAnim }]} />
+
+            <EffectsLayer ref={fx} reduced={reducedMotion} />
+          </View>
+          {/* corner registration ticks — console detail */}
+          <View pointerEvents="none" style={[st.tick, st.tickTL]} />
+          <View pointerEvents="none" style={[st.tick, st.tickTR]} />
+          <View pointerEvents="none" style={[st.tick, st.tickBL]} />
+          <View pointerEvents="none" style={[st.tick, st.tickBR]} />
         </View>
 
         {/* side panel */}
         <View style={st.side}>
-          <PixelText size="label" style={st.sideLabel}>NEXT</PixelText>
-          <MiniPiece id={queueRef.current.length ? queueRef.current[0] : null} />
-          <PixelText size="label" style={[st.sideLabel, { marginTop: space.md }]}>HOLD</PixelText>
-          <MiniPiece id={heldRef.current} />
+          <SidePanel label="NEXT" accent={color.cyan}>
+            <MiniPiece id={queueRef.current.length ? queueRef.current[0] : null} />
+          </SidePanel>
+          <SidePanel label="HOLD" accent={color.amber}>
+            <MiniPiece id={heldRef.current} />
+          </SidePanel>
+          <StatPanel label="SCORE" value={String(score).padStart(5, "0")} accent={color.amber} />
+          <View style={st.statRow}>
+            <StatPanel label="LVL" value={String(level)} accent={color.cyan} />
+            <StatPanel label="LINES" value={String(lines)} />
+          </View>
         </View>
       </View>
 
@@ -420,9 +545,25 @@ const st = StyleSheet.create({
   hud: { position: "absolute", left: 0, right: 0, zIndex: 5, paddingHorizontal: space.lg, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   hudPanel: { backgroundColor: "rgba(20,26,34,0.7)", borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: color.surfaceLine },
   playRow: { flexDirection: "row", justifyContent: "center", alignItems: "flex-start", gap: space.md, paddingHorizontal: space.md },
-  board: { backgroundColor: "#0E141C", borderRadius: radius.md, borderWidth: 2, borderColor: color.surfaceLine, overflow: "hidden" },
-  side: { width: SIDE - 8, alignItems: "center" },
-  sideLabel: { color: color.textMuted, alignSelf: "flex-start", marginBottom: space.xs },
+  // console bezel: the physical display frame around the well (restrained amber rim glow)
+  bezel: {
+    padding: 6, borderRadius: radius.lg, backgroundColor: consoleUI.frame,
+    borderWidth: 1, borderColor: consoleUI.frameLine, borderTopColor: consoleUI.deckHi,
+    boxShadow: glow.amberSoft,
+  } as any,
+  board: { backgroundColor: "#090D11", borderRadius: radius.md, borderWidth: 1, borderColor: "#05080B", overflow: "hidden" },
+  wellGloss: { position: "absolute", left: 0, right: 0, top: 0, height: "14%", backgroundColor: crt.phosphorHi },
+  tick: { position: "absolute", width: 10, height: 10, borderColor: color.amber, opacity: 0.55 },
+  tickTL: { top: 2, left: 2, borderTopWidth: 1.5, borderLeftWidth: 1.5 },
+  tickTR: { top: 2, right: 2, borderTopWidth: 1.5, borderRightWidth: 1.5 },
+  tickBL: { bottom: 2, left: 2, borderBottomWidth: 1.5, borderLeftWidth: 1.5 },
+  tickBR: { bottom: 2, right: 2, borderBottomWidth: 1.5, borderRightWidth: 1.5 },
+  side: { width: SIDE - 8, alignItems: "stretch", gap: space.sm },
+  panel: { backgroundColor: color.surface, borderRadius: radius.md, borderWidth: 1, borderColor: consoleUI.frameLine, padding: space.sm, alignItems: "center" },
+  panelLabel: { color: color.textMuted, alignSelf: "flex-start", marginBottom: space.xs },
+  statPanel: { flex: 1, backgroundColor: color.surface, borderRadius: radius.md, borderWidth: 1, borderColor: consoleUI.frameLine, paddingHorizontal: space.sm, paddingVertical: space.xs },
+  statRow: { flexDirection: "row", gap: space.sm },
+  statValue: { color: color.text, fontSize: 15, fontWeight: "800", marginTop: 1 },
   miniBox: { backgroundColor: "#0E141C", borderRadius: radius.sm, borderWidth: 1, borderColor: color.surfaceLine },
   controls: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm },
   ctrlRow: { flexDirection: "row", justifyContent: "space-between", gap: space.sm },

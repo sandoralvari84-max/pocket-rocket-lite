@@ -8,9 +8,11 @@ import { PixelText, Body, IconButton, GameOverlay } from "../design/ui";
 // Notebook-paper theme (tools/art/gen_paper.py) — a pen-and-paper game on a ripped page.
 const PAPER = require("../../assets/arcade/paper/paper.png");
 const TORN = require("../../assets/arcade/paper/torn.png");
-const INK = "#27407E";   // blue biro (grid + X)
+const INK = "#27407E";   // blue biro (X)
 const RED = "#B23B3B";   // red pen (O)
-const PENCIL = "#3A3730"; // graphite text
+const GRAPHITE = "#4A463E"; // pencil grid lead
+const TABLE = "#2A1D12";    // dark desk/wood the sheet rests on
+const TABLE_HI = "#3C2A1A"; // warmer wood grain tint
 
 type Cell = "X" | "O" | null; // X = player (amber), O = machine (cyan)
 type Board = Cell[];
@@ -21,6 +23,8 @@ const GAP = 10; // inner frame padding
 // 3rd cell onto a new row was the old "garbled grid" bug. This can't wrap.
 const CELL = Math.floor((Math.min(W - space.lg * 2, 340) - GAP * 2) / 3);
 const BOARD = CELL * 3 + GAP * 2;
+const SHEET_MARGIN = 22; // cream border around the grid on the sheet
+const SHEET_W = BOARD + SHEET_MARGIN * 2;
 
 const LINES: ReadonlyArray<readonly [number, number, number]> = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -84,21 +88,43 @@ function bestMove(board: Board): number {
   return pick;
 }
 
-/* ---- Code-drawn marks ---- */
+/* ---- Hand-drawn marks: several slightly-offset strokes read as pen/pencil ---- */
 function MarkX() {
-  const len = CELL * 0.52;
+  const len = CELL * 0.54;
+  // Two crossing strokes, each doubled with a faint, slightly-rotated ghost so the
+  // ink looks hand-scratched rather than a crisp vector.
   return (
     <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
-      <View style={[mk.bar, { width: len, backgroundColor: INK, transform: [{ rotate: "45deg" }] }]} />
+      <View style={[mk.bar, { width: len, backgroundColor: INK, transform: [{ rotate: "44deg" }] }]} />
+      <View style={[mk.barFaint, { width: len * 0.96, backgroundColor: INK, transform: [{ rotate: "47deg" }, { translateY: 1.5 }], position: "absolute" }]} />
       <View style={[mk.bar, { width: len, backgroundColor: INK, transform: [{ rotate: "-45deg" }], position: "absolute" }]} />
+      <View style={[mk.barFaint, { width: len * 0.94, backgroundColor: INK, transform: [{ rotate: "-42deg" }, { translateY: -1.5 }], position: "absolute" }]} />
     </View>
   );
 }
 function MarkO() {
   const d = CELL * 0.58;
+  // Two overlapping rings, offset and slightly rotated → a looped, imperfect circle.
   return (
     <View style={{ width: CELL, height: CELL, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 6, borderColor: RED }} />
+      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 6, borderColor: RED, transform: [{ rotate: "6deg" }] }} />
+      <View style={{ position: "absolute", width: d * 0.98, height: d, borderRadius: d / 2, borderWidth: 3, borderColor: RED, opacity: 0.55, transform: [{ rotate: "-9deg" }, { translateX: 1.5 }] }} />
+    </View>
+  );
+}
+
+/* ---- Sketchy pencil grid separator: two overlapping graphite strokes ---- */
+function SketchLine({ vertical, left, top, length }: { vertical?: boolean; left: number; top: number; length: number }) {
+  const thick = vertical
+    ? { width: 3.5, height: length }
+    : { width: length, height: 3.5 };
+  const thin = vertical
+    ? { width: 2, height: length }
+    : { width: length, height: 2 };
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left, top }}>
+      <View style={[st.sketch, thick, { backgroundColor: GRAPHITE, transform: [{ rotate: vertical ? "0.6deg" : "-0.5deg" }] }]} />
+      <View style={[st.sketch, thin, { position: "absolute", backgroundColor: GRAPHITE, opacity: 0.4, transform: [{ rotate: vertical ? "-0.8deg" : "0.7deg" }, vertical ? { translateX: 1.5 } : { translateY: 1.5 }] }]} />
     </View>
   );
 }
@@ -173,43 +199,57 @@ function Screen({ ask, onExit }: GameContext) {
   };
 
   return (
-    <ImageBackground source={PAPER} resizeMode="repeat" style={st.fill}>
-      <Image source={TORN} resizeMode="stretch" fadeDuration={0} style={st.torn} />
+    <View style={st.fill}>
+      {/* warm wood grain near the top of the desk */}
+      <View pointerEvents="none" style={st.grain} />
+
       <View style={[st.top, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
-        <PixelText size="h2" style={{ color: INK }}>THREE IN A ROW</PixelText>
+        <PixelText size="h2" style={{ color: color.text }}>THREE IN A ROW</PixelText>
         <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
       <View style={st.body}>
         <Body style={st.status}>{status}</Body>
 
-        <View style={[st.grid, { width: BOARD, height: BOARD }]}>
-          {/* # grid lines */}
-          {[1, 2].map((n) => (
-            <View key={`v${n}`} style={[st.vline, { left: GAP + n * CELL - 1.5, top: GAP, height: BOARD - GAP * 2 }]} />
-          ))}
-          {[1, 2].map((n) => (
-            <View key={`h${n}`} style={[st.hline, { top: GAP + n * CELL - 1.5, left: GAP, width: BOARD - GAP * 2 }]} />
-          ))}
-          {board.map((c, i) => {
-            const r = Math.floor(i / 3), col = i % 3;
-            const inWin = win ? win.line.includes(i) : false;
-            const isLast = last === i;
-            return (
-              <Pressable
-                key={i}
-                onPress={() => onCell(i)}
-                style={[st.cell, { left: GAP + col * CELL, top: GAP + r * CELL, width: CELL, height: CELL }, inWin && st.cellWin]}
-              >
-                {c === "X" ? <MarkX /> : c === "O" ? <MarkO /> : null}
-                {isLast && !inWin ? <View style={st.lastDot} /> : null}
-              </Pressable>
-            );
-          })}
+        {/* a sheet of paper resting on the desk — gentle perspective tilt */}
+        <View style={st.sheetWrap}>
+          <View style={st.sheet}>
+            <ImageBackground source={PAPER} resizeMode="repeat" style={st.sheetPaper} imageStyle={st.sheetImg}>
+              <Image source={TORN} resizeMode="stretch" fadeDuration={0} style={st.torn} />
+
+              <View style={[st.grid, { width: BOARD, height: BOARD }]}>
+                {/* # hand-drawn pencil grid */}
+                {[1, 2].map((n) => (
+                  <SketchLine key={`v${n}`} vertical left={GAP + n * CELL - 1.75} top={GAP} length={BOARD - GAP * 2} />
+                ))}
+                {[1, 2].map((n) => (
+                  <SketchLine key={`h${n}`} left={GAP} top={GAP + n * CELL - 1.75} length={BOARD - GAP * 2} />
+                ))}
+                {board.map((c, i) => {
+                  const r = Math.floor(i / 3), col = i % 3;
+                  const inWin = win ? win.line.includes(i) : false;
+                  const isLast = last === i;
+                  return (
+                    <Pressable
+                      key={i}
+                      onPress={() => onCell(i)}
+                      style={[st.cell, { left: GAP + col * CELL, top: GAP + r * CELL, width: CELL, height: CELL }, inWin && st.cellWin]}
+                    >
+                      {c === "X" ? <MarkX /> : c === "O" ? <MarkO /> : null}
+                      {isLast && !inWin ? <View style={st.lastDot} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ImageBackground>
+          </View>
         </View>
 
         {quip ? <Body muted style={st.quip}>“{quip}”</Body> : <View style={{ height: 24 }} />}
       </View>
+
+      {/* subtle vignette for depth (never blocks taps) */}
+      <View pointerEvents="none" style={st.vignette} />
 
       <GameOverlay
         visible={over}
@@ -219,30 +259,40 @@ function Screen({ ask, onExit }: GameContext) {
         onPrimary={reset}
         onExit={onExit}
       />
-    </ImageBackground>
+    </View>
   );
 }
 
 const mk = StyleSheet.create({
   bar: { height: 6, borderRadius: 3 },
+  barFaint: { height: 4, borderRadius: 2, opacity: 0.45 },
 });
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#F4EEDE" },
-  torn: { position: "absolute", left: 0, top: 0, width: "100%", height: 22 },
+  fill: { flex: 1, backgroundColor: TABLE },
+  grain: { position: "absolute", left: 0, right: 0, top: 0, height: "52%", backgroundColor: TABLE_HI, opacity: 0.55 },
+  vignette: { ...StyleSheet.absoluteFillObject, boxShadow: "inset 0 0 130px 26px rgba(0,0,0,0.5)" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
-  status: { color: PENCIL, fontWeight: "700", textAlign: "center" },
-  grid: {
-    position: "relative",
-    backgroundColor: "transparent", borderRadius: radius.lg,
+  status: { color: color.text, fontWeight: "700", textAlign: "center" },
+
+  // the tilted sheet + its drop shadow on the desk
+  sheetWrap: { alignItems: "center", justifyContent: "center" },
+  sheet: {
+    borderRadius: radius.md,
+    boxShadow: "0 24px 32px rgba(0,0,0,0.55)",
+    transform: [{ perspective: 900 }, { rotateX: "15deg" }],
   },
+  sheetPaper: { width: SHEET_W, paddingTop: SHEET_MARGIN + 6, paddingBottom: SHEET_MARGIN, alignItems: "center", backgroundColor: "#F4EEDE" },
+  sheetImg: { borderRadius: radius.md },
+  torn: { position: "absolute", left: 0, top: 0, width: "100%", height: 20 },
+
+  grid: { position: "relative", backgroundColor: "transparent" },
   cell: { position: "absolute", alignItems: "center", justifyContent: "center" },
   cellWin: { backgroundColor: "rgba(80,180,110,0.22)", borderRadius: radius.md },
-  vline: { position: "absolute", width: 4, borderRadius: 2, backgroundColor: INK },
-  hline: { position: "absolute", height: 4, borderRadius: 2, backgroundColor: INK },
+  sketch: { borderRadius: 2 },
   lastDot: { position: "absolute", left: 10, right: 10, bottom: 6, height: 3, borderRadius: 2, backgroundColor: RED },
-  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24, color: PENCIL },
+  quip: { fontStyle: "italic", textAlign: "center", paddingHorizontal: space.xl, minHeight: 24, color: color.text },
 });
 
 export const threeInARowGame: GameModule = {

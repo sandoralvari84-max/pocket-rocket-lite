@@ -92,12 +92,60 @@ def win() -> Image.Image:
     return img
 
 
+def win_run(frame: int) -> Image.Image:
+    """Freed stickman mid-stride, facing right, leaning into the run.
+
+    Two alternating gait frames (frame 0/1) with trailing pencil dust so the
+    game can flip between them while sliding the sprite off the page. No gallows
+    and no ground line here: only the figure moves, leaving the page clear.
+    Same jittered graphite strokes as the stages so it reads hand-drawn.
+    """
+    random.seed(70 + frame)
+    img = Image.new("RGBA", (W, H), CLEAR)
+    d = ImageDraw.Draw(img)
+    cx, cy = 230, 300
+    r = HEAD_R
+    jcircle(d, cx, cy, r, INK, 6)                                     # head
+    # happy open mouth, shifted toward the direction of travel
+    d.arc([cx - 10, cy - 4, cx + 22, cy + 20], 20, 160, fill=INK, width=4)
+
+    hipx, hipy = cx + 22, cy + r + 118                               # hip (body leans forward/right)
+    jline(d, cx, cy + r, hipx, hipy, INK, 6)                          # torso
+    shx, shy = cx + 7, cy + r + 34                                    # shoulder
+
+    if frame == 0:
+        kneeF, footF = (hipx + 46, hipy + 40), (hipx + 78, hipy + 76)  # front leg reaching
+        kneeB, footB = (hipx - 40, hipy + 36), (hipx - 72, hipy + 70)  # back leg trailing
+        elbF, handF = (shx + 34, shy + 20), (shx + 22, shy + 54)       # front arm down/back
+        elbB, handB = (shx - 32, shy + 8),  (shx - 60, shy - 10)       # back arm up/back
+    else:
+        kneeF, footF = (hipx + 20, hipy + 46), (hipx + 40, hipy + 84)  # front leg under body
+        kneeB, footB = (hipx + 4,  hipy + 40), (hipx - 30, hipy + 74)  # back leg lifting
+        elbF, handF = (shx + 30, shy - 6),  (shx + 58, shy - 20)       # front arm up/forward
+        elbB, handB = (shx - 30, shy + 22), (shx - 46, shy + 48)       # back arm down
+
+    # legs + arms as two jointed strokes each
+    jline(d, hipx, hipy, kneeF[0], kneeF[1], INK, 6); jline(d, kneeF[0], kneeF[1], footF[0], footF[1], INK, 6)
+    jline(d, hipx, hipy, kneeB[0], kneeB[1], INK, 6); jline(d, kneeB[0], kneeB[1], footB[0], footB[1], INK, 6)
+    jline(d, shx, shy, elbF[0], elbF[1], INK, 6);     jline(d, elbF[0], elbF[1], handF[0], handF[1], INK, 6)
+    jline(d, shx, shy, elbB[0], elbB[1], INK, 6);     jline(d, elbB[0], elbB[1], handB[0], handB[1], INK, 6)
+
+    # trailing dust / speed lines behind the runner (to the left)
+    base = hipy + 60
+    for i in range(3):
+        y = base - i * 26 + (4 if frame else 0)
+        jline(d, cx - 72 - i * 16, y, cx - 118 - i * 20, y, INK2, 4)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for n in range(7):
         stage(n).save(os.path.join(OUT, f"stage{n}.png"))
     win().save(os.path.join(OUT, "win.png"))
-    print("wrote notebook stage0..6 + win to", os.path.normpath(OUT))
+    win_run(0).save(os.path.join(OUT, "win_run1.png"))
+    win_run(1).save(os.path.join(OUT, "win_run2.png"))
+    print("wrote notebook stage0..6 + win + win_run1/2 to", os.path.normpath(OUT))
 
 
 if __name__ == "__main__":

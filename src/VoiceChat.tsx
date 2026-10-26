@@ -10,8 +10,9 @@ import { chat } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings, setSetting } from "./settings";
 import { L, useLang } from "./i18n";
-import { color, space, radius, type as T, HIT } from "./design/tokens";
+import { color, space, radius, type as T, HIT, glow } from "./design/tokens";
 import { Body, PixelText, Input, Banner, Sprite } from "./design/ui";
+import { CrtDisplay } from "./design/console";
 import VoiceBar, { VoiceBarState } from "./VoiceBar";
 import { appMeta } from "./appMeta";
 
@@ -407,7 +408,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
               return (
                 <Pressable key={p} onPress={() => { if (settings.voice !== p) { setSetting("voice", p); speakText(L("I am online and ready.")); } }}
                   accessibilityRole="button" accessibilityLabel={`${p} persona`}
-                  style={[s.personaBtn, on && { backgroundColor: c + "22", borderColor: c }]}>
+                  style={[s.personaBtn, on && { backgroundColor: c + "22", borderColor: c, boxShadow: p === "nova" ? glow.cyanSoft : glow.amberSoft }]}>
                   <Text style={[s.personaT, { color: on ? c : color.textFaint }]}>{p === "nova" ? "NOVA" : "SENTINEL"}</Text>
                 </Pressable>
               );
@@ -415,9 +416,12 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
           </View>
         </View>
 
-        {/* KITT / HAL voice meter — the AI's face (compact, persona-aware) */}
+        {/* KITT / HAL voice meter — the AI's face, housed in the console CRT display
+            so it reads as the machine's screen. Rim glow follows the active persona. */}
         <View style={s.meterWrap}>
-          <VoiceBar state={voiceState} persona={settings.voice} reducedMotion={settings.reducedMotion} height={82} />
+          <CrtDisplay accent={PERSONA[persona].accent} glowOn style={s.meterDisplay}>
+            <VoiceBar state={voiceState} persona={settings.voice} reducedMotion={settings.reducedMotion} height={82} />
+          </CrtDisplay>
           <View style={s.statusRow}>
             <View style={[s.dot, { backgroundColor: statusColor }]} />
             <Text style={[s.status, { color: statusColor }]}>{statusText}</Text>
@@ -597,6 +601,7 @@ const s = StyleSheet.create({
   personaBtn: { borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.pill, paddingHorizontal: 10, height: 30, justifyContent: "center" },
   personaT: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   meterWrap: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs, alignItems: "center" },
+  meterDisplay: { width: "100%", maxWidth: 440 },
   heroWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
   star: { position: "absolute", backgroundColor: "#E8F0FF" },
   greeting: { fontSize: 30, fontWeight: "800", color: color.text, textAlign: "center", letterSpacing: 0.2, paddingHorizontal: space.md },
@@ -675,6 +680,7 @@ const s = StyleSheet.create({
   send: {
     backgroundColor: color.amber, borderRadius: radius.md, paddingHorizontal: space.lg,
     minHeight: HIT, justifyContent: "center", alignItems: "center",
+    boxShadow: glow.amberSoft,
   },
   sendT: { color: color.onAmber, fontWeight: "800", fontSize: 15, letterSpacing: 0.3 },
 });

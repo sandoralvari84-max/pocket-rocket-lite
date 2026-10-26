@@ -45,7 +45,7 @@ for t in aseprite libresprite krita magick inkscape adb emulator; do command -v 
 
 - **Era:** cartridge-NES to early-90s arcade. Detailed, drawn sprites with personality —
   not flat geometric blocks, not slick modern console chrome.
-- **Palette:** app identity is amber `#FF9810`, cyan `#00E5FF`, navy/charcoal bg
+- **Palette:** app identity is amber `#FF9800`, cyan `#00E5FF`, navy/charcoal bg
   (`#0B0F14` shell, `#090D14` game board). A game *may* use its own period palette inside
   its own screen, but keep outlines dark (`#0A0E16`/`#0E141B`) and lighting consistent
   (top-left highlight, bottom-right shadow).

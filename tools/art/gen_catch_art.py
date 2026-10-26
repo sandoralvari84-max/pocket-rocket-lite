@@ -19,20 +19,29 @@ CYAN = (40, 224, 255); CYAN_DK = (6, 130, 160)
 
 
 def ship():
+    # Player = the Pocket Rocket, in feel not copy: amber chrome rocket-fighter,
+    # cyan porthole cockpit (the emblem's eye), twin thruster flames. Nose up.
     W = 240
     im, d = P.canvas(W)
-    P.glow(im, 120, 150, 70, (90, 160, 220), 46)
-    # twin thruster flames (behind)
-    for tx in (92, 148):
-        P.glow(im, tx, 196, 22, AMBER, 150)
-        d.polygon([(tx - 10, 176), (tx, 220), (tx + 10, 176)], fill=AMBER + (255,))
-        d.polygon([(tx - 5, 176), (tx, 206), (tx + 5, 176)], fill=(255, 240, 200, 255))
-    # hull — swept wing
-    P.poly_grad(im, [(120, 36), (210, 140), (176, 184), (64, 184), (30, 140)], HULL_HI, HULL_DK)
-    # cockpit glass
-    P.poly_grad(im, [(120, 74), (152, 132), (88, 132)], GLASS_HI, GLASS_DK)
-    d.ellipse([110, 88, 130, 108], fill=(255, 255, 255, 120))
-    P.gloss(im, [30, 60, 210, 150])
+    P.glow(im, 120, 150, 76, AMBER, 44)                       # warm hull aura
+    # twin thruster flames (drawn behind the hull)
+    for tx in (100, 140):
+        P.glow(im, tx, 208, 20, AMBER, 160)
+        d.polygon([(tx - 11, 188), (tx, 234), (tx + 11, 188)], fill=AMBER + (255,))
+        d.polygon([(tx - 6, 188), (tx, 218), (tx + 6, 188)], fill=(255, 244, 210, 255))
+        d.polygon([(tx - 3, 188), (tx, 208), (tx + 3, 188)], fill=(255, 255, 255, 255))
+    # amber chrome hull — angular rocket with swept fins
+    hull = [(120, 26), (150, 92), (200, 150), (156, 156),
+            (150, 196), (90, 196), (84, 156), (40, 150), (90, 92)]
+    P.poly_grad(im, hull, (255, 198, 116), (176, 92, 10))
+    # central keel facet (gives the rocket a crisp spine)
+    P.poly_grad(im, [(120, 40), (137, 150), (120, 190), (103, 150)],
+                (255, 226, 152), (210, 120, 24), outline=None)
+    # cockpit: amber ring + cyan glass dome (the emblem's porthole)
+    P.ell_grad(im, [92, 70, 148, 126], (255, 222, 150), (150, 86, 8), outline=(58, 30, 6, 255), ow=5)
+    P.sphere(im, [99, 77, 141, 119], (160, 246, 255), (8, 120, 150))
+    P.spec(im, 112, 90, 14, 10)
+    P.gloss(im, [40, 50, 200, 150])
     return P.finish(im, 120)
 
 

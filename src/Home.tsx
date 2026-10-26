@@ -1,11 +1,12 @@
-﻿import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet, BackHandler, Image, ImageBackground } from "react-native";
+﻿import React, { useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet, BackHandler, Image, ImageBackground, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import VoiceChat from "./VoiceChat";
 import { ask } from "./model";
 import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
-import { color, space, radius, type as T, HIT, consoleUI } from "./design/tokens";
+import { color, space, radius, type as T, HIT, consoleUI, glow, motion, ease } from "./design/tokens";
+import { useSettings } from "./settings";
 import { PixelText, Chip, GameErrorBoundary, Sprite } from "./design/ui";
 import { appMeta } from "./appMeta";
 import { L, useLang } from "./i18n";
@@ -31,7 +32,7 @@ import MealPlanner from "./screens/MealPlanner";
 import Notifications from "./screens/Notifications";
 import TravelRoutes from "./screens/TravelRoutes";
 
-type Tab = "chat" | "games" | "tools" | "settings";
+type Tab = "chat" | "games" | "tools" | "library" | "settings";
 type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
   | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel";
 
@@ -46,6 +47,7 @@ const NAV_ICON = {
   chat: require("../assets/ui/nav/chat.png"),
   games: require("../assets/ui/nav/games.png"),
   tools: require("../assets/ui/nav/tools.png"),
+  library: require("../assets/ui/nav/library.png"),
   settings: require("../assets/ui/nav/settings.png"),
 };
 
@@ -120,6 +122,35 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
+  const settings = useSettings();
+
+  // Shared destination-change motion (Stage 4): a subtle fade + small rise on every tab
+  // switch. Reduced motion skips straight to the resting state. Native-driven.
+  const navAnim = useRef(new Animated.Value(1)).current;
+  // Immersive Arcade motion (Stage 5): content expands (scale + fade) and the control deck
+  // recedes when the Arcade tab is active; contracts on leaving. 0 = contracted, 1 = full.
+  const arcadeAnim = useRef(new Animated.Value(tab === "games" ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (settings.reducedMotion) { navAnim.setValue(1); return; }
+    navAnim.setValue(0);
+    const a = Animated.timing(navAnim, { toValue: 1, duration: motion.nav, easing: ease.out, useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [tab, settings.reducedMotion, navAnim]);
+
+  useEffect(() => {
+    const entering = tab === "games";
+    if (settings.reducedMotion) { arcadeAnim.setValue(entering ? 1 : 0); return; }
+    const a = Animated.timing(arcadeAnim, {
+      toValue: entering ? 1 : 0,
+      duration: entering ? motion.immersive : motion.back,
+      easing: entering ? ease.out : ease.in,
+      useNativeDriver: true,
+    });
+    a.start();
+    return () => a.stop();
+  }, [tab, settings.reducedMotion, arcadeAnim]);
 
   // Android hardware back: game -> library, feature screen/About -> back, tab root -> default.
   useEffect(() => {
@@ -210,6 +241,10 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   return (
     <View style={s.fill}>
       <View style={[s.body, { paddingTop: Math.max(insets.top, 24) }]}>
+        <Animated.View style={[s.fill, {
+          opacity: navAnim,
+          transform: [{ translateY: navAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
+        }]}>
         {tab === "chat" && (
           <VoiceChat
             seed={seed?.text} seedNonce={seed?.n}
@@ -220,6 +255,10 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
         )}
 
         {tab === "games" && (
+          <Animated.View style={[s.fill, {
+            opacity: arcadeAnim,
+            transform: [{ scale: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
+          }]}>
           <ScrollView contentContainerStyle={s.libPad} showsVerticalScrollIndicator={false}>
             <View style={s.marquee}>
               <PixelText size="title" style={s.marqueeT}>{L("ARCADE")}</PixelText>
@@ -240,6 +279,7 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
               ))}
             </View>
           </ScrollView>
+          </Animated.View>
         )}
 
         {tab === "tools" && (
@@ -249,7 +289,11 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
           />
         )}
 
+        {/* Library — the Dictaphone/Notes archive, now a top-level console destination. */}
+        {tab === "library" && <Notes onBack={() => setTab("chat")} />}
+
         {tab === "settings" && <Settings onAbout={() => setShowAbout(true)} onModelSetup={onModelSetup} />}
+        </Animated.View>
 
         {/* CRT display overlay (decorative; never intercepts touch) */}
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -261,20 +305,25 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
 
       <Text style={s.ver}>{appMeta.name} · {appMeta.build}</Text>
 
-      {/* Console control deck: tactile illuminated hardware keys on a housing rail. */}
-      <View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }]}>
+      {/* Console control deck: tactile illuminated hardware keys on a housing rail.
+          Recedes (slides down + dims, staying tappable) while Arcade is immersive. */}
+      <Animated.View style={[s.deck, { paddingBottom: Math.max(insets.bottom, 56) }, {
+        opacity: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45] }),
+        transform: [{ translateY: arcadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) }],
+      }]}>
         <View style={s.deckRail} pointerEvents="none" />
-        <NavKey icon={NAV_ICON.chat} label="Chat" active={tab === "chat"} onPress={() => setTab("chat")} />
-        <NavKey icon={NAV_ICON.games} label="Games" active={tab === "games"} onPress={() => setTab("games")} />
+        <NavKey icon={NAV_ICON.chat} label="Buddy" active={tab === "chat"} onPress={() => setTab("chat")} />
+        <NavKey icon={NAV_ICON.games} label="Arcade" active={tab === "games"} onPress={() => setTab("games")} />
         <NavKey icon={NAV_ICON.tools} label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
+        <NavKey icon={NAV_ICON.library} label="Library" active={tab === "library"} onPress={() => setTab("library")} />
         <NavKey icon={NAV_ICON.settings} label="Settings" active={tab === "settings"} onPress={() => setTab("settings")} />
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
-function NavKey({ icon, label, active, onPress }: {
-  icon: ReturnType<typeof require>; label: string; active: boolean; onPress: () => void;
+function NavKey({ icon, glyph, label, active, onPress }: {
+  icon?: ReturnType<typeof require>; glyph?: string; label: string; active: boolean; onPress: () => void;
 }) {
   return (
     <Pressable
@@ -289,7 +338,11 @@ function NavKey({ icon, label, active, onPress }: {
       ]}
     >
       <View style={[s.led, active && s.ledOn]} />
-      <Image source={icon} style={[s.navImg, !active && { opacity: 0.5 }]} resizeMode="contain" />
+      {icon ? (
+        <Image source={icon} style={[s.navImg, !active && { opacity: 0.5 }]} resizeMode="contain" />
+      ) : (
+        <Text style={[s.navGlyph, active ? s.navGlyphOn : { opacity: 0.5 }]}>{glyph}</Text>
+      )}
       <Text style={[s.keyLabel, active && s.keyLabelOn]}>{L(label)}</Text>
     </Pressable>
   );
@@ -426,12 +479,14 @@ const s = StyleSheet.create({
     gap: 3,
   },
   keyPressed: { backgroundColor: consoleUI.keyPressed, transform: [{ translateY: 1 }] },
-  keyOn: { borderColor: color.amber, backgroundColor: color.amberGlowBg },
+  keyOn: { borderColor: color.amber, backgroundColor: color.amberGlowBg, boxShadow: glow.amberSoft },
   led: { width: 6, height: 6, borderRadius: 3, backgroundColor: consoleUI.ledOff },
   ledOn: { backgroundColor: color.amber, shadowColor: color.amber, shadowOpacity: 0.9, shadowRadius: 5, elevation: 3 },
   keyIcon: { fontSize: 18, color: color.textMuted, lineHeight: 22 },
   keyIconOn: { color: color.amber },
   navImg: { width: 26, height: 26 },
+  navGlyph: { fontSize: 22, lineHeight: 26, color: color.textMuted, textAlign: "center" },
+  navGlyphOn: { color: color.amber },
   keyLabel: { ...T.small, color: color.textMuted, fontSize: 11 },
   keyLabelOn: { color: color.amber, fontWeight: "700" },
 });

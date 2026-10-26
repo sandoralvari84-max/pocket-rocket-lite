@@ -258,9 +258,15 @@ function Screen({ ask, onExit }: GameContext) {
         <IconButton label="Exit to menu" glyph="✕" onPress={onExit} />
       </View>
 
+      {/* table surface + depth */}
+      <View pointerEvents="none" style={st.felt} />
+
       <View style={st.body}>
         <Body style={st.status}>{status}</Body>
 
+        {/* gentle mock-3D tilt; the slab under the grid gives the board thickness */}
+        <View style={st.boardTilt}>
+        <View style={st.slab}>
         <View style={[st.grid, { width: GRID_W, padding: PAD }]}>
           {Array.from({ length: COLS }, (_, c) => (
             <Pressable key={c} style={st.colTap} disabled={busy || over} onPress={() => onColumn(c)}>
@@ -309,9 +315,14 @@ function Screen({ ask, onExit }: GameContext) {
             </Pressable>
           ))}
         </View>
+        </View>
+        </View>
 
         {quip ? <Body muted style={st.quip}>“{quip}”</Body> : <View style={{ height: 24 }} />}
       </View>
+
+      {/* subtle vignette for depth (never blocks taps) */}
+      <View pointerEvents="none" style={st.vignette} />
 
       <GameOverlay
         visible={over}
@@ -326,10 +337,19 @@ function Screen({ ask, onExit }: GameContext) {
 }
 
 const st = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
+  fill: { flex: 1, backgroundColor: "#0A1420" },
+  // a felt/table surface filling the lower two-thirds behind the board
+  felt: { position: "absolute", left: 0, right: 0, bottom: 0, height: "66%", backgroundColor: "#12324A", opacity: 0.55 },
+  vignette: { ...StyleSheet.absoluteFillObject, boxShadow: "inset 0 0 130px 26px rgba(0,0,0,0.5)" },
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.lg, paddingBottom: space.sm },
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.lg },
   status: { color: color.text, fontWeight: "700", textAlign: "center", paddingHorizontal: space.lg },
+
+  // mock-3D: gentle tilt + drop shadow of the whole board on the table
+  boardTilt: { transform: [{ perspective: 900 }, { rotateX: "16deg" }], boxShadow: "0 26px 34px rgba(0,0,0,0.6)" },
+  // the slab gives the board a visible thickness: a darker rim with a deeper front lip
+  slab: { backgroundColor: "#0E1526", borderRadius: radius.lg + 3, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 16, borderWidth: 1, borderColor: "#223055" },
+
   grid: {
     flexDirection: "row", backgroundColor: "#1F2940", borderRadius: radius.lg,
     borderWidth: 3, borderColor: "#30406A",
@@ -339,8 +359,8 @@ const st = StyleSheet.create({
   slot: { alignItems: "center", justifyContent: "center" },
   // empty cell = a punched hole in the board surface
   hole: { backgroundColor: "#0B0F1A", borderWidth: 2, borderColor: "rgba(0,0,0,0.5)" },
-  // seated disc: chunky circle with a rim for dimensionality
-  disc: { alignItems: "center", justifyContent: "flex-start", borderWidth: 3, overflow: "hidden" },
+  // seated disc: chunky circle with a rim + soft contact shadow for dimensionality
+  disc: { alignItems: "center", justifyContent: "flex-start", borderWidth: 3, overflow: "hidden", boxShadow: "0 3px 5px rgba(0,0,0,0.45)" },
   gloss: { position: "absolute", backgroundColor: "rgba(255,255,255,0.28)" },
   player: { backgroundColor: color.amber, borderColor: color.amberDim },
   machine: { backgroundColor: color.cyan, borderColor: color.cyanDim },
