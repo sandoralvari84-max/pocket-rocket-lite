@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
-import { color, space, radius, type as T, HIT } from "../design/tokens";
+import { color, space, radius, type as T, HIT, accentFor } from "../design/tokens";
 import { PixelText, Body, Chip, Panel, Segmented, ScreenHeader } from "../design/ui";
 
 const SETTINGS_ICON = require("../../assets/ui/nav/settings.png");
@@ -154,6 +154,7 @@ function StepKey({ glyph, label, onPress, disabled }: { glyph: string; label: st
 }
 
 function Toggle({ title, hint, value, onChange }: { title: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+  const acc = accentFor(useSettings().voice);
   return (
     <Pressable
       onPress={() => onChange(!value)}
@@ -166,8 +167,8 @@ function Toggle({ title, hint, value, onChange }: { title: string; hint: string;
         <Label>{title}</Label>
         <Body muted style={cs.rowHint}>{hint}</Body>
       </View>
-      <View style={[cs.track, value && cs.trackOn]}>
-        <View style={[cs.knob, value && cs.knobOn]} />
+      <View style={[cs.track, value && cs.trackOn, value && { backgroundColor: acc.bg, borderColor: acc.c }]}>
+        <View style={[cs.knob, value && cs.knobOn, value && { backgroundColor: acc.c }]} />
       </View>
     </Pressable>
   );

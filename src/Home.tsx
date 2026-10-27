@@ -5,7 +5,7 @@ import VoiceChat from "./VoiceChat";
 import { ask } from "./model";
 import { GAMES } from "./games";
 import type { GameModule } from "./games/contract";
-import { color, space, radius, type as T, HIT, consoleUI, glow, motion, ease } from "./design/tokens";
+import { color, space, radius, type as T, HIT, consoleUI, glow, motion, ease, accentFor } from "./design/tokens";
 import { useSettings } from "./settings";
 import { PixelText, Chip, GameErrorBoundary, Sprite } from "./design/ui";
 import { appMeta } from "./appMeta";
@@ -126,6 +126,7 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
   const settings = useSettings();
+  const acc = accentFor(settings.voice).c;
 
   // Shared destination-change motion (Stage 4): a subtle fade + small rise on every tab
   // switch. Reduced motion skips straight to the resting state. Native-driven.
@@ -289,7 +290,7 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
           }]}>
           <ScrollView contentContainerStyle={s.libPad} showsVerticalScrollIndicator={false}>
             <View style={s.marquee}>
-              <PixelText size="title" style={s.marqueeT}>{L("ARCADE")}</PixelText>
+              <PixelText size="title" style={[s.marqueeT, { color: acc }]}>{L("ARCADE")}</PixelText>
               <Text style={s.marqueeSub}>{L("Select a cabinet")}</Text>
             </View>
 
@@ -361,8 +362,9 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
 function NavKey({ icon, glyph, label, active, onPress, soon }: {
   icon?: ReturnType<typeof require>; glyph?: string; label: string; active: boolean; onPress: () => void; soon?: boolean;
 }) {
-  // Monochrome icon, tinted by state: amber when active, faint grey otherwise / SOON.
-  const tint = active ? color.amber : soon ? "#3A4650" : color.textFaint;
+  // Monochrome icon, tinted by the active persona when selected.
+  const acc = accentFor(useSettings().voice).c;
+  const tint = active ? acc : soon ? "#3A4650" : color.textFaint;
   return (
     <Pressable
       onPress={soon ? undefined : onPress}
@@ -373,22 +375,23 @@ function NavKey({ icon, glyph, label, active, onPress, soon }: {
       style={({ pressed }) => [
         s.key,
         active && s.keyOn,
+        active && { borderColor: acc, backgroundColor: acc + "22" },
         pressed && !soon && s.keyPressed,
       ]}
     >
-      <View style={[s.led, active && s.ledOn]} />
+      <View style={[s.led, active && s.ledOn, active && { backgroundColor: acc, shadowColor: acc }]} />
       {icon ? (
         <Image source={icon} style={[s.navImg, { tintColor: tint }]} resizeMode="contain" />
       ) : (
-        <Text style={[s.navGlyph, active ? s.navGlyphOn : { opacity: 0.5 }]}>{glyph}</Text>
+        <Text style={[s.navGlyph, active ? s.navGlyphOn : { opacity: 0.5 }, active && { color: acc }]}>{glyph}</Text>
       )}
-      <Text style={[s.keyLabel, active && s.keyLabelOn, soon && s.keyLabelSoon]}>{soon ? L("SOON") : L(label)}</Text>
+      <Text style={[s.keyLabel, active && s.keyLabelOn, active && { color: acc }, soon && s.keyLabelSoon]}>{soon ? L("SOON") : L(label)}</Text>
     </Pressable>
   );
 }
 
 function SectionHeader({ label, count, tone }: { label: string; count: number; tone: "amber" | "cyan" }) {
-  const c = tone === "amber" ? color.amber : color.cyan;
+  const c = accentFor(useSettings().voice).c; void tone;
   return (
     <View style={s.sectionRow}>
       <View style={[s.sectionTick, { backgroundColor: c }]} />
@@ -400,15 +403,14 @@ function SectionHeader({ label, count, tone }: { label: string; count: number; t
 }
 
 function GameCard({ game, onPress }: { game: GameModule; onPress: () => void }) {
-  const arcade = game.kind === "arcade";
-  const c = arcade ? color.amber : color.cyan;
+  const c = accentFor(useSettings().voice).c;
   const tileBg = "#0A0E13"; // dark glyph well (mockup .cab .glyph), not a coloured glow
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Play ${game.title}`}
-      style={({ pressed }) => [s.card, pressed && s.cardPressed]}
+      style={({ pressed }) => [s.card, pressed && s.cardPressed, pressed && { borderColor: c }]}
     >
       {/* Cabinet marquee tile — same monogram, richer treatment */}
       <View style={[s.tile, { backgroundColor: tileBg, borderColor: c }]}>

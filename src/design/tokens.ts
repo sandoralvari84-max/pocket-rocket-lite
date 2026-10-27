@@ -133,3 +133,10 @@ export const state = {
   disabledOpacity: 0.4,
   focusRingWidth: 2,
 } as const;
+
+// Active accent follows the chosen persona (Sentinel = amber, Nova = cyan) so the whole
+// app recolors when the user swaps assistant. Read with the live settings.voice.
+export const accentFor = (voice?: string) =>
+  voice === "nova"
+    ? { c: color.cyan, dim: color.cyanDim, bg: color.cyanGlowBg }
+    : { c: color.amber, dim: color.amberDim, bg: color.amberGlowBg };

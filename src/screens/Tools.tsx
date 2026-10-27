@@ -1,7 +1,8 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Image, ImageSourcePropType } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius, type as T } from "../design/tokens";
+import { color, space, radius, type as T, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, Body, ScreenHeader } from "../design/ui";
 
 const TOOLS_ICON = require("../../assets/ui/nav/tools.png");
@@ -107,13 +108,13 @@ function Tile({ glyph, icon, title, accent, bg, onPress }: { glyph?: string; ico
 export default function Tools({ onPick, onOpen }: { onPick: (seed: string) => void; onOpen: (screen: FeatureRoute) => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice);
   return (
     <ScrollView contentContainerStyle={[st.pad, { paddingTop: Math.max(insets.top, 24) + 8 }]} showsVerticalScrollIndicator={false}>
       <ScreenHeader icon={TOOLS_ICON} title={L("Tools")} subtitle={L("on-device toolkit · offline")} />
 
       {SECTIONS.map((sec) => {
-        const accent = sec.accent === "amber" ? color.amber : color.cyan;
-        const bg = sec.accent === "amber" ? color.amberGlowBg : color.cyanGlowBg;
+        const accent = acc.c; const bg = acc.bg; void sec.accent;
         return (
           <View key={sec.label} style={st.section}>
             <SectionHeader label={sec.label} accent={accent} />

@@ -6,7 +6,8 @@ import {
   StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp, Image, ImageSourcePropType, ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { color, space, radius, type as T, HIT, font, glow } from "./tokens";
+import { color, space, radius, type as T, HIT, font, glow, accentFor } from "./tokens";
+import { useSettings } from "../settings";
 import { L, useLang } from "../i18n";
 
 /* ---------- Screen shell ---------- */
@@ -89,12 +90,13 @@ export function Input(props: React.ComponentProps<typeof TextInput>) {
 export function Segmented<T extends string>({ options, value, onChange }: {
   options: { key: T; label: string }[]; value: T; onChange: (k: T) => void;
 }) {
+  const acc = accentFor(useSettings().voice).c;
   return (
     <View style={cs.seg}>
       {options.map((o) => {
         const on = o.key === value;
         return (
-          <Pressable key={o.key} onPress={() => onChange(o.key)} style={[cs.segItem, on && { backgroundColor: color.amber }]}>
+          <Pressable key={o.key} onPress={() => onChange(o.key)} style={[cs.segItem, on && { backgroundColor: acc }]}>
             <Text style={{ color: on ? color.onAmber : color.textMuted, fontWeight: "700", fontSize: 13 }}>{o.label}</Text>
           </Pressable>
         );
@@ -181,16 +183,17 @@ export function Sprite({ source, size, style }: { source: ImageSourcePropType; s
 export function ScreenHeader({ icon, title, subtitle, right, back }: {
   icon?: ImageSourcePropType; title: string; subtitle?: string; right?: React.ReactNode; back?: () => void;
 }) {
+  const a = accentFor(useSettings().voice).c;
   return (
     <View style={sh.row}>
       {back && (
         <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back" style={sh.back}>
-          <Text style={sh.backT}>‹</Text>
+          <Text style={[sh.backT, { color: a }]}>‹</Text>
         </Pressable>
       )}
       {icon && (
-        <View style={sh.tile}>
-          <Image source={icon} style={sh.icon} resizeMode="contain" />
+        <View style={[sh.tile, { borderColor: a + "66" }]}>
+          <Image source={icon} style={[sh.icon, { tintColor: a }]} resizeMode="contain" />
         </View>
       )}
       <View style={{ flex: 1 }}>
@@ -239,7 +242,7 @@ const os = StyleSheet.create({
 export function Panel({ label, tone = "amber", children, style }: {
   label: string; tone?: "amber" | "cyan"; children: React.ReactNode; style?: ViewStyle;
 }) {
-  const c = tone === "cyan" ? color.cyan : color.amber;
+  const c = accentFor(useSettings().voice).c; void tone;
   return (
     <View style={[ps.panel, style]}>
       <View style={ps.panelHead}>
