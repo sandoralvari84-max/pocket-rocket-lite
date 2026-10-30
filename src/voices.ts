@@ -43,8 +43,13 @@ function rank(v: Voice, want: "male" | "female"): number {
   const list = want === "male" ? MALE : FEMALE;
   const other = want === "male" ? FEMALE : MALE;
   let score = 0;
-  if (list.includes(c)) score += 100;            // known-gender match
+  if (list.includes(c)) score += 100;            // known-gender match (Google -x-<code>- scheme)
   else if (other.includes(c)) score -= 100;      // known opposite — avoid
+  // Non-Google engines (e.g. Samsung) don't use the -x-<code>- scheme; fall back to any
+  // gender hint in the voice NAME so a persona still gets a male/female voice there.
+  const nm = (v.name || "").toLowerCase();
+  if (want === "male" && /\bmale\b|\bman\b/.test(nm) && !/female|woman/.test(nm)) score += 60;
+  if (want === "female" && /\bfemale\b|\bwoman\b/.test(nm)) score += 60;
   if (id.includes("-local")) score += 30;        // offline, no network needed
   if (id.includes("network")) score -= 40;       // needs data — avoid for offline app
   if ((v.quality || "").toLowerCase() === "enhanced") score += 8;

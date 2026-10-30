@@ -1,12 +1,13 @@
 // Converter — Tools niche #13. Unit conversion is DETERMINISTIC math over exact
 // factors (temperature handled with its offsets), never the model. Fully offline.
-// Currency (live FX via Open ER-API) is a later add; units are exact here.
-import React, { useMemo, useState } from "react";
+// Currency (Money) uses live FX via Open ER-API (keyless), fetched once and cached to disk for offline reuse.
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, Input, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
+import { getRates, fxConvert, CURRENCIES, type FxData } from "../data/fx";
 
 // factors are "how many base units in 1 of this unit" (base: m / kg / L).
 const CATS: Record<string, { units: Record<string, number> }> = {
@@ -14,7 +15,7 @@ const CATS: Record<string, { units: Record<string, number> }> = {
   Weight: { units: { kg: 1, g: 0.001, lb: 0.453592, oz: 0.0283495 } },
   Volume: { units: { L: 1, ml: 0.001, gal: 3.78541, cup: 0.236588 } },
 };
-const CAT_KEYS = ["Length", "Weight", "Volume", "Temp"] as const;
+const CAT_KEYS = ["Length", "Weight", "Volume", "Temp", "Money"] as const;
 const TEMP_UNITS = ["C", "F", "K"] as const;
 
 function toC(v: number, from: string) { return from === "C" ? v : from === "F" ? (v - 32) * 5 / 9 : v - 273.15; }
@@ -40,19 +41,34 @@ export default function Converter({ onBack }: { onBack: () => void }) {
   const [from, setFrom] = useState("m");
   const [to, setTo] = useState("ft");
   const [val, setVal] = useState("1");
+  const [fx, setFx] = useState<FxData | null>(null);
+  const [fxState, setFxState] = useState<"idle" | "loading" | "ok" | "offline">("idle");
 
-  const units = cat === "Temp" ? [...TEMP_UNITS] : Object.keys(CATS[cat].units);
+  // Load live FX rates the first time Money is opened; cached to disk for offline reuse.
+  useEffect(() => {
+    if (cat !== "Money" || fx) return;
+    let alive = true;
+    setFxState("loading");
+    getRates().then((d) => {
+      if (!alive) return;
+      if (d) { setFx(d); setFxState("ok"); } else { setFxState("offline"); }
+    });
+    return () => { alive = false; };
+  }, [cat, fx]);
+
+  const units = cat === "Temp" ? [...TEMP_UNITS] : cat === "Money" ? [...CURRENCIES] : Object.keys(CATS[cat].units);
   const switchCat = (c: string) => {
     setCat(c);
-    const us = c === "Temp" ? TEMP_UNITS : Object.keys(CATS[c].units);
+    const us = c === "Temp" ? TEMP_UNITS : c === "Money" ? CURRENCIES : Object.keys(CATS[c].units);
     setFrom(us[0]); setTo(us[1] ?? us[0]);
   };
 
   const result = useMemo(() => {
     const v = parseFloat(val.replace(",", "."));
     if (!isFinite(v)) return "—";
+    if (cat === "Money") return fx ? round(fxConvert(fx.rates, from, to, v)) : "—";
     return round(convert(cat, from, to, v));
-  }, [cat, from, to, val]);
+  }, [cat, from, to, val, fx]);
 
   const UnitRow = ({ sel, onPick }: { sel: string; onPick: (u: string) => void }) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -74,7 +90,7 @@ export default function Converter({ onBack }: { onBack: () => void }) {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <ToolIntro
-          what={L("Convert between units of length, weight, volume and temperature using exact factors. All the math runs offline on your phone.")}
+          what={L("Convert length, weight, volume, temperature and currency. Units use exact offline factors; currency uses live rates, cached on your phone for offline use.")}
           setup={L("Choose a category, type a value, and pick the From and To units. Tap ⇅ to swap them.")}
         />
         <View style={st.tabs}>
@@ -101,7 +117,13 @@ export default function Converter({ onBack }: { onBack: () => void }) {
           <View style={{ marginTop: 8 }}><UnitRow sel={to} onPick={setTo} /></View>
         </View>
 
-        <Text style={st.note}>{L("Exact unit math, offline. Live currency rates are a later add.")}</Text>
+        <Text style={st.note}>
+          {cat === "Money"
+            ? fxState === "loading" ? L("Fetching today's exchange rates…")
+            : !fx ? L("No rates yet — connect to the internet once to fetch them, then it works offline.")
+            : `${L("Rates as of")} ${new Date(fx.asOf).toLocaleDateString()} · ${L("cached offline")}`
+            : L("Exact unit math, offline.")}
+        </Text>
       </ScrollView>
     </View>
   );

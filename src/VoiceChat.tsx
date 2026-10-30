@@ -18,6 +18,9 @@ import VoiceBar, { VoiceBarState } from "./VoiceBar";
 import { appMeta } from "./appMeta";
 import type { FeatureRoute } from "./screens/Tools";
 import { detectTool, type ToolHit } from "./toolIntent";
+import { detectCapability } from "./capabilities/dispatch";
+import { capabilityAction, runLink } from "./capabilities/execute";
+import type { Matched } from "./capabilities/types";
 
 const EMBLEM = require("../assets/brand/emblem.png");
 
@@ -163,6 +166,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [toolHint, setToolHint] = useState<ToolHit | null>(null); // main-chat tool designation
+  const [capHint, setCapHint] = useState<Matched | null>(null);   // detected device capability (timer/directions/…)
   const [busy, setBusy] = useState(false);          // model answering (ask)
   const [speaking, setSpeaking] = useState(false);  // TTS playing
   const [recording, setRecording] = useState(false); // mic actively capturing
@@ -333,7 +337,12 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     const q = (text ?? input).trim(); if (!q || busy || sendLock.current) return;
     sendLock.current = true;
     uiSfx("send");
-    setToolHint(detectTool(q)); // designate a tool if the message is tool-shaped
+    // Detect a device capability (timer, directions, draft a text, …) deterministically from
+    // the user's words; it runs without the model. Prefer it over the plain tool shortcut when
+    // it maps to a real action; otherwise fall back to the tool designation.
+    const cap = detectCapability(q);
+    if (cap && capabilityAction(cap).kind !== "none") { setCapHint(cap); setToolHint(null); }
+    else { setCapHint(null); setToolHint(detectTool(q)); }
     clearError();
     setInput(""); setBusy(true); setStream("");
     // Pass the running conversation so the buddy follows context (owner memory is
@@ -595,6 +604,23 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
               </View>
             )}
           </ScrollView>
+        )}
+
+        {/* Device capability — act on what the user asked (open the tool, or hand off to maps/
+            SMS/mail/browser). Side-effecting actions only run on this explicit tap. */}
+        {capHint && msgs.length > 0 && (
+          <View style={{ paddingHorizontal: space.md }}>
+            <Pressable onPress={() => {
+                const act = capabilityAction(capHint); setCapHint(null);
+                if (act.kind === "route") onOpenTool?.(act.route);
+                else if (act.kind === "link") runLink(act.url);
+              }}
+              accessibilityRole="button" accessibilityLabel={capHint.label}
+              style={({ pressed }) => [s.toolDesig, { borderColor: PERSONA[persona].accent }, pressed && { backgroundColor: color.surface2 }]}>
+              <Text style={[s.toolDesigT, { color: PERSONA[persona].accent }]}>⚡  {capHint.label}</Text>
+              <Text style={[s.toolDesigArrow, { color: PERSONA[persona].accent }]}>→</Text>
+            </Pressable>
+          </View>
         )}
 
         {/* Tool designation — the buddy answered; here's a shortcut into the matching tool. */}
