@@ -26,7 +26,7 @@ It was built to answer one question:
 
 ## The idea: the model is the mouth, the app is the brain
 
-A 1.5B model is small. On its own it's unreliable at facts, math, and following instructions. So Pocket Rocket **doesn't ask it to be smart** — it asks it to be *natural*, and moves all the correctness into deterministic app code:
+A 1.5B model is small. On its own it's unreliable at facts, math, and following instructions. So Pocket Rocket **doesn't ask it to be smart** — it asks it to be *natural*, and moves everything that has to be *right* — dates, math, scoring, tool-triggering, retrieval — into deterministic app code, leaving the model only the free-form phrasing:
 
 - **Dates, math, scoring, timers, reminders** → resolved by the app, never guessed by the model.
 - **Device capabilities** (alarms, directions, health, photos, OCR, translate…) → triggered by a **deterministic intent dispatcher** that reads *your words*, not the model's output — so tool-use is reliable even on a 1.5B.

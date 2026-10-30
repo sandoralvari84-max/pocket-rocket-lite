@@ -95,7 +95,7 @@ export default function Experts({ onBack }: { onBack: () => void }) {
                 <Body>{res.answer}</Body>
               </View>
             ) : res.grounded ? (
-              <Body muted>{L("No model installed — here are the matching passages from the packs:")}</Body>
+              <Body muted>{res.modelError ? L("The model hit an error — here are the matching passages:") : L("No model installed — here are the matching passages from the packs:")}</Body>
             ) : (
               <Body muted>{res.answer}</Body>
             )}

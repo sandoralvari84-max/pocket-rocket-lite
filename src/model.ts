@@ -10,7 +10,7 @@ import { getSettings } from "./settings";
 // RAG over the bundled knowledge packs. Retrieval is deterministic (searchKB); the
 // model only phrases the retrieved passages and must not invent beyond them. With no
 // model installed, the caller shows the passages directly (sources, grounded:true).
-export type ExpertResult = { answer: string; sources: KBChunk[]; grounded: boolean };
+export type ExpertResult = { answer: string; sources: KBChunk[]; grounded: boolean; modelError?: boolean };
 
 export async function askExpert(question: string, nicheId?: string): Promise<ExpertResult> {
   const chunks = searchKB(question, nicheId, 4);
@@ -41,7 +41,7 @@ export async function askExpert(question: string, nicheId?: string): Promise<Exp
     return { answer: (res.text ?? "").trim(), sources: chunks, grounded: true };
   } catch {
     // Model error — still return the retrieved passages (deterministic, factual).
-    return { answer: "", sources: chunks, grounded: true };
+    return { answer: "", sources: chunks, grounded: true, modelError: true };
   }
 }
 

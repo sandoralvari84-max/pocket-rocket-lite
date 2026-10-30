@@ -12,7 +12,7 @@ import { appMeta } from "./appMeta";
 import { L, useLang } from "./i18n";
 import Settings from "./screens/Settings";
 import About from "./screens/About";
-import Tools from "./screens/Tools";
+import Tools, { type FeatureRoute } from "./screens/Tools";
 import Notes from "./screens/Notes";
 import Memory from "./screens/Memory";
 import Grocery from "./screens/Grocery";
@@ -34,8 +34,6 @@ import Notifications from "./screens/Notifications";
 import TravelRoutes from "./screens/TravelRoutes";
 
 type Tab = "chat" | "games" | "tools" | "library" | "settings";
-type FeatureScreen = "notes" | "memory" | "grocery" | "diet" | "fitness" | "experts" | "budget" | "habits"
-  | "water" | "sleep" | "measure" | "timer" | "convert" | "calendar" | "recipes" | "meals" | "notifs" | "travel" | "translate";
 
 // Shared CRT display treatment (tools/art/gen_crt.py) — subtle scanlines + edge vignette
 // over the content "screen". The control deck below stays bare (it's the hardware).
@@ -117,7 +115,7 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [game, setGame] = useState<GameModule | null>(null);
   const [showAbout, setShowAbout] = useState(false);
-  const [screen, setScreen] = useState<FeatureScreen | null>(null);
+  const [screen, setScreen] = useState<FeatureRoute | null>(null);
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
   const insets = useSafeAreaInsets();
   useLang(); // re-render on language change
