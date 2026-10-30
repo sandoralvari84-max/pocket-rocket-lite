@@ -346,8 +346,6 @@ export default function Home({ onModelSetup }: { onModelSetup: () => void }) {
         <NavKey icon={NAV_ICON.tools} label="Tools" active={tab === "tools"} onPress={() => setTab("tools")} />
         <NavKey icon={NAV_ICON.library} label="Library" active={tab === "library"} onPress={() => setTab("library")} />
         <NavKey icon={NAV_ICON.settings} label="Settings" active={tab === "settings"} onPress={() => setTab("settings")} />
-        <NavKey icon={NAV_ICON.radio} label="Radio" soon active={false} onPress={() => {}} />
-            <NavKey icon={NAV_ICON.dictaphone} label="Dictaphone" soon active={false} onPress={() => {}} />
           </Animated.View>
         </View>
       </Animated.View>

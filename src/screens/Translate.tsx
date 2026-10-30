@@ -11,7 +11,7 @@ import { useAudioRecorder, RecordingPresets, AudioModule } from "expo-audio";
 import { color, space, radius } from "../design/tokens";
 import { Body, Input, Button, ScreenHeader, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
-import { ensureWhisper, transcribe } from "../stt";
+import { ensureWhisper, transcribe, startRecording, stopRecording } from "../stt";
 import TranslateText, { TranslateLanguage } from "@react-native-ml-kit/translate-text";
 
 const ICON = require("../../assets/ui/tools/translate.png");
@@ -83,14 +83,12 @@ export default function Translate({ onBack }: { onBack: () => void }) {
         if (!perm.granted) { setTalkStatus(L("Microphone permission needed.")); return; }
         setTalkStatus(L("Getting ready…"));
         await ensureWhisper(() => {});
-        await recorder.prepareToRecordAsync();
-        recorder.record();
+        startRecording();
         setRecSide(side);
         setTalkStatus(L("Listening…"));
       } else if (recSide === side) {
         setRecSide(null); setTalkBusy(true); setTalkStatus(L("Transcribing…"));
-        await recorder.stop();
-        const uri = recorder.uri;
+        const uri = await stopRecording();
         if (!uri) { setTalkStatus(L("No audio — try again.")); return; }
         const src = side === "A" ? from : to;
         const dst = side === "A" ? to : from;

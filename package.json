@@ -7,6 +7,7 @@
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/press-start-2p": "^0.4.1",
     "@expo-google-fonts/vt323": "^0.4.1",
+    "@fugood/react-native-audio-pcm-stream": "^1.1.4",
     "@react-native-ml-kit/translate-text": "^0.5.0",
     "expo": "^54.0.0",
     "expo-asset": "~12.0.14",
