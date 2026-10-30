@@ -5,6 +5,7 @@
 import { Linking } from "react-native";
 import type { Matched } from "./types";
 import type { FeatureRoute } from "../screens/Tools";
+import { OWNER_BUILD } from "./build";
 
 export type CapAction =
   | { kind: "route"; route: FeatureRoute }
@@ -14,6 +15,10 @@ export type CapAction =
 const enc = encodeURIComponent;
 
 export function capabilityAction(m: Matched): CapAction {
+  // Shipped/consumer build: online hand-offs (YouTube / web search / email draft) are OFF by
+  // default — the privacy promise. The owner build keeps them on. (Currency FX stays on: it's a
+  // user-initiated, keyless, no-PII rate lookup.)
+  if (m.online && !OWNER_BUILD) return { kind: "none" };
   switch (m.id) {
     // In-app screens (offline, no permission hand-off needed).
     case "set_timer":          return { kind: "route", route: "timer" };
