@@ -147,6 +147,8 @@ const STARTERS: { label: string; prompt?: string; reply?: string }[] = [
 // Clean model text for TTS: drop markdown/symbols, collapse whitespace so the engine reads words, not glyphs.
 function speakable(t: string): string {
   return t
+    // Strip emoji / pictographs / symbols so the TTS engine reads words, not glyphs.
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}\u{1F1E6}-\u{1F1FF}\u{2190}-\u{21FF}\u{2460}-\u{24FF}]/gu, " ")
     .replace(/[*_`#>|~]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -168,6 +170,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
   const [sttStatus, setSttStatus] = useState("");    // transient non-error notice
   const [error, setError] = useState("");            // transient error flag for bar + status
   const [permDenied, setPermDenied] = useState(false); // persistent mic-permission notice
+  const [stream, setStream] = useState("");          // live partial assistant text while generating
 
   useLang(); // re-render on language change
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -332,18 +335,41 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     uiSfx("send");
     setToolHint(detectTool(q)); // designate a tool if the message is tool-shaped
     clearError();
-    setInput(""); setBusy(true);
+    setInput(""); setBusy(true); setStream("");
     // Pass the running conversation so the buddy follows context (owner memory is
     // injected by the model layer). Captured before we append the new user turn.
     const history = msgs.map((m) => ({ role: m.role, content: m.text }));
     setMsgs((m) => [...m, { role: "user", text: q }]);
     try {
-      const a = await chat(q, settings.voice, history);
+      Speech.stop();
+      const gen = ++speechGeneration.current;
+      setSpeaking(true);
+      let spokenLen = 0;
+      const speakChunk = (chunk: string) => { const say = speakable(chunk); if (say) Speech.speak(say, speakOpts()); };
+      const a = await chat(q, settings.voice, history, (partial) => {
+        setStream(partial);
+        // Speak complete sentences as they stream so the voice follows the text
+        // instead of waiting for the whole reply to finish generating.
+        const pending = partial.slice(spokenLen);
+        const b = Math.max(
+          pending.lastIndexOf("."), pending.lastIndexOf("!"),
+          pending.lastIndexOf("?"), pending.lastIndexOf("…"), pending.lastIndexOf("\n"),
+        );
+        if (b >= 0) { speakChunk(pending.slice(0, b + 1)); spokenLen += b + 1; }
+      });
+      setStream("");
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setBusy(false);
-      speakText(a);
+      const tail = a.slice(spokenLen);
+      if (tail.trim()) speakChunk(tail);
+      // Flip the Speaking indicator off once the whole queued utterance drains.
+      const drain = setInterval(async () => {
+        try {
+          if (!(await Speech.isSpeakingAsync())) { clearInterval(drain); if (speechGeneration.current === gen) setSpeaking(false); }
+        } catch { clearInterval(drain); if (speechGeneration.current === gen) setSpeaking(false); }
+      }, 400);
       sendLock.current = false;
     } catch (e: any) {
-      setBusy(false);
+      setBusy(false); setStream(""); Speech.stop(); setSpeaking(false);
       const detail = String(e?.message ?? e);
       const modelMissing = detail.toLowerCase().includes("model not loaded");
       setMsgs((m) => [...m, {
@@ -556,10 +582,16 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
             {busy && (
               <View style={[s.row, { justifyContent: "flex-start" }]}>
                 <Text style={s.tag}>AI</Text>
-                <View style={[s.bubble, s.asstBubble, s.typing]}>
-                  <ActivityIndicator color={color.amber} size="small" />
-                  <Text style={s.typingT}>Thinking…</Text>
-                </View>
+                {stream ? (
+                  <View style={[s.bubble, s.asstBubble]}>
+                    <Body>{stream}</Body>
+                  </View>
+                ) : (
+                  <View style={[s.bubble, s.asstBubble, s.typing]}>
+                    <ActivityIndicator color={color.amber} size="small" />
+                    <Text style={s.typingT}>Thinking…</Text>
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>

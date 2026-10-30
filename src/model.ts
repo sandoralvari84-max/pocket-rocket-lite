@@ -43,7 +43,7 @@ export async function askExpert(question: string, nicheId?: string): Promise<Exp
 // the APK) and imported via the file picker, or downloaded over Wi-Fi. Then offline forever.
 //
 // TWO PROFILES so the app survives low-RAM phones: a 0.5B (~491MB file, ~0.6GB RAM) for
-// 4GB devices, and the 1.5B (~1.1GB file, ~1.3GB RAM) for roomier phones. The active one
+// 4GB devices, and the 4B (Qwen3-4B-Instruct-2507, ~2.5GB file, ~3.5GB RAM) for roomy phones. The active one
 // is chosen by device RAM (expo-device) unless the user pins a choice in Settings.
 export type ModelProfile = {
   id: "small" | "large"; label: string; file: string; url: string; bytes: number; n_ctx: number;
@@ -56,15 +56,15 @@ export const MODEL_PROFILES: Record<"small" | "large", ModelProfile> = {
     bytes: 491400032, n_ctx: 4096,
   },
   large: {
-    id: "large", label: "1.5B",
-    file: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-    url: "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
-    bytes: 1117320736, n_ctx: 8192,
+    id: "large", label: "4B",
+    file: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    url: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    bytes: 2497281120, n_ctx: 8192,
   },
 };
 
-// <= ~5GB total RAM picks the 0.5B (safe on 4GB phones); more picks the 1.5B.
-const LOW_RAM_BYTES = 5 * 1024 * 1024 * 1024;
+// <= ~6GB total RAM picks the 0.5B (safe on 4GB phones); more picks the 4B (needs ~3.5GB free).
+const LOW_RAM_BYTES = 6 * 1024 * 1024 * 1024;
 export function recommendedProfile(): ModelProfile {
   const total = Device.totalMemory ?? 0; // bytes; 0 = unknown, assume roomy
   return total > 0 && total <= LOW_RAM_BYTES ? MODEL_PROFILES.small : MODEL_PROFILES.large;
@@ -130,7 +130,18 @@ export async function loadModel(): Promise<void> {
   if (ctx) return;
   const p = activeProfile();
   try {
-    ctx = await initLlama({ model: pathFor(p), n_ctx: Math.min(p.n_ctx, 2048), n_gpu_layers: 0 });
+    // On-device tuning (safe, no Android changes): use the fast CPU cluster,
+    // enable flash attention when the backend supports it, and a prefill batch.
+    // GPU (OpenCL) offload is kept off here as a separate experiment — enabling it
+    // on a build without the Vulkan/OpenCL backend can fail the load.
+    ctx = await initLlama({
+      model: pathFor(p),
+      n_ctx: Math.min(p.n_ctx, 2048),
+      n_gpu_layers: 0,
+      n_threads: 6,
+      flash_attn_type: "auto",
+      n_batch: 512,
+    });
   } catch (e) {
     // A corrupt/partial model will not load. Delete it so Retry re-downloads cleanly.
     await clearModel();
@@ -174,6 +185,7 @@ export async function chat(
   question: string,
   persona?: "sentinel" | "nova",
   history: ChatTurn[] = [],
+  onToken?: (partial: string) => void,
 ): Promise<string> {
   if (!ctx) throw new Error("model not loaded");
   const tone = persona === "nova" ? " Your tone is warm and kind."
@@ -198,6 +210,7 @@ export async function chat(
   // Recent conversation so the buddy actually follows context (trimmed to protect the
   // small model's window).
   const recent = history.slice(-6).map((t) => ({ role: t.role, content: t.content }));
+  let acc = "";
   const res = await ctx.completion({
     messages: [
       { role: "system", content: system },
@@ -206,10 +219,14 @@ export async function chat(
     ],
     temperature: 0.6,
     top_p: 0.9,
-    n_predict: 400,
+    n_predict: 220,
     stop: ["<|im_end|>", "<|endoftext|>"],
+  }, (data) => {
+    // Stream tokens to the UI as they generate — the biggest felt-speed win.
+    const piece = (data as { token?: string }).token ?? "";
+    if (piece) { acc += piece; onToken?.(acc.trim()); }
   });
-  const out = (res.text ?? "").trim();
+  const out = (res.text || acc || "").trim();
   // Graceful default when the model runs out of room (hit the token cap) or
   // returns nothing — rather than a cut-off ramble.
   if (!out || (res as { stopped_limit?: number }).stopped_limit) {
