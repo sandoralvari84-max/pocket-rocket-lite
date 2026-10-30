@@ -744,7 +744,7 @@ const s = StyleSheet.create({
   // Mission Bay home
   personaWrap: { flexDirection: "row", gap: 6 },
   personaBtn: { borderWidth: 1, borderColor: color.surfaceLine, borderRadius: radius.pill, paddingHorizontal: 13, height: 38, justifyContent: "center" },
-  personaT: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  personaT: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   meterWrap: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs, alignItems: "center" },
   meterDisplay: { width: "100%", maxWidth: 440 },
   heroWrap: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.sm },
@@ -754,7 +754,7 @@ const s = StyleSheet.create({
   greetNova: { fontSize: 21, letterSpacing: 0.5, lineHeight: 26 },
   heroSub: { ...T.small, color: color.textMuted, textAlign: "center", marginBottom: space.md },
   composerHero: { flexDirection: "row", gap: space.sm, alignItems: "center", alignSelf: "stretch", maxWidth: 440, width: "100%", backgroundColor: "#0F141B", borderWidth: 1, borderColor: "#2A333E", borderTopColor: "#3A485A", borderRadius: radius.lg, padding: space.sm, boxShadow: "0 6px 18px rgba(0,0,0,0.35)" },
-  chipHint: { fontFamily: font.mono, fontSize: 10.5, letterSpacing: 2, marginTop: space.lg, opacity: 0.9 },
+  chipHint: { fontFamily: font.mono, fontSize: 11, letterSpacing: 2, marginTop: space.lg, opacity: 0.9 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.sm, marginTop: space.sm, alignSelf: "stretch", maxWidth: 440, width: "100%" },
   toolGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: space.sm, marginTop: space.sm, alignSelf: "stretch", maxWidth: 440, width: "100%" },
   toolTile: { width: "48%", backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.surfaceLine, padding: space.sm },
@@ -784,7 +784,7 @@ const s = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.sm, width: "100%", maxWidth: 440, paddingHorizontal: space.xs },
   dot: { width: 8, height: 8, borderRadius: 4 },
   status: { fontFamily: font.mono, fontSize: 12.5, letterSpacing: 0.5 },
-  meta: { fontFamily: font.mono, fontSize: 10.5, color: color.textFaint, letterSpacing: 0.8, marginLeft: "auto" },
+  meta: { fontFamily: font.mono, fontSize: 11, color: color.textFaint, letterSpacing: 0.8, marginLeft: "auto" },
   hudControls: { flexDirection: "row", gap: space.sm, marginTop: space.md, alignItems: "center", justifyContent: "center", flexWrap: "wrap" },
   voiceBtn: {
     borderWidth: 1, borderColor: color.cyanDim, borderRadius: radius.md,
@@ -801,7 +801,7 @@ const s = StyleSheet.create({
   transcriptInner: { padding: space.lg, gap: space.md },
 
   row: { flexDirection: "row", alignItems: "flex-end", gap: space.sm, maxWidth: "100%" },
-  tag: { ...T.small, color: color.textFaint, fontSize: 10, letterSpacing: 1, marginBottom: 3 },
+  tag: { ...T.small, color: color.textFaint, fontSize: 11, letterSpacing: 1, marginBottom: 3 },
   bubble: { maxWidth: "80%", paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.md, borderWidth: 1 },
   userBubble: { backgroundColor: color.amberGlowBg, borderColor: color.amberDim },
   asstBubble: { backgroundColor: color.surface, borderColor: color.surfaceLine },

@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Vibration } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { scheduleIn, cancel } from "../notify";
@@ -14,6 +15,7 @@ const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${Str
 export default function Timers({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const [remaining, setRemaining] = useState(300);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -52,7 +54,7 @@ export default function Timers({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("TIMER")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("TIMER")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 

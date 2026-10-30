@@ -6,7 +6,8 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius, type as T } from "../design/tokens";
+import { color, space, radius, type as T, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import {
@@ -35,6 +36,7 @@ function Field({ label, hint, value, onChange, multiline }: {
 export default function Memory({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const profile = useProfile();
   const items = facts.use();
   const [draft, setDraft] = useState("");
@@ -51,7 +53,7 @@ export default function Memory({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("MEMORY")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("MEMORY")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 

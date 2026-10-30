@@ -472,7 +472,7 @@ const s = StyleSheet.create({
   tileLed: { position: "absolute", right: 5, bottom: 5, width: 5, height: 5, borderRadius: 3, opacity: 0.9 },
   tileMono: { fontSize: 15, letterSpacing: 1 },
   cardTitle: { ...T.h2, fontSize: 14 },
-  cardDesc: { ...T.small, fontSize: 9.5, color: color.textFaint, marginTop: 2 },
+  cardDesc: { ...T.small, fontSize: 11, color: color.textFaint, marginTop: 2 },
 
   // Version tag
   ver: {
@@ -517,7 +517,7 @@ const s = StyleSheet.create({
   navImg: { width: 22, height: 22 },
   navGlyph: { fontSize: 22, lineHeight: 26, color: color.textMuted, textAlign: "center" },
   navGlyphOn: { color: color.amber },
-  keyLabel: { ...T.small, color: color.textMuted, fontSize: 9, letterSpacing: 0.2 },
+  keyLabel: { ...T.small, color: color.textMuted, fontSize: 11, letterSpacing: 0.2 },
   keyLabelOn: { color: color.amber },
   keyLabelSoon: { color: "#3A4650", fontSize: 7.5, letterSpacing: 0.6 },
 });

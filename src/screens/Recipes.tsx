@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
@@ -15,6 +16,7 @@ export const recipes = createCollection<Recipe>("recipes");
 export default function Recipes({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const list = recipes.use();
   const [edit, setEdit] = useState<Recipe | "new" | null>(null);
   const [title, setTitle] = useState("");
@@ -41,7 +43,7 @@ export default function Recipes({ onBack }: { onBack: () => void }) {
       <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
         <View style={st.head}>
           <IconButton label="Back" glyph="‹" onPress={() => setEdit(null)} />
-          <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{edit === "new" ? L("NEW RECIPE") : L("RECIPE")}</PixelText>
+          <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{edit === "new" ? L("NEW RECIPE") : L("RECIPE")}</PixelText>
           <View style={{ width: 44 }} />
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -67,7 +69,7 @@ export default function Recipes({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("RECIPES")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("RECIPES")}</PixelText>
         <IconButton label="New recipe" glyph="＋" onPress={openNew} />
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>

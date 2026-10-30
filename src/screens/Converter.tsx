@@ -4,7 +4,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, Input, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { getRates, fxConvert, CURRENCIES, type FxData } from "../data/fx";
@@ -37,6 +38,7 @@ const round = (n: number) => {
 export default function Converter({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const [cat, setCat] = useState<string>("Length");
   const [from, setFrom] = useState("m");
   const [to, setTo] = useState("ft");
@@ -84,7 +86,7 @@ export default function Converter({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("CONVERT")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("CONVERT")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 

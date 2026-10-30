@@ -4,7 +4,7 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, accentFor } from "../design/tokens";
 import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { listNiches } from "../data/kb";
@@ -16,6 +16,7 @@ const NICHES = listNiches();
 export default function Experts({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const settings = useSettings();
   // One persisted active pack (packs don't stack — a single lens reads sharper). null = All.
   const niche = settings.activeNiche ?? undefined;
@@ -39,7 +40,7 @@ export default function Experts({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.amber, flex: 1, textAlign: "center" }}>{L("EXPERTS")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("EXPERTS")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 

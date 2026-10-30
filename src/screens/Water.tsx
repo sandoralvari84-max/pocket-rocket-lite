@@ -3,7 +3,8 @@
 import React, { useMemo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { color, space, radius } from "../design/tokens";
+import { color, space, radius, accentFor } from "../design/tokens";
+import { useSettings } from "../settings";
 import { PixelText, Body, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
@@ -18,6 +19,7 @@ function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(
 export default function Water({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   useLang();
+  const acc = accentFor(useSettings().voice).c;
   const cups = waterCup.use();
   const goals = waterGoal.use();
   const today = todayKey();
@@ -34,7 +36,7 @@ export default function Water({ onBack }: { onBack: () => void }) {
     <View style={[st.fill, { paddingTop: Math.max(insets.top, 24) }]}>
       <View style={st.head}>
         <IconButton label="Back" glyph="‹" onPress={onBack} />
-        <PixelText size="h2" style={{ color: color.cyan, flex: 1, textAlign: "center" }}>{L("WATER")}</PixelText>
+        <PixelText size="h2" style={{ color: acc, flex: 1, textAlign: "center" }}>{L("WATER")}</PixelText>
         <View style={{ width: 44 }} />
       </View>
 
