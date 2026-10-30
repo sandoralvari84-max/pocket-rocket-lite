@@ -51,16 +51,19 @@ This isn't a flagship-phone showpiece — it's deliberately engineered for **che
 
 ## Tech
 
-React Native 0.81 (New Architecture) · Expo SDK 54 · TypeScript · **llama.rn** (on-device GGUF inference) · **whisper.rn** (on-device STT) · expo-speech (TTS) · react-native-game-engine · all art generated in-repo with Python + Pillow (fully owned, CC0).
+React Native 0.81 (New Architecture) · Expo SDK 54 · TypeScript · **llama.rn** (on-device GGUF inference) · **whisper.rn** (on-device STT) · expo-speech (TTS) · expo-notifications (local reminders) · react-native-game-engine · all art generated in-repo with Python + Pillow (fully owned, CC0).
 
 ## Status
 
-**v1 baseline — actively testing on-device.** The console, all 13 games, the capability framework, and the owner/shipped build split are built and committed; the design is documented under [`docs/`](docs/) (see the [product brief](docs/PRODUCT_BRIEF.md), [owner-vs-shipped policy](docs/OWNER_VS_SHIPPED.md), and the per-game specs). On-device playtesting, feel/balance tuning, and wiring the native capability executions are in progress. This is a living project — v2 evolves with real testing, including swapping in a larger model.
+**v1 baseline — actively testing on-device.** The console, all 13 games, the capability framework, and the owner/shipped build split are built and committed; the design is documented under [`docs/`](docs/) (see the [product brief](docs/PRODUCT_BRIEF.md), [owner-vs-shipped policy](docs/OWNER_VS_SHIPPED.md), and the per-game specs).
+
+Recently landed: **streaming voice chat**; a **live currency converter** (offline-cached FX rates); **device-capability actions wired into chat** — a tap-to-confirm chip that fires timers, directions, message/email drafts, YouTube/web hand-offs, translate and reminders straight from what you type; and **real timer + calendar reminder notifications** that fire even when the app is closed. Still in progress: on-device voice *input* (recorder-format fix), the notification-reader native module, OCR, and bundling the model into the APK. This is a living project — v2 evolves with real testing, including swapping in a larger model.
 
 ## Roadmap
 
 - On-device playtest + feel/balance pass across all 13 games
-- Wire the native capability executions (translate / OCR / health / alarms …)
+- ✅ Capability actions wired into chat (timers, directions, drafts, YouTube/web, translate, reminders) + real timer/calendar notifications
+- Remaining native pieces: on-device voice input (PCM recorder), the notification-reader service, OCR, and bundling the model
 - "Hey Buddy" light background wake word → pull up and listen (see [`docs/WAKE_WORD.md`](docs/WAKE_WORD.md))
 - Larger-model tier for better hardware (the architecture is model-agnostic)
 

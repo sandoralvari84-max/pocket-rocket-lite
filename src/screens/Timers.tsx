@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, space, radius } from "../design/tokens";
 import { PixelText, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
+import { scheduleIn, cancel } from "../notify";
 
 const PRESETS = [60, 180, 300, 600, 1200]; // seconds
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -17,6 +18,7 @@ export default function Timers({ onBack }: { onBack: () => void }) {
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const endRef = useRef(0);
+  const notifId = useRef<string | null>(null); // scheduled background "timer done" notification
 
   useEffect(() => {
     if (!running) return;
@@ -28,9 +30,22 @@ export default function Timers({ onBack }: { onBack: () => void }) {
     return () => clearInterval(id);
   }, [running]);
 
-  const start = () => { if (remaining <= 0) return; endRef.current = Date.now() + remaining * 1000; setDone(false); setRunning(true); };
-  const pause = () => { setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000))); setRunning(false); };
-  const reset = (sec: number) => { setRunning(false); setDone(false); setRemaining(sec); };
+  const start = () => {
+    if (remaining <= 0) return;
+    endRef.current = Date.now() + remaining * 1000; setDone(false); setRunning(true);
+    // Fire a notification at the end time too, so the timer still alerts if the app is
+    // backgrounded or closed (the in-app vibration only works while the screen is open).
+    cancel(notifId.current); notifId.current = null;
+    scheduleIn(remaining, L("Timer done"), L("Your countdown has finished.")).then((id) => { notifId.current = id; });
+  };
+  const pause = () => {
+    setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000))); setRunning(false);
+    cancel(notifId.current); notifId.current = null;
+  };
+  const reset = (sec: number) => {
+    setRunning(false); setDone(false); setRemaining(sec);
+    cancel(notifId.current); notifId.current = null;
+  };
   const bump = (delta: number) => { if (running) return; setRemaining((r) => Math.max(0, Math.min(5999, r + delta))); setDone(false); };
 
   return (
@@ -43,7 +58,7 @@ export default function Timers({ onBack }: { onBack: () => void }) {
 
       <View style={{ paddingHorizontal: space.md }}>
         <ToolIntro
-          what={L("A countdown timer that vibrates when it reaches zero. It counts down to a fixed end time, so it stays accurate even if the screen sleeps.")}
+          what={L("A countdown timer that vibrates and sends a notification when it reaches zero — so it still alerts you even if you leave the app. It counts down to a fixed end time, so it stays accurate even if the screen sleeps.")}
           setup={L("Pick a preset or adjust with the ±10s / ±1m buttons, then tap Start.")}
         />
       </View>

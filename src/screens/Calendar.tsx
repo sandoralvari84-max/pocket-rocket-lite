@@ -1,6 +1,6 @@
 // Calendar / agenda — Tools niche #5. Events + deterministic date grouping (today /
-// tomorrow / this week / later). Pure on-device & offline. Reminder NOTIFICATIONS need
-// a native rebuild (expo-notifications) and are flagged separately — not in this build.
+// tomorrow / this week / later). On-device & offline. Events with a parseable time also
+// schedule a local reminder notification (expo-notifications, inexact/Doze-tolerant).
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,9 +8,24 @@ import { color, space, radius } from "../design/tokens";
 import { PixelText, Body, Input, Button, IconButton, ToolIntro } from "../design/ui";
 import { L, useLang } from "../i18n";
 import { createCollection, type Entity } from "../data/store";
+import { scheduleAt, cancel } from "../notify";
 
-type Ev = Entity & { title: string; date: string; time: string };
+type Ev = Entity & { title: string; date: string; time: string; notifId?: string };
 export const events = createCollection<Ev>("events");
+
+// Build a concrete reminder time from the event's date ("YYYY-MM-DD") + free-text time
+// ("14:30", "2pm", "9am"). Returns null when there's no usable/future time (= no reminder).
+function reminderDate(dateKey: string, timeStr: string): Date | null {
+  const t = (timeStr || "").toLowerCase().trim();
+  let h: number | null = null, min = 0;
+  let m = t.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
+  if (m) { h = +m[1]; min = +m[2]; if (m[3] === "pm" && h < 12) h += 12; if (m[3] === "am" && h === 12) h = 0; }
+  else { m = t.match(/^(\d{1,2})\s*(am|pm)$/); if (m) { h = +m[1]; if (m[2] === "pm" && h < 12) h += 12; if (m[2] === "am" && h === 12) h = 0; } }
+  if (h === null || h > 23 || min > 59) return null;
+  const [y, mo, d] = dateKey.split("-").map(Number);
+  const when = new Date(y, mo - 1, d, h, min, 0, 0);
+  return when.getTime() > Date.now() + 500 ? when : null;
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -35,10 +50,15 @@ export default function Calendar({ onBack }: { onBack: () => void }) {
   const [time, setTime] = useState("");
   const [pick, setPick] = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
 
-  const add = () => {
+  const add = async () => {
     const t = title.trim();
     if (!t) return;
-    events.create({ title: t, date: keyOf(pick), time: time.trim() });
+    const dateKey = keyOf(pick); const tm = time.trim();
+    // Schedule a reminder when the event has a parseable, future time; store its id so a
+    // later delete can cancel it. No time (or a past one) = agenda entry only, no reminder.
+    const when = reminderDate(dateKey, tm);
+    const notifId = when ? await scheduleAt(when, t, L("Upcoming event")) : null;
+    events.create({ title: t, date: dateKey, time: tm, notifId: notifId ?? undefined });
     setTitle(""); setTime("");
   };
 
@@ -87,7 +107,7 @@ export default function Calendar({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.md, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
         <ToolIntro
           what={L("Keep a simple agenda of upcoming events, grouped into Today, Tomorrow, This week and Later. Runs fully on-device.")}
-          setup={L("Type an event above, set a date with the arrows or quick buttons, add a time if you like, then tap Add. Reminder notifications come in a later update.")}
+          setup={L("Type an event above, set a date with the arrows or quick buttons, and add a time to get a reminder notification, then tap Add.")}
         />
         {upcoming.length === 0 ? (
           <Body muted style={{ textAlign: "center", marginTop: space.xl }}>{L("No upcoming events.")}</Body>
@@ -101,12 +121,12 @@ export default function Calendar({ onBack }: { onBack: () => void }) {
                   <Text style={st.evTitle}>{e.title}</Text>
                   {!!e.time && <Text style={st.evTime}>{e.time}</Text>}
                 </View>
-                <Pressable onPress={() => events.remove(e.id)} hitSlop={10} style={st.del}><Text style={{ color: color.textFaint, fontSize: 15 }}>✕</Text></Pressable>
+                <Pressable onPress={() => { cancel(e.notifId); events.remove(e.id); }} hitSlop={10} style={st.del}><Text style={{ color: color.textFaint, fontSize: 15 }}>✕</Text></Pressable>
               </View>
             ))}
           </View>
         ))}
-        <Text style={st.note}>{L("Reminders (notifications) are coming in a later update.")}</Text>
+        <Text style={st.note}>{L("Add a time to an event and it will remind you with a notification. Reminders may be slightly late if your phone is in deep battery-saving.")}</Text>
       </ScrollView>
     </View>
   );

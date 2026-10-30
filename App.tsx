@@ -15,6 +15,7 @@ import { Screen, Title, H2, Body, PixelText, Button, Spinner, Card, ProgressBar,
 import { appMeta } from "./src/appMeta";
 import { getSettings, loadSettings, setSetting } from "./src/settings";
 import { L, useLang, LANGS } from "./src/i18n";
+import "./src/notify"; // registers the foreground notification handler at app start
 
 const EMBLEM = require("./assets/brand/emblem.png");
 
