@@ -8,7 +8,7 @@ import * as Speech from "expo-speech";
 import { resolveVoices, voiceId } from "./voices";
 import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from "expo-audio";
 import { chat, activeModelLabel, stopGeneration } from "./model";
-import { ensureWhisper, transcribe, startRecording, stopRecording } from "./stt";
+import { ensureWhisper, startRecording, stopRecordingAndTranscribe } from "./stt";
 import { useSettings, getSettings, setSetting } from "./settings";
 import { L, useLang } from "./i18n";
 import { color, space, radius, type as T, HIT, glow, font } from "./design/tokens";
@@ -446,9 +446,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
       micTransitionLock.current = true;
       try {
         setRecording(false); setSttBusy(true); setSttStatus("Transcribing…");
-        const uri = await stopRecording();
-        if (!uri) { setSttBusy(false); setSttStatus(""); flagError("No audio captured. Try again."); return; }
-        const text = await transcribe(uri);
+        const text = await stopRecordingAndTranscribe();
         setSttStatus(""); setSttBusy(false);
         if (text) send(text); else setSttStatus("Didn't catch that — try again.");
       } catch (e: any) {
