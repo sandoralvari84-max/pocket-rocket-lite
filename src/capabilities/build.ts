@@ -16,7 +16,10 @@
 
 import type { CapabilityId } from "./types";
 
-export const OWNER_BUILD = true; // flip to false to simulate the shipped defaults.
+// Owner (full) build by default. A consumer release passes EXPO_PUBLIC_BUILD_PROFILE=consumer,
+// which Expo inlines at build time — so a shipped build can't accidentally go out with owner
+// defaults (online on, inbox present). See docs/BUILDS.md.
+export const OWNER_BUILD = (process.env.EXPO_PUBLIC_BUILD_PROFILE ?? "owner") !== "consumer";
 
 export interface CapPolicy {
   online: boolean;         // leaves the device

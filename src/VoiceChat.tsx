@@ -48,7 +48,7 @@ const HERO_STARS = Array.from({ length: 16 }, () => ({
 const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
 const PERSONA = {
   sentinel: {
-    accent: "#FF9800", cardRadius: 5, tileRadius: 4,
+    accent: color.amber, cardRadius: 5, tileRadius: 4,
     greet: [
       "Let's get this over with.",
       "Online. Unfortunately.",
@@ -59,7 +59,7 @@ const PERSONA = {
     ],
   },
   nova: {
-    accent: "#00E5FF", cardRadius: 22, tileRadius: 15,
+    accent: color.cyan, cardRadius: 22, tileRadius: 15,
     greet: [
       "Hey — good to see you.",
       "I'm right here whenever you need me.",

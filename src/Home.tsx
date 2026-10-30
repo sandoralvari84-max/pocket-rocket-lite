@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, BackHandler, Image, ImageBackground, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import VoiceChat from "./VoiceChat";
@@ -69,10 +69,6 @@ const BLURB: Record<string, string> = {
   "draughts": "Line up a mill of three to take a piece — Malom (Nine Men's Morris).",
   "fleet-hunt": "Hunt the hidden fleet one grid square at a time.",
   "word-gallows": "Guess the word one letter at a time.",
-  "twenty-questions": "Think of something; the model guesses in twenty.",
-  "trivia-time": "Answer the questions the model puts to you.",
-  "word-hunt": "Crack the hidden word from a clue, with hot/cold hints.",
-  "riddle-me": "Solve the riddles the model poses.",
 };
 
 // Original per-game icons (tools/art/gen_game_icons.py) — the game's own motif,
