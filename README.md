@@ -53,6 +53,8 @@ This isn't a flagship-phone showpiece — it's deliberately engineered for **che
 
 React Native 0.81 (New Architecture) · Expo SDK 54 · TypeScript · **llama.rn** (on-device GGUF inference) · **whisper.rn** (on-device STT) · expo-speech (TTS) · expo-notifications (local reminders) · react-native-game-engine · all art generated in-repo with Python + Pillow (fully owned, CC0).
 
+**Tested** — `npm test` runs a jest suite over the deterministic core: intent detection, date/duration parsing, offline RAG retrieval, and currency math — the logic the product's reliability actually depends on.
+
 ## Status
 
 **v1 baseline — actively testing on-device.** The console, all 13 games, the capability framework, and the owner/shipped build split are built and committed; the design is documented under [`docs/`](docs/) (see the [product brief](docs/PRODUCT_BRIEF.md), [owner-vs-shipped policy](docs/OWNER_VS_SHIPPED.md), and the per-game specs).
