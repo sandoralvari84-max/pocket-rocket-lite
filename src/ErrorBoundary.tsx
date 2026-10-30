@@ -9,10 +9,10 @@ import { color, space } from "./design/tokens";
 // time the activity is back the mount succeeds), and offer a manual retry. The app
 // recovers instead of closing.
 type Props = { children: React.ReactNode };
-type State = { crashed: boolean; nonce: number };
+type State = { crashed: boolean; nonce: number; autoRetries: number; fatal: boolean };
 
 export class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { crashed: false, nonce: 0 };
+  state: State = { crashed: false, nonce: 0, autoRetries: 0, fatal: false };
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   static getDerivedStateFromError(): Partial<State> {
@@ -20,10 +20,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(err: Error) {
-    // Log for adb logcat; auto-remount shortly (transient native/activity races clear).
     // eslint-disable-next-line no-console
-    console.warn("[ErrorBoundary] recovered from:", err?.message ?? err);
+    console.warn("[ErrorBoundary] caught:", err?.message ?? err);
     if (this.timer) clearTimeout(this.timer);
+    // Auto-remount a few times (transient native/activity races clear). But CAP it: a persistent
+    // crash must not loop forever flashing "Reconnecting…" — after the cap, fall through to a real
+    // error state the user can act on. A manual retry resets the counter.
+    if (this.state.autoRetries >= 3) { this.setState({ fatal: true }); return; }
+    this.setState((s) => ({ autoRetries: s.autoRetries + 1 }));
     this.timer = setTimeout(() => this.setState((s) => ({ crashed: false, nonce: s.nonce + 1 })), 650);
   }
 
@@ -33,15 +37,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   retry = () => {
     if (this.timer) clearTimeout(this.timer);
-    this.setState((s) => ({ crashed: false, nonce: s.nonce + 1 }));
+    this.setState((s) => ({ crashed: false, fatal: false, autoRetries: 0, nonce: s.nonce + 1 }));
   };
 
   render() {
     if (this.state.crashed) {
       return (
         <View style={st.fill}>
-          <Text style={st.title}>Reconnecting…</Text>
-          <Text style={st.sub}>A hiccup — getting you back in.</Text>
+          <Text style={st.title}>{this.state.fatal ? "Something went wrong" : "Reconnecting…"}</Text>
+          <Text style={st.sub}>{this.state.fatal ? "The app hit a snag it couldn't shake off on its own." : "A hiccup — getting you back in."}</Text>
           <Pressable onPress={this.retry} style={st.btn} accessibilityRole="button" accessibilityLabel="Retry">
             <Text style={st.btnT}>Tap to retry</Text>
           </Pressable>

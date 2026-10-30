@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Speech from "expo-speech";
 import { resolveVoices, voiceId } from "./voices";
 import { useAudioRecorder, useAudioPlayer, RecordingPresets, AudioModule } from "expo-audio";
-import { chat, activeModelLabel } from "./model";
+import { chat, activeModelLabel, stopGeneration } from "./model";
 import { ensureWhisper, transcribe } from "./stt";
 import { useSettings, getSettings, setSetting } from "./settings";
 import { L, useLang } from "./i18n";
@@ -341,14 +341,36 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     // the user's words; it runs without the model. Prefer it over the plain tool shortcut when
     // it maps to a real action; otherwise fall back to the tool designation.
     const cap = detectCapability(q);
-    if (cap && capabilityAction(cap).kind !== "none") { setCapHint(cap); setToolHint(null); }
+    const hasCapAction = !!cap && capabilityAction(cap).kind !== "none";
+    if (hasCapAction) { setCapHint(cap); setToolHint(null); }
     else { setCapHint(null); setToolHint(detectTool(q)); }
     clearError();
-    setInput(""); setBusy(true); setStream("");
+    setInput("");
+    setMsgs((m) => [...m, { role: "user", text: q }]);
+    // Deterministic capability: the app performs it via the chip below. Do NOT run the model here
+    // — it doesn't know the action fired and would phrase a contradicting reply ("I can't set
+    // timers"). Acknowledge with a fixed line that points at the chip, speak it, and stop.
+    if (hasCapAction && cap) {
+      const line = cap.label + L(" — tap below to run it.");
+      setMsgs((m) => [...m, { role: "assistant", text: line }]);
+      Speech.stop();
+      const gen = ++speechGeneration.current;
+      setSpeaking(true);
+      const say = speakable(line);
+      if (say) Speech.speak(say, {
+        ...speakOpts(),
+        onDone: () => { if (speechGeneration.current === gen) setSpeaking(false); },
+        onStopped: () => { if (speechGeneration.current === gen) setSpeaking(false); },
+        onError: () => { if (speechGeneration.current === gen) setSpeaking(false); },
+      });
+      else setSpeaking(false);
+      sendLock.current = false;
+      return;
+    }
+    setBusy(true); setStream("");
     // Pass the running conversation so the buddy follows context (owner memory is
     // injected by the model layer). Captured before we append the new user turn.
     const history = msgs.map((m) => ({ role: m.role, content: m.text }));
-    setMsgs((m) => [...m, { role: "user", text: q }]);
     try {
       Speech.stop();
       const gen = ++speechGeneration.current;
@@ -356,6 +378,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
       let spokenLen = 0;
       const speakChunk = (chunk: string) => { const say = speakable(chunk); if (say) Speech.speak(say, speakOpts()); };
       const a = await chat(q, settings.voice, history, (partial) => {
+        if (speechGeneration.current !== gen) return; // Stop was pressed — ignore late tokens
         setStream(partial);
         // Speak complete sentences as they stream so the voice follows the text
         // instead of waiting for the whole reply to finish generating.
@@ -369,7 +392,7 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
       setStream("");
       setMsgs((m) => [...m, { role: "assistant", text: a }]); setBusy(false);
       const tail = a.slice(spokenLen);
-      if (tail.trim()) speakChunk(tail);
+      if (speechGeneration.current === gen && tail.trim()) speakChunk(tail);
       // Flip the Speaking indicator off once the whole queued utterance drains.
       const drain = setInterval(async () => {
         try {
@@ -392,7 +415,11 @@ export default function VoiceChat({ seed, seedNonce, onOpenGames, onOpenTools, o
     }
   }
 
-  function stopSpeak() { speechGeneration.current += 1; Speech.stop(); setSpeaking(false); }
+  function stopSpeak() {
+    // Stop = stop everything: bump the generation (silences queued TTS + the drain watcher),
+    // halt playback, AND abort the in-flight model generation (not just the audio).
+    speechGeneration.current += 1; Speech.stop(); setSpeaking(false); setBusy(false); setStream(""); void stopGeneration();
+  }
 
   async function micPress() {
     if (busy || micTransitionLock.current) return;

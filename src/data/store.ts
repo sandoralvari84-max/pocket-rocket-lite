@@ -47,7 +47,17 @@ export function createCollection<T extends Entity>(name: string): Collection<T> 
   const listeners = new Set<() => void>();
 
   const emit = () => listeners.forEach((l) => l());
-  const persist = () => { ensureDir().then(() => FileSystem.writeAsStringAsync(FILE, JSON.stringify(cache)).catch(() => {})); };
+  // Serialize writes so concurrent mutations can't clobber each other's file write, and always
+  // finish with the LATEST cache persisted. (Fire-and-forget overlapping writes = last-write-wins race.)
+  let writing = false, rewrite = false;
+  async function doWrite(): Promise<void> {
+    if (writing) { rewrite = true; return; }
+    writing = true;
+    try { await ensureDir(); await FileSystem.writeAsStringAsync(FILE, JSON.stringify(cache)); } catch {}
+    writing = false;
+    if (rewrite) { rewrite = false; void doWrite(); }
+  }
+  const persist = () => { void doWrite(); };
 
   async function load(): Promise<T[]> {
     if (loaded) return cache;

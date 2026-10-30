@@ -18,7 +18,14 @@ export async function askExpert(question: string, nicheId?: string): Promise<Exp
     return { answer: "I don’t have anything on that in my knowledge packs yet. Try different words, or pick a specific topic.", sources: [], grounded: false };
   }
   if (!ctx) return { answer: "", sources: chunks, grounded: true };
-  const notes = chunks.map((c, i) => `[${i + 1}] ${c.title} › ${c.file} › ${c.heading}\n${c.text}`).join("\n\n");
+  // Keep the notes within the small model's 2048-token window: cap each chunk and the total, so
+  // the retrieved material can't crowd out room for the answer (which would silently un-ground it).
+  const MAX_CHUNK = 500, MAX_TOTAL = 2800;
+  let used = 0;
+  const notes = chunks.map((c, i) => {
+    const body = c.text.length > MAX_CHUNK ? c.text.slice(0, MAX_CHUNK) + "…" : c.text;
+    return `[${i + 1}] ${c.title} › ${c.file} › ${c.heading}\n${body}`;
+  }).filter((nt) => { if (used + nt.length > MAX_TOTAL) return false; used += nt.length; return true; }).join("\n\n");
   const system =
     "You are Pocket Rocket's knowledge assistant. Answer the question USING ONLY the reference notes " +
     "provided. If the notes don't cover it, say you don't have that in your knowledge packs. Be concise " +
@@ -138,7 +145,7 @@ export async function loadModel(): Promise<void> {
       model: pathFor(p),
       n_ctx: Math.min(p.n_ctx, 2048),
       n_gpu_layers: 0,
-      n_threads: 6,
+      n_threads: 4, // cap low: cheap target phones are often quad-core; 6 oversubscribes them (slower + hotter)
       flash_attn_type: "auto",
       n_batch: 512,
     });
@@ -162,6 +169,12 @@ export async function ask(question: string, note?: string): Promise<string> {
     stop: ["<|im_end|>", "<|endoftext|>"],
   });
   return (res.text ?? "").trim();
+}
+
+// Abort an in-flight completion (used by the chat Stop control so Stop cancels generation,
+// not just playback). No-op if nothing is generating. Never throws.
+export async function stopGeneration(): Promise<void> {
+  try { await ctx?.stopCompletion(); } catch {}
 }
 
 export async function releaseModel(): Promise<void> {
